@@ -99,6 +99,7 @@ if (!mount) fail('mount element <div id="app"></div> not found in dist/index.htm
 
 const fragment = [
   `<title>${title}</title>`,
+  // Read by the host this fragment is published to (claude.ai artifacts): the page manages its own side gutters.
   '<meta name="claude:viewport-fit-sides" content="cover">',
   ...styles.map((css) => `<style>${css}</style>`),
   mount,

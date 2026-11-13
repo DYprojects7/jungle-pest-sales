@@ -4,7 +4,7 @@
 the oracle for the differential test (`tests/differential.test.ts`). It was written only from `SPEC.md` and the
 field names in `src/engine/types.ts`, and it holds its own hand-transcribed copy of the section 5 rule values for
 income years 2025, 2026 and 2027. It never imports or reads the TypeScript engine or its rule files. Keep it that
-way: when a rule changes, re-type the value here from the specification (SPEC section 13, step 3).
+way: when a rule changes, re-type the value here from the specification (SPEC section 13, step 4).
 
 Python 3 standard library only.
 

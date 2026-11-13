@@ -3,8 +3,8 @@
 **SRS + CPF Contribution Planner** — tells a Singapore employee how much to put into SRS and CPF cash top-ups
 before 31 December to cut their income tax, and where putting in more stops being worth it.
 
-> Estimate for planning only. Not tax, legal or financial advice, and not affiliated with IRAS or the CPF Board.
-> Check your eligibility and limits with IRAS, the CPF Board and your SRS bank before transferring money.
+> This is an estimate for planning, not tax, legal or financial advice. It is not affiliated with IRAS or the CPF
+> Board. Check your eligibility and limits with IRAS, the CPF Board and your SRS bank before transferring money.
 > CPF top-ups cannot be reversed.
 
 Income year **2026 (Year of Assessment 2027)** is the primary year. 2025 (YA2026) is included for checking
@@ -74,10 +74,12 @@ npm run test:e2e         # browser test of the built page
 ```
 
 Switches: `SGTO_E2E_FILE=release/sg-tax-optimiser.html npm run test:e2e` tests a given file instead of
-`dist/index.html`. The workbook stores its calculated results as at the build day, so the tracked `.xlsx` changes
+`dist/index.html` (run `npm run build` first: the fragment checks are still built from `dist/index.html`);
+`SGTO_E2E_TIMEOUT=<ms>` sets how long a browser step may wait, and `SGTO_RELEASE_DIR=<folder>` points the
+release-workbook checks at another folder. The workbook stores its calculated results as at the build day, so the tracked `.xlsx` changes
 when rebuilt on another day; `SGTO_AS_AT=2026-11-13 npm run build:workbook` reproduces a file byte for byte.
-`VITE_BUY_URL=https://… npm run build` adds one link to the paid workbook on the page (the committed release file
-is built without it).
+`VITE_BUY_URL=https://… npm run build` adds a link to the paid workbook under the plan and in the footer (the
+committed release file is built without it).
 
 The npm scripts use POSIX shell syntax (macOS, Linux, WSL). `npm install` may report audit warnings; they are in
 development tooling only, and nothing in `release/` contains those packages.
@@ -109,7 +111,7 @@ result.warnings;           // cautions to show beside the recommendation
 | Differential test | The TypeScript engine and the independent Python reference agree, field by field, on thousands of random inputs. |
 | Workbook parity | The spreadsheet's formulas, recalculated by LibreOffice, equal the engine's results on more than 300 sets of entries, and its warning lines match the engine's word for word. |
 | Browser test | The built page shows the engine's numbers, reacts to input, follows the calendar, and does not overflow on a phone. |
-| Rule audit | A tax-practitioner review of the model and a claim-by-claim check of every user-facing statement (`docs/RESEARCH.md`). |
+| Rule audit | An automated review of the model from a tax practitioner's point of view, and a claim-by-claim check of every user-facing statement, both working from search extracts of the official pages (`docs/RESEARCH.md`). **It has not been reviewed by a qualified tax adviser.** |
 
 At version 1.0.0: `npm run test:release` runs 1,593 tests with none skipped, the Python reference has 163 tests of
 its own, and the browser test makes 117 checks.
@@ -119,14 +121,15 @@ its own, and the browser test makes 117 checks.
 1. **Open the workbook in desktop Excel and in Google Sheets** and run the checklist in
    [`workbook/README.md`](workbook/README.md). Everything so far was calculated in LibreOffice; nothing here can
    open the file in Excel or Sheets.
-2. **Re-read the primary sources.** Official `*.gov.sg` pages could not be fetched directly when the rules were
+2. **Have a qualified tax adviser look at it, and re-read the primary sources.** The rule audit recorded in
+   `docs/RESEARCH.md` was automated; no qualified person has reviewed the model or the wording. Official `*.gov.sg` pages could not be fetched directly when the rules were
    verified, so each value was confirmed from search extracts of those pages. The pages are listed in the app
    under *Sources* and in `docs/RESEARCH.md`.
 3. **Choose a licence.** `package.json` says `UNLICENSED` (all rights reserved) and the folder carries no licence
    file. If this folder sits inside another repository, that repository's licence does not describe it.
 4. **Review the Terms** at the end of [`release/BUYER-GUIDE.md`](release/BUYER-GUIDE.md).
 5. To measure interest, build the hosted page with a shop or waiting-list address
-   (`VITE_BUY_URL=https://… npm run build:release`): the page then shows one link to the workbook. See `SPEC.md` §12.
+   (`VITE_BUY_URL=https://… npm run build:release`): the page then shows a link to the workbook under the plan and in the footer. See `SPEC.md` §12.
 
 ## Updating for a new year
 
@@ -134,16 +137,20 @@ Rule values live in three places on purpose: the engine, and two independent cop
 in it. Update all three, or the new year gets no cross-checking.
 
 1. Update `SPEC.md` §5 with the new figures and sources.
-2. Copy `src/engine/rules/2026.ts` to the new year and update the values; mark `status: 'projected'` until every
+2. Copy the latest rules file (now `src/engine/rules/2027.ts`) to the new year and update the values; mark `status: 'projected'` until every
    value is confirmed from IRAS / CPF Board / MOF. Review `src/engine/rules/shared.ts` and the dated sentences in
    `src/engine/facts.ts`.
 3. Register the year in `src/engine/rules/index.ts`.
-4. Mirror the values in `reference/sgtax_reference.py` and in `tests/support/specModel.ts`, and update the tests
-   that pin the list of supported years.
-5. When the primary year rolls over, check the year wording in `src/web/text.ts` and the release file name
-   wherever this README, the tests and `release/BUYER-GUIDE.md` name it.
-6. Run `npm run test:release`, `npm run build:release`, `npm run build:workbook -- --year <year>` and
-   `npm run test:e2e`, then open the workbook in Excel and Google Sheets.
+4. Mirror the values in `reference/sgtax_reference.py` and in `tests/support/specModel.ts`; add the year to the
+   generators in `tests/support/generators.ts` (the `year` recipe and `supportedYear`), or no random input will
+   ever use it; and update every test that lists the years (`grep -rn "2025, 2026, 2027" tests reference`): some
+   fail when a year is added, others pass and simply leave the new year untested.
+5. When the primary year rolls over, check the year wording in `src/web/text.ts`, `DEFAULT_INCOME_YEAR` in
+   `workbook/build.ts`, and the release file name wherever this README, the tests and `release/BUYER-GUIDE.md`
+   name it.
+6. Run `npm run build:release` and `npm run build:workbook -- --year <year>`, then `npm run test:release` and
+   `npm run test:e2e` (the strict tests compare the release files with a fresh build, so build first), then open
+   the workbook in Excel and Google Sheets.
 
 Things to re-check every year: the Budget (rates, rebates, relief caps), the CPF contribution rate table and wage
 ceilings, the retirement sums and Basic Healthcare Sum, the matched top-up amounts, and the SRS caps.

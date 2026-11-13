@@ -197,9 +197,10 @@ export function lockUpFacts(rules: YearRules, profile: FactsProfile): LockUpFact
           ? 'Half of the withdrawal is taxable if you take it at your retirement age, or in one full withdrawal ' +
             'after keeping the account for 10 years (the rule for foreigners). If you have left Singapore by ' +
             'then, you are taxed as a non-resident: 15% or the resident rates, whichever is higher, on the ' +
-            `taxable half, withheld by the bank. That is at least ${atLeast} per dollar you take out. Any ` +
-            `earlier, the whole amount is taxed and there is a 5% penalty: at least ${early} per dollar. If you ` +
-            `are still a tax resident with no other income, ${taxFree} a year comes out tax-free.`
+            `taxable half. That is at least ${atLeast} per dollar you take out. The bank withholds tax first, ` +
+            'usually 24% of the taxable half, and IRAS refunds any excess. Any earlier, the whole amount is ' +
+            `taxed and there is a 5% penalty: at least ${early} per dollar for a non-resident. If you are still ` +
+            `a tax resident at your retirement age, with no other income, ${taxFree} a year comes out tax-free.`
           : 'Half of each withdrawal at or after your retirement age is taxable, and you can spread withdrawals ' +
             'over up to 10 years. If you are a Singapore tax resident then, with no other income, ' +
             `${taxFree} a year comes out tax-free. If you have left Singapore, there is no tax-free amount: ` +
@@ -301,8 +302,9 @@ export function transferCautions(
         'A voluntary contribution to all three CPF accounts earns no tax relief.',
     );
     out.push(
-      'For a family top-up, check that the family member qualifies and count only what the Government does not ' +
-        `match: ${matchedParts(rules)} earns you no relief. A top-up cannot be reversed.`,
+      'For a family top-up, check that the family member qualifies and ask them how much top-up still earns ' +
+        'relief: from 55 the CPF Board accepts more than that. Count only what the Government does not match: ' +
+        `${matchedParts(rules)} earns you no relief. A top-up cannot be reversed.`,
     );
   }
   if (profile.residency === 'foreigner') {

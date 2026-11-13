@@ -51,8 +51,8 @@ tax, and where does putting in more stop being worth it?*
 - **How far down the ladder.** By default the plan stops when an extra dollar would save less than 7 cents
   (11.5 cents for foreigners). Choose a different floor if you want to save more tax or lock away less cash.
 - **Cash limit.** Enter the most you can spare this year and the plan stays inside it.
-- **Which scheme first.** SRS first keeps more flexibility; CPF first earns a guaranteed rate; family first helps
-  a parent before yourself.
+- **Which scheme first.** SRS first keeps more flexibility; CPF first earns the CPF rate (at least 4% a year until
+  the end of 2027); family first helps a parent before yourself.
 
 ## Next year
 

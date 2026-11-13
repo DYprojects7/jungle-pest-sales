@@ -7,13 +7,14 @@ How the rule values in `src/engine/rules/` were established. Compiled 13 Novembe
 1. **First pass** — one researcher per rule domain collected claims with a source URL, a supporting quote and a confidence level (`research-*.json`).
 2. **Second pass** — an independent checker per domain re-checked the specific values the engine depends on against official domains (iras.gov.sg, cpf.gov.sg, mof.gov.sg, mom.gov.sg, moh.gov.sg) and returned a verdict per value (`verify2-*.json`).
 3. Corrections from the second pass were applied to the rule data and the spec.
-4. **Final audit** — once the product was built, a tax-practitioner review of the model and a claim-by-claim check
-   of every user-facing statement (229 claims across the page, the workbook, the warnings and the READMEs) were run
+4. **Final audit** — once the product was built, an automated review of the model from a tax practitioner's point
+   of view and a claim-by-claim check of every user-facing statement (229 claims across the page, the workbook, the warnings and the READMEs) were run
    independently (`audit-domain.json`, `audit-facts.json`). They found **no wrong rate, cap, ceiling or relief
    amount**, and three situations in which a recommended dollar could earn no relief or lose money: SRS for a
    foreigner who later leaves Singapore, family top-ups matched by the Government, and top-ups from age 55 above the
    Full Retirement Sum. Each is now handled in the model or stated beside the recommendation (SPEC §5.4, §6.3, §6.5,
    §6.11), and the wording corrections were applied to `src/engine/facts.ts`, the warnings and the relief helper.
+   None of this was done by a qualified tax adviser: it is a careful automated cross-check, not professional advice.
 
 ### Limits of this research
 
@@ -158,7 +159,7 @@ Additional findings:
 - **srs-withdrawal** — Core rule confirmed, but the candidate's list of exceptions hides that each has a different taxable share (see value) - a calculator that applies "100% taxable" or "0% taxable" to all exceptions would be wrong. Bankruptcy is still 100% taxable; only the 5% penalty is waived. The 5% penalty is non-refundable and separate from withholding tax. Foreigner route requires all three conditions: non-SC/SPR for 10 continuous years before withdrawal, account held 10+ years from first contribution, and a one-time full withdrawal.
 - **srs-40k** — IRAS withdrawals page gives the same worked example (S$40,000 withdrawn, S$20,000 taxable, tax payable S$0 for YA 2026) and says a member "can withdraw up to $400,000 without incurring any tax" over the period. Depends on the first S$20,000 of chargeable income staying at 0% and on the member being taxed at resident rates.
 - **srs-interest** — No government page states the 0.05% rate; it comes from the operators (DBS article above; OCBC article titled "Your SRS is earning just 0.05% p.a."; UOB guide). Some of these articles are dated 2024-2025, so label the rate as "currently about 0.05% p.a., set by the bank". T-bills, SGS bonds and SSBs with SRS funds confirmed by MAS (official): "applications for SGS bonds and T-bills using SRS funds can be made electronically, via SRS Operators' internet banking portals" (min S$1,000; SSB min S$500; S$2 transaction fee). Insurance is limited to single-premium products per DBS.
-- **srs-employer** — Not checked in the searches allowed: whether employer contributions share the member's single annual cap (15,300 / 35,700). I believe they do, but no official quote was retrieved - treat as unverified if the calculator models it.
+- **srs-employer** — Not checked in the searches allowed: whether employer contributions share the member's single annual cap (15,300 / 35,700). I believe they do, but no official quote was retrieved - treat as unverified if the calculator models it. *Later check (final gate, 13 Nov 2026, from a search extract of the IRAS "SRS contributions" page):* "You and/or your employer (on your behalf) may contribute … subject to the maximum SRS contribution for the year"; an employer's contribution is part of the employee's remuneration, is taxable and earns the relief.
 - **srs-foreigner-relief** — Foreigners must submit the Declaration Form for SRS (For Foreigners) to their operator every year for the higher cap to apply; IRAS warns of penalties for excess contributions on a wrongful declaration. A foreigner leaving Singapore who wants relief on contributions made in the year of departure must obtain an SRS statement (for tax clearance) from the operator.
 
 </details>
@@ -172,7 +173,7 @@ Additional findings:
 - The IRAS SRS contributions page was still returned with YA 2026 wording ("by 31 Dec 2025 to qualify for SRS Relief... for YA 2026"); the YA 2027 date of 31 Dec 2026 follows from the general rule and the DBS page rather than from a YA 2027-specific IRAS sentence.
 - The 0.05% p.a. rate on uninvested SRS cash is set by the SRS operators and appears only on bank sites; no IRAS/MOF page states it. Present it as indicative, not statutory.
 - Foreigner cap mechanics (IRAS): foreigners must file the Declaration Form for SRS (For Foreigners) with their operator every year to get the S$35,700 cap; the cap is pro-rated if they become SC/PR mid-year; penalties may apply for excess contributions on a wrongful declaration.
-- Withdrawals by foreigners and SPRs fall under a separate withholding-tax regime; the search summary of the IRAS withholding pages reported a 24% rate. I did not verify the rate or its conditions in detail - treat as unverified.
+- Withdrawals by foreigners and SPRs fall under a separate withholding-tax regime; the search summary of the IRAS withholding pages reported a 24% rate. I did not verify the rate or its conditions in detail - treat as unverified. *Later check (final gate, 13 Nov 2026, from search extracts of the IRAS withholding-tax pages):* the bank withholds 24% of the taxable part, or 15% when the year's withdrawals are no more than S$200,000 and there is no other income; IRAS then settles the final tax at 15% or the resident rates, whichever is higher, and refunds any excess (IRAS example: S$300,000 withdrawn, S$36,000 withheld, S$22,500 final tax).
 - The 5% premature-withdrawal penalty is non-refundable and separate from any withholding tax (IRAS).
 - Future retirement-age rise to 65 (re-employment 70): search results conflicted on timing (MOM tripartite guidelines say "by 2030"; other results pointed to 1 Jan 2029). Not checked. It would only matter for first SRS contributions made after that date and does not affect 2026 or 2027 contributors.
 - No SRS change from Budget 2026 was found in two searches covering mof.gov.sg and singaporebudget.gov.sg, and MOF's 8 Jan 2026 statement only says the scheme is reviewed regularly. The Budget 2026 annex itself was not read, so the 2027 (YA2028) projection should label the caps as "assumed unchanged".

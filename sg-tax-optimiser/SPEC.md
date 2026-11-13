@@ -550,9 +550,9 @@ sentence is omitted when its figure is 0. `FOREIGNER_NO_CPF` mentions the SRS ca
 
 The cautions that cover what the tool cannot see (messages are normative; `{…}` are figures from the rules):
 
-- `TAX_RESIDENCY_CHECK` — "You worked here for half the year or less. You are a tax resident only if you were in
-  Singapore for at least 183 days (IRAS has further rules for stays that span two years). Non-residents get no
-  reliefs, so this plan would not apply."
+- `TAX_RESIDENCY_CHECK` — "You worked here for half the year or less. You are a tax resident only if you stayed or
+  worked in Singapore for at least 183 days (IRAS also counts a stay of 183 days that spans two years, and a work
+  pass valid for a year or more). Non-residents get no reliefs, so this plan would not apply."
 - `SRS_NON_RESIDENT_WITHDRAWAL` — "If you have left Singapore when you withdraw, SRS is taxed as a non-resident's:
   at least 7.5 cents per dollar withdrawn at retirement age or under the 10-year rule for foreigners, and at least
   20 cents if earlier." When `lowValueAmount > 0` it adds " {lowValueAmount} of this plan saves less than 7.5
@@ -560,8 +560,8 @@ The cautions that cover what the tool cannot see (messages are normative; `{…}
   ladder tiers (§6.7) whose rate is below 0.075.
 - `CPF_SELF_ROOM_UNCONFIRMED` — "From age 55 the CPF Board accepts top-ups up to the Enhanced Retirement Sum
   ({ERS}), but only the part up to the Full Retirement Sum ({FRS}) earns relief, and a top-up cannot be reversed.
-  Your own CPF is left out until you enter how much you can still top up with relief (S$0 if you have set aside
-  the Full Retirement Sum)."
+  Your own CPF is left out until you enter how much you can still top up with relief (S$0 if you have reached this
+  year's Full Retirement Sum and your MediSave is full)."
 - `AGE_55_PLUS_TOPUP` — "From age 55, cash top-ups go to your Retirement Account and earn relief only up to the
   Full Retirement Sum ({FRS} in {year}). The plan uses the room you entered ({roomToLimit}); check it against your
   CPF Retirement dashboard."
@@ -686,8 +686,9 @@ deadline-passed state (past tense, no instruction to transfer, an offer to plan 
      labels state a figure, not a judgement ("worth it").
    - *Cash limit*: optional maximum to lock away this year. Because it decides whether the answer is one the person
      can afford, it is asked near the top ("How much cash can you spare this year?"), not at the end of the form.
-   - *Which first?* **Flexibility first** (SRS → CPF self → family) *(default)*, **Guaranteed interest first**
-     (CPF self → SRS → family), **Family first** (family → SRS → CPF self). One-line explanation of each.
+   - *Which first?* **Flexibility first** (SRS → CPF self → family) *(default)*, **CPF interest first**
+     (CPF self → SRS → family), **Family first** (family → SRS → CPF self). One-line explanation of each. No option
+     is named for a guarantee: the CPF floor rate is stated with the date it runs to (§5.4).
 
 Numeric fields accept digits and thousands separators (also a trailing "k", dots used as thousands separators and
 full-width digits), show an "S$" prefix, select-all on focus, and clamp to their legal range with an inline
@@ -706,7 +707,8 @@ tagged "Example value", and the panel names which example figures are still in u
    S$12,400 of your income is still taxed at 11.5%." / "You have reached the S$80,000 overall relief cap.").
    When the recommendation is S$0, the card explains why and offers the *Every tax dollar* view.
    The card also says **how long** the cash is locked, from `lockUpHorizon` (§7): "SRS: locked until 64, about 29
-   years. CPF: paid out monthly from 65, about 30 years" for a 35-year-old, only for schemes in the plan. The age
+   years. CPF: paid out monthly from 65, about 30 years. A MediSave top-up is not paid out: it can only pay for
+   healthcare." for a 35-year-old, only for schemes in the plan. The age
    is the one a first SRS contribution made this year locks in, so the card adds "If you have paid into SRS
    before, your SRS age was set by your first contribution and may be lower than 64.", and for a foreigner the SRS
    line ends "or until you can use the 10-year rule for foreigners if that comes first". When a foreigner's S$0
@@ -747,8 +749,8 @@ a CPF cash top-up is (cash paid into your own or a family member's Special or Re
 in the CPF app or website — not a "contribution to my three accounts"), and that both are claimed automatically:
 the bank and the CPF Board report them to IRAS.
 
-When the build is given a shop address (`VITE_BUY_URL`), the page shows one link to the paid workbook
-("Get the Excel / Google Sheets workbook") under the card and in the footer, so click-throughs can be counted by the
+When the build is given a shop address (`VITE_BUY_URL`), the page shows a link to the paid workbook
+("Get the Excel / Google Sheets workbook") under the card and again in the footer, so click-throughs can be counted by the
 shop or a link shortener; without it the page shows no link. The page itself still records nothing.
 
 A **Copy summary** button copies a plain-text summary of the plan (clipboard write inside the click handler, with
@@ -815,8 +817,8 @@ Generated by `npm run build:workbook` (`workbook/build.ts`, ExcelJS) from the sa
      deadline follows the income year, and a check line — repeated at the top of the Planner — flags a tax table that
      is out of order or incomplete. A personal income tax rebate rate and cap (0 by default) are editable cells.
 - **Same story as the page.** The Planner states the recommendation as the same sentence as the page ("Put S$X
-  into SRS and S$Y into your CPF as a cash top-up. You save S$Z in tax."), shows the lock-up horizon and the
-  affordability note of §8.4, uses the page's names for the schemes and options and its rounding, and never shows
+  into SRS and S$Y into your CPF as a cash top-up. You save S$Z in tax."), shows the lock-up horizon (the
+  Monthly Plan sheet carries the affordability note of §8.4, as the page's monthly plan does), uses the page's names for the schemes and options and its rounding, and never shows
   a "further saving" figure the person cannot reach. Salary can be entered per month or per year (a dropdown; a
   yearly figure is split exactly as the page does: twelve equal whole-dollar months, the leftover dollars counted
   with the extra pay). The "how far down the ladder" cell opens on the page's default for the residency chosen
@@ -829,7 +831,7 @@ Generated by `npm run build:workbook` (`workbook/build.ts`, ExcelJS) from the sa
   (tax table, deadline year) come before the engine's warnings.
 - **Parity:** for the same inputs the workbook's CPF contribution, chargeable income, tax before/after, recommended
   amounts per scheme and tax saved equal the engine's (to the cent).
-- **Verification:** `tests/workbook.test.ts` writes a set of input profiles (more than 200, including every boundary
+- **Verification:** `tests/workbook.test.ts` writes a set of input profiles (more than 300, including every boundary
   in §6) into the workbook, recalculates each with headless LibreOffice, reads the results back through named ranges
   and compares them with `plan()` — figures to the cent and Planner warning lines word for word. It also edits the
   tax table inside LibreOffice (rows inserted and removed) and compares the shipped release file with a fresh build.
@@ -889,12 +891,13 @@ terms that ship with the files. A competitor sells a comparable Excel optimiser 
 conversion low.
 
 **Measuring interest before investing further.** Build the hosted page with `VITE_BUY_URL` pointing at the shop
-listing (or a waiting-list form): the click-through rate on that one link is the test. No payment, licence-key or
+listing (or a waiting-list form): the click-through rate on that link is the test. No payment, licence-key or
 analytics code is part of v1.
 
 **Before charging:** open the workbook in desktop Excel and in Google Sheets and run the checklist in
 `workbook/README.md` (it has only been calculated in LibreOffice); make the Google Sheets copy link from the
-imported file; choose a licence (the repository states none); re-read the primary IRAS and CPF Board pages listed
+imported file; choose a licence (`package.json` says `UNLICENSED` and this folder has no licence file; a licence file at the root
+of an enclosing repository does not describe this folder); re-read the primary IRAS and CPF Board pages listed
 in docs/RESEARCH.md, which could not be fetched directly when the rules were verified.
 
 ---
@@ -905,18 +908,23 @@ Rule values live in **three** places on purpose — the engine, and two independ
 mistake in it. A new year means updating all three, or the new year silently gets no cross-checking.
 
 1. Update §5 of this spec with the new figures and their sources.
-2. Copy `src/engine/rules/2026.ts` to the new year and update the values (tax table, CPF ceilings and rates,
+2. Copy the latest rules file (now `src/engine/rules/2027.ts`) to the new year and update the values (tax table, CPF ceilings and rates,
    retirement sums, BHS, matched top-up amounts, caps, deadline, sources); mark `status: 'projected'` until every
    value is confirmed. Review `src/engine/rules/shared.ts` (relief catalogue amounts, PR rate tables, source links)
    and the dated sentences in `src/engine/facts.ts` (the SRS retirement-age history, the interest floor's end date).
 3. Register the year in `src/engine/rules/index.ts`.
 4. Mirror the values in `reference/sgtax_reference.py` (its own copy) and in `tests/support/specModel.ts` (its own
-   copy, plus its list of years), and update the tests that pin the list of supported years.
+   copy, plus its list of years); add the year to the generators in `tests/support/generators.ts` (the `year`
+   recipe and `supportedYear`), or no random input will ever use it; and update every test that lists the years
+   (`grep -rn "2025, 2026, 2027" tests reference`): some fail when a year is added, others pass and simply leave
+   the new year untested.
 5. When the **primary** year rolls over (for example 2026 → 2027): the example and default year follow
-   `defaultIncomeYear`, but check the year wording in `src/web/text.ts`, and the release file name
-   (`SG-Tax-Optimiser-YA<year>.xlsx`) wherever README, the tests and `release/BUYER-GUIDE.md` name it.
-6. Run `npm run test:release`, `npm run build:release`, `npm run build:workbook -- --year <year>` and
-   `npm run test:e2e`; then open the workbook in Excel and Google Sheets (`workbook/README.md`).
+   `defaultIncomeYear`, but check the year wording in `src/web/text.ts`, `DEFAULT_INCOME_YEAR` in
+   `workbook/build.ts`, and the release file name (`SG-Tax-Optimiser-YA<year>.xlsx`) wherever README, the tests and
+   `release/BUYER-GUIDE.md` name it.
+6. Run `npm run build:release` and `npm run build:workbook -- --year <year>`, then `npm run test:release` and
+   `npm run test:e2e` (the strict tests compare the release files with a fresh build, so build first); then open
+   the workbook in Excel and Google Sheets (`workbook/README.md`).
 
 ## 14. Future work
 

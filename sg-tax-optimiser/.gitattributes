@@ -1,1 +1,2 @@
 *.xlsx binary
+release/*.html -text
