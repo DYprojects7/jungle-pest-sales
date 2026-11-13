@@ -1,9 +1,6 @@
 import { render } from 'preact';
-import { useState } from 'preact/hooks';
+import { App } from './App';
+import './styles.css';
 
-function App() {
-  const [n, setN] = useState(0);
-  return <button onClick={() => setN(n + 1)}>scaffold {n}</button>;
-}
-
-render(<App />, document.getElementById('app')!);
+const mount = document.getElementById('app');
+if (mount) render(<App />, mount);
