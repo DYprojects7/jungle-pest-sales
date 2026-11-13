@@ -484,10 +484,11 @@ async function main() {
       await page.locator('#simulator').evaluate((el) => (el.open = true));
       await page.locator('#simulatorStep').selectOption('2000');
       await choose(page, 'order-interest');
+      expectTrue((await flat(page, 'reco-headline')).startsWith('Put S$8,000 into your CPF and S$15,300 into SRS'), 'the order was applied');
       await page.locator('#incomeYear').selectOption('2027');
+      expectEqual(await text(page, 'ya'), 'YA2028', 'the income year was applied');
       expectEqual(await count(page, '[data-testid="example-flag"]'), 1, 'still labelled as the example');
       expectEqual(await count(page, '[data-testid="saved-flag"]'), 0, '"Your numbers" label');
-      expectTrue((await flat(page, 'reco-headline')).startsWith('Put S$8,000 into your CPF and S$15,300 into SRS'), 'the order was applied');
       const stored = await page.evaluate(() => JSON.parse(window.localStorage.getItem('sgto:v1')));
       expectEqual(stored.ui, null, 'the example is not stored as somebody\'s numbers');
       const why = (await page.locator('#order-flexibility-detail').innerText()).replace(/\s+/g, ' ');
@@ -803,6 +804,31 @@ async function main() {
       await page.waitForTimeout(200);
     });
 
+    await check('A.2 at 1024px, beside the narrower rail: no table scrolls sideways, the simulator included', async () => {
+      await page.setViewportSize({ width: 1024, height: 768 });
+      await page.locator('#simulator').evaluate((el) => (el.open = true));
+      await page.waitForTimeout(250);
+      const rail = await page.evaluate(() => Math.round(document.querySelector('.rail').getBoundingClientRect().width));
+      expectEqual(rail, 336, 'rail width between 960px and 1199px');
+      expectEqual((await scrollingTables(page)).join('; '), '', 'tables that scroll at 1024px');
+      expectEqual(await count(page, '[data-testid="scroll-hint"]'), 0, 'scroll hints at 1024px');
+      // Three scheme columns do not fit this column as a table, so the comparison is restacked in full.
+      expectEqual(
+        await page.locator('[data-testid="scenario-table"]').evaluate((t) => t.parentElement.getAttribute('data-stacked')),
+        'rows',
+        'the comparison at 1024px with three schemes',
+      );
+      const plan = (await page.locator('[data-scenario="recommended"]').innerText()).replace(/\s+/g, ' ');
+      expectTrue(/Tax saved S\$3,000\.00/.test(plan) && /Wasted dollars None/.test(plan), `the plan block reads "${plan}"`);
+      const o = await overflow(page);
+      expectTrue(o.scrollWidth <= o.innerWidth, `scrollWidth ${o.scrollWidth} > innerWidth ${o.innerWidth}`);
+      await page.screenshot({ path: path.join(SHOTS, 'desktop-1024-a2.png'), fullPage: true });
+      // And with the opening example, at the bottom of the two-column range, every table is still a table.
+      await page.locator('#simulator').evaluate((el) => (el.open = false));
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await page.waitForTimeout(200);
+    });
+
     await check('ladder chart: every label stays inside the drawing (A.2, and S$8,000 with SRS off)', async () => {
       const clipped = () =>
         page.evaluate(() => {
@@ -1072,10 +1098,87 @@ async function main() {
         });
         expectTrue(edges.fact >= 16, `fact text starts ${edges.fact}px from the screen edge`);
         expectEqual(edges.fact, edges.heading, 'facts and their row heading should share a left edge');
-        const box = p.locator('[data-testid="ladder-table"]').locator('xpath=ancestor::div[contains(@class,"table-scroll")]');
+        await p.locator('#simulator').evaluate((el) => (el.open = true));
+        await p.waitForTimeout(200);
+        const box = p.locator('[data-testid="simulator-table"]').locator('xpath=ancestor::div[contains(@class,"table-scroll")]');
         expectEqual(await box.getAttribute('tabindex'), '0', 'a scrolling table box should be a tab stop');
         expectEqual(await box.getAttribute('role'), 'region', 'a scrolling table box should be a region');
         expectTrue(((await box.getAttribute('aria-label')) || '').length > 0, 'a scrolling table box should be named');
+      });
+
+      await check(`phone 390px, ${scheme}: tables that do not fit are restacked in full; the one that scrolls says so`, async () => {
+        // Every figure of the ladder, the comparison and the band table is on screen: nothing starts off to the right.
+        const cut = await p.evaluate(() => {
+          const out = [];
+          for (const id of ['ladder-table', 'scenario-table', 'monthly-table', 'band-table', 'working-table', 'facts-table']) {
+            const table = document.querySelector(`[data-testid="${id}"]`);
+            for (const cell of table.querySelectorAll('tbody th, tbody td, tfoot th, tfoot td')) {
+              const r = cell.getBoundingClientRect();
+              if (r.width > 0 && (r.right > window.innerWidth + 0.5 || r.left < -0.5)) out.push(`${id}: ${cell.textContent.slice(0, 24)}`);
+            }
+          }
+          return out;
+        });
+        expectEqual(cut.slice(0, 4).join(' | '), '', 'cells that start or end off screen');
+        const stacked = (id) => p.locator(`[data-testid="${id}"]`).evaluate((t) => t.parentElement.getAttribute('data-stacked'));
+        expectEqual(await stacked('scenario-table'), 'rows', 'the comparison on a phone');
+        expectEqual(await stacked('ladder-table'), 'rows', 'the ladder figures on a phone');
+        const plan = (await p.locator('[data-scenario="recommended"]').innerText()).replace(/\s+/g, ' ');
+        expectTrue(/^Your plan Recommended Tax saved S\$2,679\.50 Cash locked away S\$23,300/.test(plan), `the plan block reads "${plan}"`);
+        expectTrue(/Wasted dollars None/.test(plan) && /Tax S\$3,959\.50/.test(plan), 'the plan block should carry every column');
+        // Restacked tables keep their table semantics for screen readers.
+        expectEqual(await p.locator('[data-testid="scenario-table"]').getAttribute('role'), 'table', 'role of a restacked table');
+        expectEqual(await p.locator('[data-testid="scenario-table"] tbody td').first().getAttribute('role'), 'cell', 'role of its cells');
+        // The simulator is 25 rows of eight figures: it scrolls, shades the side with more, and says so.
+        const sim = p.locator('[data-testid="simulator-table"]');
+        const wrap = sim.locator('xpath=ancestor::div[contains(@class,"table-wrap")]');
+        expectEqual(await wrap.getAttribute('data-more-right'), 'true', 'shading on the side with more columns');
+        expectEqual(await wrap.getAttribute('data-more-left'), null, 'shading on the left before scrolling');
+        const hint = wrap.locator('xpath=following-sibling::p[@data-testid="scroll-hint"]');
+        expectTrue(/Scroll sideways/.test(await hint.innerText()), 'the line that says the table scrolls');
+        const heads = await sim.locator('thead th').allInnerTexts();
+        expectEqual(heads.slice(0, 3).map((h) => h.replace(/\s+/g, ' ').trim()).join(' | '), 'Extra contribution | This step saves | Per dollar (cents)', 'the first columns of the simulator');
+        const firstTwo = await sim.locator('thead th').evaluateAll((cells) => cells.slice(0, 3).every((c) => c.getBoundingClientRect().right <= window.innerWidth));
+        expectTrue(firstTwo, 'what each step saves should be on screen without scrolling');
+        await sim.locator('xpath=ancestor::div[contains(@class,"table-scroll")]').evaluate((el) => (el.scrollLeft = el.scrollWidth));
+        await p.waitForFunction(() => document.querySelector('[data-testid="simulator-table"]').closest('.table-wrap').getAttribute('data-more-right') === null, null, { timeout: 2000 });
+        await sim.evaluate((el) => el.closest('#simulator').scrollIntoView());
+        await p.screenshot({ path: path.join(SHOTS, `phone-${scheme}-simulator.png`) });
+        await p.locator('#simulator').evaluate((el) => (el.open = false));
+        const o = await overflow(p);
+        expectTrue(o.scrollWidth <= o.innerWidth, `scrollWidth ${o.scrollWidth} > innerWidth ${o.innerWidth}`);
+      });
+
+      await check(`phone 390px, ${scheme}: thumb-sized targets, and the whole bottom bar goes to the plan`, async () => {
+        const height = (selector) => p.locator(selector).first().evaluate((el) => Math.round(el.getBoundingClientRect().height));
+        expectTrue((await height('label[for="theme-dark"]')) >= 40, `theme segment is ${await height('label[for="theme-dark"]')}px tall`);
+        expectTrue((await height('.jump-link')) >= 40, `section link is ${await height('.jump-link')}px tall`);
+        await p.locator('[data-testid="toggle-inputs"]').click();
+        expectTrue((await height('label[for="payMode-annual"]')) >= 40, `Monthly/Annual segment is ${await height('label[for="payMode-annual"]')}px tall`);
+        expectTrue((await height('label[for="reliefMode-itemised"]')) >= 40, `One total/Itemise segment is ${await height('label[for="reliefMode-itemised"]')}px tall`);
+        expectTrue((await height('label[for="useSrs"]')) >= 40, `scheme label is ${await height('label[for="useSrs"]')}px tall`);
+        expectTrue((await height('details.more > summary')) >= 40, `"More options" is ${await height('details.more > summary')}px tall`);
+        // A tap just left of the tick box still lands on its label.
+        const tick = await p.locator('#useCpfSelf').boundingBox();
+        await p.touchscreen.tap(tick.x + tick.width + 4, tick.y + tick.height + 8);
+        expectTrue(!(await p.locator('#useCpfSelf').isChecked()), 'a tap beside the tick box should switch the scheme off');
+        await p.locator('#useCpfSelf').tap();
+        expectTrue(await p.locator('#useCpfSelf').isChecked(), 'a tap on the tick box itself should switch it back on');
+        await resetToExample(p);
+        await p.locator('[data-testid="toggle-inputs"]').click();
+        // Anywhere on the bar, not only its first line.
+        await p.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+        await barMain.waitFor({ state: 'visible', timeout: 3000 });
+        const fine = await p.locator('[data-testid="bar-fine"]').boundingBox();
+        await p.touchscreen.tap(fine.x + 60, fine.y + fine.height / 2);
+        await p.waitForFunction(
+          () => {
+            const r = document.getElementById('recommendation').getBoundingClientRect();
+            return r.top < window.innerHeight * 0.6 && r.bottom > 0;
+          },
+          null,
+          { timeout: 5000 },
+        );
       });
 
       await check(`phone 390px, ${scheme}: inputs open without overflow, still none at 360px`, async () => {
@@ -1252,6 +1355,62 @@ async function main() {
       await soon.context.close();
     });
 
+    await check('a tab left open follows the calendar: the countdown, the last day, then the deadline passed', async () => {
+      const open = await newPage(browser, { width: 390, height: 844, label: 'open-tab', touch: true, now: new Date('2026-12-20T22:00:00+08:00') });
+      const p = open.page;
+      expectTrue(/11 days left to transfer/.test(await flat(p, 'reco-deadline')), `on 20 December the card reads "${await flat(p, 'reco-deadline')}"`);
+      await p.locator('[data-testid="toggle-inputs"]').click();
+      await setField(p, 'salary', '9000');
+      await p.locator('[data-testid="toggle-inputs"]').click();
+      // The same page, eleven days later: it is looked at again.
+      await open.context.clock.setFixedTime(new Date('2026-12-31T09:00:00+08:00'));
+      await p.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+      await p.waitForFunction(() => /last day/i.test(document.querySelector('[data-testid="reco-deadline"]').textContent), null, { timeout: 3000 });
+      expectEqual(await flat(p, 'reco-deadline'), 'Today is the last day to transfer', 'card on 31 December');
+      expectTrue(/last day today/.test(await flat(p, 'bar-fine')), 'bar on 31 December');
+      expectEqual(await count(p, '[data-testid="top-notices"] [data-code="DEADLINE_SOON"]'), 1, 'last-day notice at the top');
+      // And three days after that.
+      await open.context.clock.setFixedTime(new Date('2027-01-03T09:00:00+08:00'));
+      await p.evaluate(() => window.dispatchEvent(new Event('focus')));
+      await p.waitForFunction(() => /deadline has passed/.test(document.querySelector('[data-testid="reco-headline"]').textContent), null, { timeout: 3000 });
+      expectEqual(await flat(p, 'reco-headline'), 'The 31 Dec 2026 deadline has passed.', 'headline on 3 January');
+      expectEqual(await count(p, '[data-testid="top-notices"] [data-code="DEADLINE_PASSED"]'), 1, 'Stop notice at the top');
+      const card = (await p.locator('#recommendation').innerText()).replace(/\s+/g, ' ');
+      expectTrue(!/\bPut S\$/.test(card) && !/left to transfer/.test(card), `the card still instructs: "${card.slice(0, 200)}"`);
+      expectTrue(/deadline passed/.test(await flat(p, 'bar-fine')), 'bar on 3 January');
+      // Editing a number does not bring the instruction back.
+      await p.locator('[data-testid="toggle-inputs"]').click();
+      await setField(p, 'salary', '9100');
+      expectEqual(await flat(p, 'reco-headline'), 'The 31 Dec 2026 deadline has passed.', 'headline after an edit on 3 January');
+      await open.context.close();
+
+      // The untouched example moves on with the date: in January it is the example for the new year.
+      const example = await newPage(browser, { width: 1280, height: 900, label: 'open-tab-example', now: new Date('2026-12-20T22:00:00+08:00') });
+      expectEqual(await example.page.locator('#incomeYear').inputValue(), '2026', 'income year on 20 December');
+      await example.context.clock.setFixedTime(new Date('2027-01-03T09:00:00+08:00'));
+      await example.page.evaluate(() => window.dispatchEvent(new Event('pageshow')));
+      await example.page.waitForFunction(() => document.querySelector('#incomeYear').value === '2027', null, { timeout: 3000 });
+      expectEqual(await count(example.page, '[data-code="DEADLINE_PASSED"]'), 0, 'deadline notices on the example in January');
+      expectEqual(await count(example.page, '[data-testid="example-flag"]'), 1, 'still labelled as the example');
+      expectTrue((await flat(example.page, 'reco-headline')).startsWith('Put S$'), 'the example plan should be current');
+      await example.context.close();
+    });
+
+    await check('a tab left open over midnight catches up by itself, within a minute', async () => {
+      const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1, timezoneId: 'Asia/Singapore', locale: 'en-SG' });
+      await context.clock.install({ time: new Date('2026-12-30T23:59:30+08:00') });
+      const night = await context.newPage();
+      watch(night, 'midnight');
+      await night.goto(PAGE_URL);
+      await night.waitForSelector('[data-testid="reco-tax-saved"]');
+      expectTrue(/1 day left to transfer/.test(await flat(night, 'reco-deadline')), `before midnight the card reads "${await flat(night, 'reco-deadline')}"`);
+      // Nobody touches the page: only its own clock check runs.
+      await context.clock.runFor(95_000);
+      await night.waitForFunction(() => /last day/i.test(document.querySelector('[data-testid="reco-deadline"]').textContent), null, { timeout: 3000 });
+      expectEqual(await flat(night, 'reco-deadline'), 'Today is the last day to transfer', 'card after midnight');
+      await context.close();
+    });
+
     await check('opened years later (2028): says the deadline has passed and that a newer version is needed', async () => {
       const late = await newPage(browser, { width: 390, height: 844, label: 'year-2028', touch: true, now: new Date('2028-03-02T10:00:00+08:00') });
       expectEqual(await flat(late.page, 'reco-headline'), 'The 31 Dec 2027 deadline has passed.', 'headline in March 2028');
@@ -1261,6 +1420,57 @@ async function main() {
       const o = await overflow(late.page);
       expectTrue(o.scrollWidth <= o.innerWidth, `scrollWidth ${o.scrollWidth} > innerWidth ${o.innerWidth}`);
       await late.context.close();
+    });
+
+    // ------------------------------------------------------------------ on paper
+    await check('print: light paper whatever the theme, no bar or controls, the inputs listed, the chart scaled to the page', async () => {
+      const paper = await newPage(browser, { width: 1280, height: 900, colorScheme: 'dark', label: 'print' });
+      const p = paper.page;
+      await p.emulateMedia({ media: 'print' });
+      await p.setViewportSize({ width: 718, height: 1000 }); // an A4 page inside 14mm margins
+      await p.waitForTimeout(300);
+      const seen = await p.evaluate(() => {
+        const shown = (selector) => {
+          const el = document.querySelector(selector);
+          return !!el && getComputedStyle(el).display !== 'none' && el.getClientRects().length > 0;
+        };
+        const lum = (colour) => {
+          const [r, g, b] = (colour.match(/[\d.]+/g) || []).map(Number);
+          return Math.round(0.2126 * r + 0.7152 * g + 0.0722 * b);
+        };
+        const slab = getComputedStyle(document.querySelector('.slab'));
+        const svg = document.querySelector('.chart-svg').getBoundingClientRect();
+        const box = document.querySelector('#ladder').getBoundingClientRect();
+        return {
+          bar: shown('[data-testid="sticky-bar"]'),
+          jump: shown('.jump'),
+          theme: shown('.brand .seg'),
+          copy: shown('#copy-summary'),
+          form: shown('#inputs'),
+          toggle: shown('#toggle-inputs'),
+          summary: shown('.summary-lines'),
+          page: lum(getComputedStyle(document.body).backgroundColor),
+          slab: lum(slab.backgroundColor),
+          slabInk: lum(getComputedStyle(document.querySelector('[data-testid="reco-tax-saved"]')).color),
+          slabBorder: parseFloat(slab.borderTopWidth),
+          meter: getComputedStyle(document.querySelector('.meter-saved')).printColorAdjust,
+          rail: getComputedStyle(document.querySelector('.rail')).position,
+          chartFits: svg.right <= box.right + 1 && svg.width > 300,
+          overflow: document.documentElement.scrollWidth - window.innerWidth,
+        };
+      });
+      expectEqual([seen.bar, seen.jump, seen.theme, seen.copy, seen.form, seen.toggle].join(' '), 'false false false false false false', 'bar, section links, theme toggle, copy button, form, form toggle');
+      expectTrue(seen.summary, 'the numbers behind the plan should be listed in place of the form');
+      expectTrue(seen.page > 240, `the page background has luminance ${seen.page}`);
+      expectTrue(seen.slab > 240 && seen.slabInk < 60, `the plan card prints ${seen.slabInk} on ${seen.slab}`);
+      expectTrue(seen.slabBorder >= 1, 'the plan card should have a border on paper');
+      expectEqual(seen.meter, 'exact', 'print-color-adjust on the tax meter');
+      expectEqual(seen.rail, 'static', 'position of the rail (a fixed one repeats on every page)');
+      expectTrue(seen.chartFits, 'the ladder chart should scale to the page width');
+      expectTrue(seen.overflow <= 0, `the printed page is ${seen.overflow}px wider than the paper`);
+      await p.screenshot({ path: path.join(SHOTS, 'print-a4.png'), fullPage: true });
+      await p.pdf({ path: path.join(SHOTS, 'print-a4.pdf'), format: 'A4' });
+      await paper.context.close();
     });
 
     // ------------------------------------------------------------------ works without storage
@@ -1317,6 +1527,9 @@ async function main() {
       for (const tag of ['<!doctype', '<html', '<head', '<body', '<link']) {
         expectTrue(!outside.toLowerCase().includes(tag), `fragment contains ${tag}`);
       }
+      // The fragment can ask for the fonts stylesheet and nothing else: no fetch, no other network API.
+      const api = /\bfetch\s*\(|XMLHttpRequest|sendBeacon|WebSocket|EventSource/.exec(fragment);
+      expectTrue(!api, `the fragment contains a network API: ${api && api[0]}`);
       const order = ['<title>', '<meta name="claude:viewport-fit-sides" content="cover">', '<style>', '<div id="app">', '<script type="module">'];
       let at = -1;
       for (const piece of order) {
