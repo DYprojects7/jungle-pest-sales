@@ -29,7 +29,7 @@ Do this with the file from `release/`, once in desktop Excel (2016 or Microsoft 
 3. **The dropdowns work.** Change Residency to Foreigner and back. Set the minimum rate to `0.0%` (the cell should
    read "Any saving") and to `7.0%`. Type `10%` into the minimum-rate cell: it should be accepted after a warning.
 4. **Every cream cell takes a value.** Type a number in each cream cell on the Planner, the as-at date on Monthly
-   Plan and the step on Simulator. Clear the optional cells again; the notes beside them should say "Blank…".
+   Plan and the step on Simulator. Clear the optional cells again; the notes beside them should say "Blank…" (or "Not filled in…" beside the CPF figure).
 5. **The Ladder chart is there.** Monthly salary 4,600, bonus 9,000, other reliefs 0, family top-ups Yes, minimum
    rate 0.0%: the chart steps down 7% → 3.5% → 2% → 0%, and the thick line stops at S$30,360. In Google Sheets
    the chart may be drawn differently or left out; the bars in the table beside it are the fallback.

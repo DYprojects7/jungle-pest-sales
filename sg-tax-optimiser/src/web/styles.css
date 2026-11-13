@@ -951,6 +951,7 @@ legend.field-label {
 
   /* The label runs under the box and out to the edge of the row, so the whole 40px line takes the tap. */
   .check-label {
+    position: relative; /* above the line of detail that tucks up under it */
     display: block;
     margin-left: -30px;
     padding: 9px 0 9px 30px;
@@ -1647,6 +1648,22 @@ legend.field-label {
   background: var(--ground);
 }
 
+/* Once a wide table has been scrolled, the row labels read as a layer the figures slide under. */
+.table-wrap[data-more-left] .table-wide thead th:first-child,
+.table-wrap[data-more-left] .table-wide tbody th[scope='row'],
+.table-wrap[data-more-left] .table-wide tfoot th {
+  box-shadow:
+    1px 0 0 var(--rule-strong),
+    10px 0 8px -8px var(--edge-shade);
+}
+
+/* A group heading spans the whole table, so its words are pinned instead of the cell. */
+.group-label {
+  position: sticky;
+  left: 8px;
+  display: inline-block;
+}
+
 /* Tables take the width their figures need and no more. One that does not fit is restacked or scrolls (see
    TableScroll); there is no fixed minimum width. As the column narrows the wide tables step their type and
    padding down first, so they stay tables for as long as they can. */
@@ -1665,6 +1682,13 @@ legend.field-label {
   .table-wide th,
   .table-wide td {
     padding-inline: 6px;
+  }
+}
+
+@container (max-width: 600px) {
+  .table-wide th,
+  .table-wide td {
+    padding-inline: 4px;
   }
 }
 
@@ -1897,8 +1921,11 @@ legend.field-label {
   border-bottom: 0;
 }
 
+/* The label is for the eye. A screen reader already gets it from the column heading, so where the browser
+   allows it the generated text is given an empty spoken form (the second declaration). */
 .table-scroll[data-stacked] > .table td::before {
   content: attr(data-label);
+  content: attr(data-label) / '';
   color: var(--ink-2);
   font-variant-numeric: normal;
   font-weight: 400;
@@ -2005,6 +2032,7 @@ legend.field-label {
 
 .table-scroll[data-stacked='lines'] > .table td::before {
   content: attr(data-label) ' ';
+  content: attr(data-label) ' ' / '';
   font-size: var(--fs-2);
 }
 
@@ -2433,9 +2461,24 @@ p.notice {
     gap: 28px;
   }
 
+  /* The card in its two-column form, so it sits on the first page under the numbers it was worked from. */
   .slab {
+    gap: 16px;
+    padding: 24px;
     border: 1.5px solid var(--ink);
     box-shadow: none;
+  }
+
+  .slab-grid {
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+    gap: 28px;
+  }
+
+  .slip {
+    padding-top: 4px;
+    padding-left: 28px;
+    border-top: 0;
+    border-left: 1px solid var(--slab-rule);
   }
 
   /* Fills that carry meaning are printed even when "background graphics" is off. */
@@ -2477,10 +2520,20 @@ p.notice {
     overflow: visible;
   }
 
-  .table-wide,
+  /* A table that fitted the screen has to fit the paper too: smaller type and tighter columns. */
+  .table-wide {
+    font-size: var(--fs-1);
+  }
+
   .table-mid {
-    min-width: 0;
     font-size: var(--fs-2);
+  }
+
+  .table-wide th,
+  .table-wide td,
+  .table-mid th,
+  .table-mid td {
+    padding-inline: 6px;
   }
 
   .table-wide thead th:first-child,

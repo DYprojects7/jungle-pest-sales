@@ -338,7 +338,8 @@ export function Simulator(props: SectionProps & { step: number; onStep: (step: n
                 <tbody key={g.title} data-group={g.id}>
                   <tr class="group-row">
                     <th scope="rowgroup" colSpan={5 + levers.length}>
-                      {g.title}
+                      {/* The heading stays in view while the table is scrolled sideways. */}
+                      <span class="group-label">{g.title}</span>
                     </th>
                   </tr>
                   {g.rows.map((r) => (

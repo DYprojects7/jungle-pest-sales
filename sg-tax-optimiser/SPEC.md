@@ -557,15 +557,22 @@ S$5,000 other reliefs, nothing contributed yet, SRS and CPF (self) enabled, fami
 - **Show the working.** Every headline number can be traced to a line in the tax computation panel.
 - **Plain language.** "Cash you lock away", not "illiquidity"; "tax saved per dollar", not "marginal rate" (the
   term is introduced once, next to the ladder).
-- **Private by construction.** No network requests, no analytics, no cookies. Inputs persist only in the browser's
-  `localStorage` (wrapped in try/catch; the app works without it).
+- **Private by construction.** No analytics, no cookies, and nothing the user types leaves the device. The only
+  network request is the optional Google Fonts stylesheet of §8.5, which the page discloses in its privacy note.
+  Inputs persist only in the browser's `localStorage` (wrapped in try/catch; the app works without it).
 - **Not IRAS, and says so.** A persistent, unobtrusive "Estimate only — not tax advice" line with the YA.
 
 ### 8.2 Layout
 
-Desktop (≥ 960 px): two columns — inputs on the left (scrolls), results on the right. Phone: one column in the order
+Desktop (≥ 960 px): two columns — inputs on the left (scrolls; a narrower rail from 960 to 1199 px so the result
+tables fit), results on the right. Phone: one column in the order
 *inputs summary → recommendation → ladder → plan details*, with a sticky bottom bar showing
-"Save S$X · lock away S$Y" that scrolls to the recommendation when tapped.
+"Save S$X · lock away S$Y" that scrolls to the recommendation when tapped. For a S$0 plan the bar reads
+"Nothing more to put in this year"; after the deadline it reads "Deadline passed · would have saved S$X".
+
+**The date is live.** The page re-reads today's date when the tab regains focus or becomes visible and once a
+minute, so a tab left open counts down, shows the last-day notice, and after 31 December switches to the
+deadline-passed state (past tense, no instruction to transfer, an offer to plan for the next supported year).
 
 ### 8.3 Inputs
 
@@ -588,8 +595,11 @@ Desktop (≥ 960 px): two columns — inputs on the left (scrolls), results on t
    - *Which first?* **Flexibility first** (SRS → CPF self → family) *(default)*, **Guaranteed interest first**
      (CPF self → SRS → family), **Family first** (family → SRS → CPF self). One-line explanation of each.
 
-Numeric fields accept digits and thousands separators, show an "S$" prefix, select-all on focus, and clamp to their
-legal range with an inline explanation (e.g. "SRS is capped at S$15,300 a year").
+Numeric fields accept digits and thousands separators (also a trailing "k", dots used as thousands separators and
+full-width digits), show an "S$" prefix, select-all on focus, and clamp to their legal range with an inline
+explanation (e.g. "SRS is capped at S$15,300 a year"). Switching *Other reliefs* between one total and *itemise*
+converts the figure in both directions. Until the user has set them, fields still holding the example's values are
+tagged "Example value", and the panel names which example figures are still in use.
 
 ### 8.4 Results
 
@@ -599,15 +609,20 @@ legal range with an inline explanation (e.g. "SRS is capped at S$15,300 a year")
    (e.g. "Beyond this, each extra dollar would save 3.5 cents or less." / "You have used every scheme's limit;
    S$12,400 of your income is still taxed at 11.5%." / "You have reached the S$80,000 overall relief cap.").
    When the recommendation is S$0, the card explains why and offers the *Every tax dollar* view.
+   Any "you could save more" figure on the card is one the user can actually reach: the page re-runs the engine
+   with the switched-off scheme on, or the cash limit lifted, and quotes that plan's own saving (never
+   `unrealisedSaving`, which assumes room no setting can create).
 2. **Savings ladder.** A stepped chart: x = additional contribution, y = tax saved per dollar; each tier a block
    whose area is the tax saved; the recommended range filled, the rest outlined; zero-saving tiers hatched and
    labelled ("no tax saved: income already tax-free" / "over the S$80,000 relief cap"). Below it, the same data as
    a table (tier, amount, rate, tax saved, cumulative).
 3. **Compare options.** Scenario table from §6.9: contribution split, cash locked away, tax, tax saved, saved per
-   dollar, wasted dollars (highlighted when > 0). The recommended row is marked.
+   dollar (in cents), wasted dollars (highlighted when > 0). The recommended row is marked. A row whose split
+   duplicates an earlier row is left out (so a foreigner sees only "Do nothing more", "SRS only" and "Your plan").
 4. **Monthly plan.** Schedule to December per scheme; days to the deadline; "start in January" monthly figure;
    deadline cautions (bank cut-offs).
-5. **Every extra S$1,000.** Simulator table (collapsed by default) with step selector.
+5. **Every extra S$1,000.** Simulator table (collapsed by default) with step selector; rows are grouped as
+   "Where you are now", "In your plan" and "Beyond your plan" (from `withinPlan`).
 6. **How your tax is worked out.** Income → deductions → each relief → chargeable income → bracket-by-bracket tax,
    before and after the plan, side by side.
 7. **Before you transfer.** The lock-up facts for each scheme (see §5), eligibility cautions, engine warnings.
@@ -615,6 +630,10 @@ legal range with an inline explanation (e.g. "SRS is capped at S$15,300 a year")
 
 A **Copy summary** button copies a plain-text summary of the plan (clipboard write inside the click handler, with
 a select-the-text fallback). **Reset to example** restores the opening state.
+
+A table that does not fit its container is restacked as label-and-value blocks (ladder, compare, tax bands) or
+two-line rows (monthly plan); only the simulator scrolls sideways, with a visible cue. Print styles force light
+paper, hide the controls and list the inputs used.
 
 ### 8.5 Design and accessibility
 
@@ -626,14 +645,19 @@ a select-the-text fallback). **Reset to example** restores the opening state.
 - Every control has a label and a stable `id`; results region is an `aria-live="polite"` region; charts have a text
   alternative (the table); visible focus states; `prefers-reduced-motion` respected; colour is never the only
   signal (hatching/labels on the ladder).
-- No external requests except an optional Google Fonts stylesheet with a full system-font fallback stack.
+- No external requests except an optional Google Fonts stylesheet with a full system-font fallback stack. The
+  stylesheet is added by script after first paint, never as a blocking `<link>`, so a slow or blocked fonts host
+  cannot delay or blank the page; headline figures must not wrap or clip with the fallback fonts.
 - Visual direction: a calm, precise financial instrument — not a bank advert and not a government form. It must
   not imitate IRAS/CPF branding.
 
 ### 8.6 Build
 
-`npm run build` → `dist/index.html`, one file with all CSS/JS inlined (Vite + `vite-plugin-singlefile`, Preact).
-`npm run build:release` copies it to `release/sg-tax-optimiser.html`.
+`npm run build` → `dist/index.html`, one file with all CSS/JS inlined (Vite + `vite-plugin-singlefile`, Preact;
+`build.modulePreload.polyfill` is off so the file contains no `fetch` call).
+`npm run build:release` copies it to `release/sg-tax-optimiser.html`. `node scripts/build-artifact.mjs` writes
+`dist/artifact.html`, the same page as an embeddable fragment (no doctype/html/head/body) for hosts that supply
+their own document skeleton; it refuses to package a linked stylesheet or any network API.
 
 ---
 
@@ -641,24 +665,38 @@ a select-the-text fallback). **Reset to example** restores the opening state.
 
 Generated by `npm run build:workbook` (`workbook/build.ts`, ExcelJS) from the same `YearRules` data.
 
-- **Compatibility:** Excel 2016+, Google Sheets, LibreOffice. No macros, no `LET`/`LAMBDA`/`XLOOKUP`/dynamic
-  arrays; only functions such as `SUMPRODUCT`, `INDEX`, `MATCH`, `MIN`, `MAX`, `IF`, `FLOOR`, `ROUND`, `CHOOSE`.
+- **Compatibility:** built for Excel 2016+, Google Sheets and LibreOffice. No macros, no `LET`/`LAMBDA`/`XLOOKUP`/
+  dynamic arrays, and no `MAX`/`MIN` over an array expression; only widely supported functions (`SUMPRODUCT`,
+  `INDEX`, `MATCH`, `MIN`, `MAX`, `IF`, `INT`, `ROUND`, `CHOOSE`, `ISNUMBER`, `IFERROR`, `DATE`, …), enforced by an
+  allowlist test. All arithmetic is in whole numbers (tax in mills, CPF rates in millionths) so results do not depend
+  on an application's floating-point behaviour. **Verified by recalculation in LibreOffice only**; opening the file in
+  Excel and Google Sheets is a manual release step with a checklist in `workbook/README.md`.
 - **Sheets**
   1. `Start` — what it is, three-step instructions, disclaimer, version and YA.
   2. `Planner` — inputs (clearly styled input cells with data validation and dropdowns) on the left; the
      recommendation, tax before/after, saving, binding-constraint sentence and warnings on the right.
-  3. `Ladder` — the savings ladder tiers and a chart.
+  3. `Ladder` — the savings ladder tiers, a chart (written into the file as standard chart parts), and in-cell bars
+     as a fallback where the chart is not drawn.
   4. `Scenarios` — the scenario comparison.
-  5. `Simulator` — tax and saving for every extra step (default S$1,000) up to the maximum contribution.
-  6. `Monthly Plan` — instalment schedule to December from an "as at" date (default `=TODAY()`).
+  5. `Simulator` — tax and saving for every extra step (default S$1,000) up to the maximum contribution; the table is
+     sized from the rules so the smallest step (S$100) still reaches the largest room.
+  6. `Monthly Plan` — instalment schedule to December from an "as at" date (default `=TODAY()`; a cleared or
+     non-date cell also means today, where the engine would fall back to 1 January).
   7. `Tax Working` — the full computation, baseline and optimised side by side.
   8. `Rules` — the rate table, CPF rates and ceilings, caps, deadline, sources. Editable so a buyer can update it for a
-     new year.
+     new year: tax brackets can be inserted or removed (the helper formulas locate their neighbours by position), the
+     deadline follows the income year, and a check line — repeated at the top of the Planner — flags a tax table that
+     is out of order or incomplete. A personal income tax rebate rate and cap (0 by default) are editable cells.
+- **Differences from the engine, by design:** only the three priority presets of §8.3 are offered; the employer CPF
+  figure is not calculated; `EXISTING_EXCEEDS_CAP` is shown as one line per scheme; two workbook-only check lines
+  (tax table, deadline year) come before the engine's warnings.
 - **Parity:** for the same inputs the workbook's CPF contribution, chargeable income, tax before/after, recommended
   amounts per scheme and tax saved equal the engine's (to the cent).
-- **Verification:** `tests/workbook.test.ts` writes a set of input profiles into the workbook, recalculates each
-  with headless LibreOffice, reads the results back and compares them with `plan()`. The test is skipped with a
-  clear message when `soffice` is not installed.
+- **Verification:** `tests/workbook.test.ts` writes a set of input profiles (more than 200, including every boundary
+  in §6) into the workbook, recalculates each with headless LibreOffice, reads the results back through named ranges
+  and compares them with `plan()` — figures to the cent and Planner warning lines word for word. It also edits the
+  tax table inside LibreOffice (rows inserted and removed) and compares the shipped release file with a fresh build.
+  The parity tests are skipped with a clear message when `soffice` is not installed.
 
 ---
 

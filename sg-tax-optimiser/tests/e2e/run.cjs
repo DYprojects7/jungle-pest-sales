@@ -206,6 +206,24 @@ async function scrollingTables(page) {
   );
 }
 
+/**
+ * A restacked table row as it reads on screen: "Label value" for each cell that is shown, top to bottom. (The
+ * labels are drawn from each cell's data-label, so innerText alone does not have them.)
+ */
+async function stackedBlock(page, rowSelector) {
+  return page.locator(rowSelector).evaluate((row) =>
+    Array.from(row.querySelectorAll('td'))
+      .filter((cell) => cell.getClientRects().length > 0)
+      .sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top)
+      .map((cell) => {
+        // The label as drawn: the first string of the ::before content (an empty spoken form may follow it).
+        const drawn = /^"((?:[^"\\]|\\.)*)"/.exec(getComputedStyle(cell, '::before').content);
+        return `${drawn ? drawn[1].trim() : '(no label)'} ${cell.innerText.trim()}`;
+      })
+      .join(' | '),
+  );
+}
+
 /** Form controls without an id, or without a <label for> pointing at them. */
 async function unlabelledControls(page) {
   return page.evaluate(() => {
@@ -818,16 +836,16 @@ async function main() {
         'rows',
         'the comparison at 1024px with three schemes',
       );
-      const plan = (await page.locator('[data-scenario="recommended"]').innerText()).replace(/\s+/g, ' ');
-      expectTrue(/Tax saved S\$3,000\.00/.test(plan) && /Wasted dollars None/.test(plan), `the plan block reads "${plan}"`);
+      const plan = await stackedBlock(page, '[data-scenario="recommended"]');
+      expectTrue(plan.startsWith('Tax saved S$3,000.00 | Cash locked away S$20,000'), `the plan block reads "${plan}"`);
+      expectTrue(/Wasted dollars None/.test(plan) && /CPF top-up, family S\$1,700/.test(plan), `the plan block reads "${plan}"`);
       const o = await overflow(page);
       expectTrue(o.scrollWidth <= o.innerWidth, `scrollWidth ${o.scrollWidth} > innerWidth ${o.innerWidth}`);
       await page.screenshot({ path: path.join(SHOTS, 'desktop-1024-a2.png'), fullPage: true });
-      // And with the opening example, at the bottom of the two-column range, every table is still a table.
-      await page.locator('#simulator').evaluate((el) => (el.open = false));
-      await page.setViewportSize({ width: 1280, height: 900 });
-      await page.waitForTimeout(200);
     });
+    await page.locator('#simulator').evaluate((el) => (el.open = false));
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.waitForTimeout(200);
 
     await check('ladder chart: every label stays inside the drawing (A.2, and S$8,000 with SRS off)', async () => {
       const clipped = () =>
@@ -1123,9 +1141,20 @@ async function main() {
         const stacked = (id) => p.locator(`[data-testid="${id}"]`).evaluate((t) => t.parentElement.getAttribute('data-stacked'));
         expectEqual(await stacked('scenario-table'), 'rows', 'the comparison on a phone');
         expectEqual(await stacked('ladder-table'), 'rows', 'the ladder figures on a phone');
-        const plan = (await p.locator('[data-scenario="recommended"]').innerText()).replace(/\s+/g, ' ');
-        expectTrue(/^Your plan Recommended Tax saved S\$2,679\.50 Cash locked away S\$23,300/.test(plan), `the plan block reads "${plan}"`);
-        expectTrue(/Wasted dollars None/.test(plan) && /Tax S\$3,959\.50/.test(plan), 'the plan block should carry every column');
+        // The block leads with what the option saves, and carries every column of the table.
+        expectEqual(
+          await stackedBlock(p, '[data-scenario="recommended"]'),
+          'Tax saved S$2,679.50 | Cash locked away S$23,300 | Saved per dollar (cents) 11.5 | Wasted dollars None | ' +
+            'SRS S$15,300 | CPF top-up, self S$8,000 | Tax S$3,959.50',
+          'the plan block of the comparison',
+        );
+        // A scheme an option puts nothing into is left out of its block.
+        expectEqual(
+          await stackedBlock(p, '[data-scenario="srsOnly"]'),
+          'Tax saved S$1,759.50 | Cash locked away S$15,300 | Saved per dollar (cents) 11.5 | Wasted dollars None | ' +
+            'SRS S$15,300 | Tax S$4,879.50',
+          'the "SRS only" block',
+        );
         // Restacked tables keep their table semantics for screen readers.
         expectEqual(await p.locator('[data-testid="scenario-table"]').getAttribute('role'), 'table', 'role of a restacked table');
         expectEqual(await p.locator('[data-testid="scenario-table"] tbody td').first().getAttribute('role'), 'cell', 'role of its cells');
@@ -1144,10 +1173,10 @@ async function main() {
         await p.waitForFunction(() => document.querySelector('[data-testid="simulator-table"]').closest('.table-wrap').getAttribute('data-more-right') === null, null, { timeout: 2000 });
         await sim.evaluate((el) => el.closest('#simulator').scrollIntoView());
         await p.screenshot({ path: path.join(SHOTS, `phone-${scheme}-simulator.png`) });
-        await p.locator('#simulator').evaluate((el) => (el.open = false));
         const o = await overflow(p);
         expectTrue(o.scrollWidth <= o.innerWidth, `scrollWidth ${o.scrollWidth} > innerWidth ${o.innerWidth}`);
       });
+      await p.locator('#simulator').evaluate((el) => (el.open = false));
 
       await check(`phone 390px, ${scheme}: thumb-sized targets, and the whole bottom bar goes to the plan`, async () => {
         const height = (selector) => p.locator(selector).first().evaluate((el) => Math.round(el.getBoundingClientRect().height));
@@ -1159,11 +1188,14 @@ async function main() {
         expectTrue((await height('label[for="useSrs"]')) >= 40, `scheme label is ${await height('label[for="useSrs"]')}px tall`);
         expectTrue((await height('details.more > summary')) >= 40, `"More options" is ${await height('details.more > summary')}px tall`);
         // A tap just left of the tick box still lands on its label.
+        await p.locator('#useCpfSelf').evaluate((el) => el.scrollIntoView({ block: 'center' }));
         const tick = await p.locator('#useCpfSelf').boundingBox();
         await p.touchscreen.tap(tick.x + tick.width + 4, tick.y + tick.height + 8);
-        expectTrue(!(await p.locator('#useCpfSelf').isChecked()), 'a tap beside the tick box should switch the scheme off');
+        expectTrue(!(await p.locator('#useCpfSelf').isChecked()), 'a tap just below and beside the tick box should switch the scheme off');
+        await p.touchscreen.tap(tick.x - 6, tick.y - 6);
+        expectTrue(await p.locator('#useCpfSelf').isChecked(), 'a tap just above and left of the tick box should switch it back on');
         await p.locator('#useCpfSelf').tap();
-        expectTrue(await p.locator('#useCpfSelf').isChecked(), 'a tap on the tick box itself should switch it back on');
+        expectTrue(!(await p.locator('#useCpfSelf').isChecked()), 'a tap on the tick box itself should switch it once');
         await resetToExample(p);
         await p.locator('[data-testid="toggle-inputs"]').click();
         // Anywhere on the bar, not only its first line.
@@ -1180,6 +1212,11 @@ async function main() {
           { timeout: 5000 },
         );
       });
+      // Whatever happened above, the next check starts from the example with the form folded away.
+      if ((await p.locator('[data-testid="toggle-inputs"]').getAttribute('aria-expanded')) === 'true') {
+        await p.locator('[data-testid="toggle-inputs"]').click();
+      }
+      await resetToExample(p);
 
       await check(`phone 390px, ${scheme}: inputs open without overflow, still none at 360px`, async () => {
         await p.evaluate(() => window.scrollTo(0, 0));

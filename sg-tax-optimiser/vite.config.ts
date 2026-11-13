@@ -10,5 +10,8 @@ export default defineConfig({
     target: 'es2020',
     outDir: 'dist',
     emptyOutDir: true,
+    // Everything is inlined into one file, so there is nothing to preload. Without this Vite ships a polyfill
+    // containing a fetch() call that never runs; the sold file should contain no network API at all.
+    modulePreload: { polyfill: false },
   },
 });
