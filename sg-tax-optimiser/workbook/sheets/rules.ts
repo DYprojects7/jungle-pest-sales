@@ -4,7 +4,7 @@
  */
 import type ExcelJS from 'exceljs';
 import type { CpfAgeBand, Residency } from '../../src/engine/types';
-import { Book, C, NF, SHEETS, ST, mergeRow, pageSetup, setWidths, styleRow, view } from '../kit';
+import { Book, C, NF, SHEETS, ST, a1, abs, mergeRow, pageSetup, setWidths, styleRow, view } from '../kit';
 
 /** Labels shown in the Planner dropdowns, in the order the formulas rely on (do not reorder). */
 export const RESIDENCY_LABELS: Record<Residency, string> = {
@@ -59,6 +59,17 @@ export const PRIORITY_PRESETS: PriorityPreset[] = [
 
 const COL = { label: 2, c: 3, d: 4, e: 5, f: 6, g: 7, note: 8 };
 
+/**
+ * Spare rows for tax brackets beyond those the year starts with: the Tax Working and Ladder sheets lay out this
+ * many rows more than the bracket table has, so a buyer can add brackets on this sheet without touching them.
+ */
+export const SPARE_BRACKET_ROWS = 12;
+
+/** How many tax brackets the workbook can use (rows laid out on the Tax Working and Ladder sheets). */
+export function bracketCapacity(bracketCount: number): number {
+  return bracketCount + SPARE_BRACKET_ROWS;
+}
+
 export function buildRules(b: Book): ExcelJS.Worksheet {
   const rules = b.rules;
   const ws = b.sheet(SHEETS.rules, C.ochre);
@@ -78,7 +89,8 @@ export function buildRules(b: Book): ExcelJS.Worksheet {
   mergeRow(ws, r, 2, 8, ST.subtitle()).value =
     'Every rule value used by this workbook lives on this sheet, and every other sheet reads it from here. ' +
     'To update for a new year, type over the cream cells (grey cells are worked out for you) and check each value ' +
-    'against the official source listed at the bottom. Nothing else needs to change.';
+    'against the official source listed at the bottom. The deadline follows the income year by itself, and a check ' +
+    'under the tax table tells you if the table is no longer in order.';
   r += 2;
 
   const section = (title: string): void => {
@@ -125,13 +137,17 @@ export function buildRules(b: Book): ExcelJS.Worksheet {
     error: 'Choose final or projected.',
   };
   const [dy, dm, dd] = rules.contributionDeadline.split('-').map(Number) as [number, number, number];
-  item(
+  const deadlineRow = item(
     'r_deadline',
     'Last day a contribution counts for this year',
     new Date(Date.UTC(dy, dm - 1, dd)),
     NF.date,
-    'SRS banks and the CPF Board can stop taking contributions earlier on the day (for example 7pm).',
+    '31 December of the income year, worked out from the year above; type a date over it only if the rule changes. Banks and the CPF Board can stop earlier on the day (for example 7pm).',
   );
+  if (dy === rules.incomeYear && dm === 12 && dd === 31) {
+    // The usual rule follows the income year, so changing the year cannot leave last year's deadline behind.
+    b.f(ws, COL.c, deadlineRow, ($) => `DATE(${$('r_incomeYear')},12,31)`);
+  }
   rules.statusNotes.forEach((text, index) => {
     b.v(ws, COL.label, r, index === 0 ? 'Notes for this year' : '', ST.label());
     b.v(ws, COL.c, r, text, ST.noteRun());
@@ -142,7 +158,7 @@ export function buildRules(b: Book): ExcelJS.Worksheet {
   // ---- Income tax -------------------------------------------------------------------------------------------
   section('Income tax for residents');
   const brackets = rules.taxBrackets;
-  ws.getRow(r).height = 30;
+  ws.getRow(r).height = 54;
   b.v(ws, COL.label, r, 'Tax bracket', ST.th('left'));
   b.v(ws, COL.c, r, 'Chargeable income from (S$)', ST.th());
   b.v(ws, COL.d, r, 'Rate', ST.th());
@@ -154,45 +170,92 @@ export function buildRules(b: Book): ExcelJS.Worksheet {
     COL.note,
     r,
     'Keep the brackets in ascending order, starting at 0 with the tax-free band. The three grey columns are worked out. ' +
-      'To add a bracket, insert a row inside the table and copy the grey formulas down.',
+      'To add a bracket: insert a row anywhere above the grey "End of the table" line, type where it starts and its rate, ' +
+      'then copy the three grey cells from any other bracket row into the new row. Nothing else needs copying, and the check below says OK when the table is in order.',
     ST.note(),
   );
+  const bHead = r;
   r++;
   const b1 = r;
-  brackets.forEach((bracket, index) => {
-    const last = index === brackets.length - 1;
-    b.v(ws, COL.label, r, `Bracket ${index + 1}`, ST.td(undefined, 'left'));
-    b.v(ws, COL.c, r, bracket.from, ST.input(NF.int));
-    b.v(ws, COL.d, r, bracket.rate, ST.input(NF.pct));
-    if (last) b.v(ws, COL.e, r, 'and above', ST.helper(undefined, 'right'));
-    else b.f(ws, COL.e, r, () => `C${r0(index) + 1}`, ST.helper(NF.int));
+  // The sentinel ("End of the table") row sits inside every range below, so a row inserted anywhere above it,
+  // including straight after the last bracket, becomes part of the table in Excel, Google Sheets and LibreOffice.
+  const bEnd = b1 + brackets.length;
+  const fromRange = `${abs(COL.c, b1)}:${abs(COL.c, bEnd)}`;
+  const rateWithHead = `${abs(COL.d, bHead)}:${abs(COL.d, bEnd)}`;
+  brackets.forEach((bracket) => {
+    const row = r;
+    // Every grey cell finds its neighbours from its own position, so the same three formulas are right in any
+    // row and stay right when rows are inserted or removed around them.
+    b.f(ws, COL.label, row, () => `"Bracket "&(ROW()-ROW(${abs(COL.label, bHead)}))`, ST.td(undefined, 'left'));
+    b.v(ws, COL.c, row, bracket.from, ST.input(NF.int));
+    b.v(ws, COL.d, row, bracket.rate, ST.input(NF.pct));
+    ws.getCell(row, COL.c).dataValidation = {
+      type: 'decimal',
+      operator: 'greaterThanOrEqual',
+      formulae: [0],
+      allowBlank: true,
+      showErrorMessage: true,
+      errorStyle: 'stop',
+      errorTitle: 'Start of the bracket',
+      error: 'Enter the chargeable income this bracket starts at, in dollars (0 for the first bracket).',
+    };
+    ws.getCell(row, COL.d).dataValidation = {
+      type: 'decimal',
+      operator: 'between',
+      formulae: [0, 1],
+      allowBlank: true,
+      showErrorMessage: true,
+      errorStyle: 'stop',
+      errorTitle: 'Tax rate',
+      error: 'Enter the rate as a percentage from 0% to 100%, for example 11.5%.',
+    };
+    const next = `INDEX(${fromRange},ROW()-ROW(${abs(COL.c, b1)})+2)`;
+    b.f(ws, COL.e, row, () => `IF(ISNUMBER(${next}),${next},"and above")`, ST.helper(NF.int));
     b.f(
       ws,
       COL.f,
-      r,
-      () => (index === 0 ? `ROUND(D${r0(index)}*1000,0)` : `ROUND(D${r0(index)}*1000,0)-ROUND(D${r0(index) - 1}*1000,0)`),
+      row,
+      () => `ROUND(D${row}*1000,0)-ROUND(N(INDEX(${rateWithHead},ROW()-ROW(${abs(COL.d, bHead)})))*1000,0)`,
       ST.helper(NF.plain),
     );
     b.f(
       ws,
       COL.g,
-      r,
-      ($) => `ROUND(SUMPRODUCT((C${r0(index)}>${$('r_from')})*(C${r0(index)}-${$('r_from')})*${$('r_step')})/10,0)/100`,
+      row,
+      ($) => `ROUND(SUMPRODUCT((C${row}>${$('r_from')})*(C${row}-${$('r_from')})*${$('r_step')})/10,0)/100`,
       ST.helper(NF.cents),
     );
-    b.reg(`r_from_${index + 1}`, ws, COL.c, r);
-    b.reg(`r_rate_${index + 1}`, ws, COL.d, r);
-    b.reg(`r_to_${index + 1}`, ws, COL.e, r);
     r++;
   });
-  function r0(index: number): number {
-    return b1 + index;
-  }
-  const bN = r - 1;
-  b.regRange('r_from', ws, COL.c, b1, COL.c, bN);
-  b.regRange('r_rate', ws, COL.d, b1, COL.d, bN);
-  b.regRange('r_step', ws, COL.f, b1, COL.f, bN);
+  // The end line: its value cells stay empty (an empty cell counts as 0 and adds nothing to the tax sum).
+  styleRow(ws, r, COL.label, COL.g, { ...ST.helper(undefined, 'left'), border: { top: { style: 'thin', color: { argb: C.line } } } });
+  ws.getCell(r, COL.label).value = 'End of the table (insert new bracket rows above this line)';
   r++;
+  b.regRange('r_from', ws, COL.c, b1, COL.c, bEnd);
+  b.regRange('r_rate', ws, COL.d, b1, COL.d, bEnd);
+  b.regRange('r_step', ws, COL.f, b1, COL.f, bEnd);
+  // From the heading down: a number here that `r_from` does not count is a row typed above the first bracket.
+  b.regRange('r_fromWithHead', ws, COL.c, bHead, COL.c, bEnd);
+
+  b.v(ws, COL.label, r, 'Number of brackets', ST.label());
+  b.f(ws, COL.c, r, ($) => `COUNT(${$('r_from')})`, ST.helper(NF.plain));
+  b.reg('r_bracketCount', ws, COL.c, r);
+  b.v(ws, COL.d, r, `Worked out. This workbook can use up to ${bracketCapacity(brackets.length)}.`, ST.noteRun());
+  r++;
+  b.v(ws, COL.label, r, 'Check on the table above', ST.label());
+  ws.getRow(r).height = 26;
+  mergeRow(ws, r, COL.c, COL.note, {
+    ...ST.helper(undefined, 'left'),
+    font: { ...ST.helper().font, bold: true, color: { argb: C.good } },
+    alignment: { vertical: 'middle', horizontal: 'left', indent: 1, wrapText: true },
+  });
+  b.f(ws, COL.c, r, ($) => `IF(${$('w_rulesIssue')}="","OK","Check: "&${$('w_rulesIssue')}&". Tax figures may be wrong until this is fixed.")`);
+  b.reg('r_bracketCheck', ws, COL.c, r);
+  ws.addConditionalFormatting({
+    ref: `${a1(COL.c, r)}:${a1(COL.note, r)}`,
+    rules: [{ type: 'expression', priority: 1, formulae: [`${abs(COL.c, r)}<>"OK"`], style: { font: { bold: true, color: { argb: C.warn } } } }],
+  });
+  r += 2;
 
   item(
     'r_reliefCap',
@@ -349,8 +412,10 @@ export function buildRules(b: Book): ExcelJS.Worksheet {
   b.v(ws, 6, r, 'Smallest saving worth it', ST.helperHead('left'));
   r++;
   const listTop = r;
-  const minRates = [0, ...brackets.map((bracket) => bracket.rate).filter((rate) => rate > 0)];
-  const listRows = Math.max(MONTH_LABELS.length, minRates.length);
+  // "Any saving" (0) and then the rate of each bracket after the first, read from the table by position so the
+  // choices follow the rates. Plain percentages: what a dropdown shows is then exactly what it puts in the cell.
+  const minRateCount = brackets.length;
+  const listRows = Math.max(MONTH_LABELS.length, minRateCount);
   for (let i = 0; i < listRows; i++) {
     const residency = RESIDENCY_ORDER[i];
     if (residency) b.v(ws, 2, r, RESIDENCY_LABELS[residency], ST.td(undefined, 'left'));
@@ -360,11 +425,11 @@ export function buildRules(b: Book): ExcelJS.Worksheet {
     const month = MONTH_LABELS[i];
     if (month) b.v(ws, 5, r, month, ST.td(undefined, 'left'));
     if (i === 0) {
-      b.v(ws, 6, r, 0, ST.td(NF.minRate, 'left'));
-    } else if (i < minRates.length) {
-      // Linked to the bracket table so the choices follow the rates.
-      const bracketIndex = brackets.findIndex((bracket) => bracket.rate === minRates[i]);
-      b.f(ws, 6, r, ($) => $(`r_rate_${bracketIndex + 1}`), ST.td(NF.minRate, 'left'));
+      b.v(ws, 6, r, 0, ST.td(NF.pct, 'left'));
+      b.v(ws, 7, r, '0.0% = any saving counts', ST.noteRun());
+    } else if (i < minRateCount) {
+      if (i === 1) b.v(ws, 7, r, 'The rest follow the tax table. A rate that is not listed can still be typed on the Planner.', ST.noteRun());
+      b.f(ws, 6, r, ($) => `IF(${i + 1}<=${$('r_bracketCount')},INDEX(${$('r_rate')},${i + 1}),0)`, ST.td(NF.pct, 'left'));
     }
     r++;
   }
@@ -372,7 +437,7 @@ export function buildRules(b: Book): ExcelJS.Worksheet {
   b.regRange('l_prYear', ws, 3, listTop, 3, listTop + PR_YEAR_LABELS.length - 1);
   b.regRange('l_yesNo', ws, 4, listTop, 4, listTop + 1);
   b.regRange('l_months', ws, 5, listTop, 5, listTop + MONTH_LABELS.length - 1);
-  b.regRange('l_minRate', ws, 6, listTop, 6, listTop + minRates.length - 1);
+  b.regRange('l_minRate', ws, 6, listTop, 6, listTop + minRateCount - 1);
   r++;
 
   ws.getRow(r).height = 30;
@@ -407,15 +472,12 @@ export function buildRules(b: Book): ExcelJS.Worksheet {
   mergeRow(ws, r, 4, 8, ST.th('left')).value = 'When it applies';
   r++;
   for (const relief of rules.reliefCatalog) {
+    const choices = (relief.options ?? []).map((option) => option.amount).filter((value) => value > 0);
     const amount =
       relief.amountPerUnit > 0
         ? relief.amountPerUnit
-        : relief.options
-          ? relief.options
-              .filter((option) => option.amount > 0)
-              .map((option) => option.amount.toLocaleString('en-SG'))
-              .filter((text, index, all) => all.indexOf(text) === index)
-              .join(' / ')
+        : choices.length > 0
+          ? `${Math.min(...choices).toLocaleString('en-SG')} to ${Math.max(...choices).toLocaleString('en-SG')}`
           : 'varies';
     const suffix = relief.input === 'count' ? ' each' : '';
     b.v(ws, 2, r, relief.label, ST.td(undefined, 'left'));
@@ -434,7 +496,9 @@ export function buildRules(b: Book): ExcelJS.Worksheet {
   // ---- Sources ----------------------------------------------------------------------------------------------
   section('Official sources for these values');
   for (const source of rules.sources) {
-    b.v(ws, 2, r, source.label, ST.td(undefined, 'left'));
+    // Long labels take two lines so the link beside them is never covered.
+    ws.getRow(r).height = source.label.length > 50 ? 30 : 16;
+    b.v(ws, 2, r, source.label, ST.tdWrap());
     b.v(ws, 3, r, { text: source.url, hyperlink: source.url }, ST.link());
     r++;
   }

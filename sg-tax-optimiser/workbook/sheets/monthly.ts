@@ -3,7 +3,7 @@
  * December, the days left, and what the same plan would cost per month over a full year.
  */
 import type ExcelJS from 'exceljs';
-import { Book, C, NF, SHEETS, ST, longDate, mergeRow, pageSetup, setWidths, styleRow, view } from '../kit';
+import { Book, C, NF, SHEETS, ST, isNum, longDate, mergeRow, pageSetup, setWidths, styleRow, view } from '../kit';
 import type { Resolver } from '../kit';
 
 const LEVERS = [
@@ -53,8 +53,16 @@ export function buildMonthly(b: Book): ExcelJS.Worksheet {
     if (note) b.v(ws, 4, r, note, ST.noteRun());
     r++;
   };
-  fact('m_deadline', 'out_deadline', 'Last day a contribution counts for this year', ($) => $('r_deadline'), NF.date, 'Banks and the CPF Board can stop taking contributions earlier on the day.');
-  fact('m_days', null, 'Days to the deadline', ($) => `${$('r_deadline')}-${$('u_today')}`, NF.int);
+  fact(
+    'm_deadline',
+    'out_deadline',
+    'Last day a contribution counts for this year',
+    // From the Rules sheet; 31 December of the income year if the cell there does not hold a date.
+    ($) => `IF(${isNum($('r_deadline'))},INT(${$('r_deadline')}),DATE(${$('r_incomeYear')},12,31))`,
+    NF.date,
+    'Banks and the CPF Board can stop taking contributions earlier on the day.',
+  );
+  fact('m_days', null, 'Days to the deadline', ($) => `${$('m_deadline')}-${$('u_today')}`, NF.int);
   fact(
     'm_monthsRemaining',
     null,
@@ -66,15 +74,21 @@ export function buildMonthly(b: Book): ExcelJS.Worksheet {
   fact('m_total', null, 'Total to contribute (from the Planner)', ($) => $('w_X'), NF.dollars);
   ws.getRow(r).height = 30;
   mergeRow(ws, r, 2, LAST, ST.banner());
+  b.reg('m_banner', ws, 2, r);
   b.f(
     ws,
     2,
     r,
     ($) =>
-      `IF(${$('m_days')}<0,"The deadline for "&${$('r_incomeYear')}&" has passed ("&${longDate($, $('r_deadline'))}&"). Contributions made now count for next year, so no instalments are shown.",` +
+      // After the deadline the table is empty unless the deadline was moved earlier than 31 December and the
+      // year has not ended (SPEC §6.10 counts months, not the deadline); the banner says which.
+      `IF(${$('m_days')}<0,IF(AND(${$('m_monthsRemaining')}>0,${$('w_X')}>0),` +
+      `"The deadline for "&${$('r_incomeYear')}&" passed on "&${longDate($, $('m_deadline'))}&". The amounts below are listed only because the year has not ended: money paid in now counts for the following year.",` +
+      `"The deadline for "&${$('r_incomeYear')}&" has passed ("&${longDate($, $('m_deadline'))}&"). Contributions made now count for next year, so no instalments are shown."),` +
       `IF(${$('w_X')}=0,"Nothing more is recommended for "&${$('r_incomeYear')}&", so there are no instalments. The Planner explains why.",` +
+      `IF(${$('m_days')}=0,"Today is the deadline. Transfer now: banks and the CPF Board can stop taking contributions before the end of the day.",` +
       `IF(${$('m_days')}<=14,"Only "&${$('m_days')}&IF(${$('m_days')}=1," day"," days")&" left. Transfer as soon as you can: banks and the CPF Board can stop taking contributions before the last day.",` +
-      `"Set aside the amounts below in each of the "&${$('m_monthsRemaining')}&IF(${$('m_monthsRemaining')}=1," month"," months")&" left to reach S$"&TEXT(${$('w_X')},"#,##0")&" by "&${longDate($, $('r_deadline'))}&". Aim to transfer a few working days early.")))`,
+      `"Set aside the amounts below in each of the "&${$('m_monthsRemaining')}&IF(${$('m_monthsRemaining')}=1," month"," months")&" left to reach S$"&TEXT(${$('w_X')},"#,##0")&" by "&${longDate($, $('m_deadline'))}&". Aim to transfer a few working days early."))))`,
   );
   r += 2;
 
@@ -145,7 +159,7 @@ export function buildMonthly(b: Book): ExcelJS.Worksheet {
   b.f(ws, 6, fullYearRow, () => `SUM(C${fullYearRow}:E${fullYearRow})`, ST.value(NF.int, { bold: true }));
   b.reg('m_fullYear_total', ws, 6, r);
   b.define('out_fullYear_total', 'm_fullYear_total');
-  b.v(ws, 7, r, 'Rounded up to whole dollars. A standing instruction from January makes December painless.', ST.noteRun());
+  b.v(ws, 7, r, 'Rounded up to whole dollars. A standing order makes it painless.', ST.noteRun());
   r += 2;
   mergeRow(ws, r, 2, LAST, ST.note()).value =
     'Check your eligibility and limits with IRAS, the CPF Board and your SRS bank before transferring money. CPF top-ups cannot be reversed.';

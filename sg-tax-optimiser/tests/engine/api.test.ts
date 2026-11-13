@@ -61,6 +61,66 @@ describe('income years', () => {
     }
   });
 
+  it('getRules accepts only a number that is a supported year (SPEC §7)', () => {
+    // A lookup in a plain object would answer 'constructor' or '__proto__' with members of Object.prototype,
+    // and '2026' with the 2026 rules although plan({ incomeYear: '2026' }) throws.
+    for (const notAYear of ['2026', '2025', ' 2026', 'constructor', 'toString', '__proto__', 'hasOwnProperty', 'valueOf', null, undefined, true, [2026], { valueOf: () => 2026 }]) {
+      expect(() => getRules(notAYear as unknown as number), String(notAYear)).toThrow(RangeError);
+    }
+    expect(() => getRules('2026' as unknown as number)).toThrow(
+      'The income year must be a number, not the string "2026". Supported: 2025, 2026, 2027.',
+    );
+    // Values that cannot even be turned into text still get the documented RangeError.
+    for (const awkward of [Object.create(null), Symbol('2026'), { toString: () => { throw new Error('no'); } }, 2026n, () => 2026]) {
+      expect(() => getRules(awkward as unknown as number)).toThrow(RangeError);
+    }
+    // getRules and plan agree on what an income year is.
+    const input = defaultInput('2026-11-13');
+    for (const incomeYear of ['2026', 'constructor', null, [2026]]) {
+      expect(() => plan({ ...input, incomeYear } as unknown as PlannerInput)).toThrow(RangeError);
+    }
+  });
+
+  it('the rule objects and the list of years are read-only, so no caller can change a later calculation (SPEC §7)', () => {
+    const isDeeplyFrozen = (value: unknown): boolean =>
+      typeof value !== 'object' || value === null || (Object.isFrozen(value) && Object.values(value).every(isDeeplyFrozen));
+    for (const year of SUPPORTED_INCOME_YEARS) expect(isDeeplyFrozen(getRules(year)), String(year)).toBe(true);
+    expect(Object.isFrozen(SUPPORTED_INCOME_YEARS)).toBe(true);
+
+    const input = defaultInput('2026-11-13');
+    const before = plan(input);
+    expect(before.rules).toBe(getRules(2026));
+    expect(isDeeplyFrozen(before.rules)).toBe(true);
+    // Every attempt to edit the rules through a result (or through getRules) throws instead of taking effect.
+    const rules = before.rules as unknown as {
+      personalReliefCap: number;
+      taxBrackets: { from: number; rate: number }[];
+      srs: { capCitizenPr: number };
+      cpf: { fullRates: { employeeRate: number }[] };
+      reliefCatalog: unknown[];
+    };
+    expect(() => { rules.personalReliefCap = 0; }).toThrow(TypeError);
+    expect(() => rules.taxBrackets.reverse()).toThrow(TypeError);
+    expect(() => rules.taxBrackets.sort((a, b) => b.from - a.from)).toThrow(TypeError);
+    expect(() => { rules.taxBrackets[4]!.rate = 0; }).toThrow(TypeError);
+    expect(() => { rules.srs.capCitizenPr = 99_999; }).toThrow(TypeError);
+    expect(() => { rules.cpf.fullRates[0]!.employeeRate = 0; }).toThrow(TypeError);
+    expect(() => rules.reliefCatalog.push({})).toThrow(TypeError);
+    expect(() => (SUPPORTED_INCOME_YEARS as number[]).push(2030)).toThrow(TypeError);
+    expect(() => (SUPPORTED_INCOME_YEARS as number[]).reverse()).toThrow(TypeError);
+    expect(SUPPORTED_INCOME_YEARS).toEqual([2025, 2026, 2027]);
+    // ... and the next calculation, for every year, is what it was (Appendix A.1: saves 2,679.50).
+    expect(plan(input)).toEqual(before);
+    expect(plan(input).plan.taxSaved).toBe(2_679.5);
+    // 2025: OW ceiling 7,400 -> 17,760 on wages + 20% x 13,200 of the bonus = 20,400 CPF, so the same 6,639.00.
+    expect(plan({ ...input, incomeYear: 2025 }).baseline.taxPayable).toBe(6_639);
+    expect(plan({ ...input, incomeYear: 2027 }).baseline.taxPayable).toBe(6_639);
+    // A caller that wants different rules copies first; the copy is an ordinary object.
+    const copy = { ...getRules(2026), personalReliefCap: 60_000 };
+    expect(copy.personalReliefCap).toBe(60_000);
+    expect(getRules(2026).personalReliefCap).toBe(80_000);
+  });
+
   it('plan and evaluate throw the same RangeError for an unsupported income year', () => {
     const input = defaultInput('2026-11-13');
     const nothing = { srs: 0, cpfSelf: 0, cpfFamily: 0 };
@@ -82,6 +142,24 @@ describe('income years', () => {
     expect(defaultIncomeYear('2024-12-31')).toBe(2025);
     expect(defaultIncomeYear('2028-01-01')).toBe(2027);
     expect(defaultIncomeYear('2040-01-01')).toBe(2027);
+    expect(defaultIncomeYear('2027-06-30T23:59:59+08:00')).toBe(2027);
+  });
+
+  it('defaultIncomeYear: an unparseable date gives the latest year with final rules, never a projected one (SPEC §7)', () => {
+    // Before the SPEC settled this, '' / null gave 2025 (the back-testing year) and other garbage gave 2027
+    // (the PROJECTED year). 2026 is the latest supported year whose rules are final.
+    expect(getRules(2026).status).toBe('final');
+    expect(getRules(2027).status).toBe('projected');
+    for (const unreadable of ['', 'garbage', 'soon', '13/11/2026', ' 2025-01-01', '2025', '2027', '2027-1-5', '2025-02-30', '2027-13-01', '2027-06-301', null, undefined, 2027, {}]) {
+      expect(defaultIncomeYear(unreadable as unknown as string), String(unreadable)).toBe(2026);
+      const input = defaultInput(unreadable as unknown as string);
+      expect(input.incomeYear, String(unreadable)).toBe(2026);
+      // §6.0: the unreadable date is then planned as 1 January of that year — the Appendix A.1 plan.
+      const result = plan(input);
+      expect(result.input.today).toBe('2026-01-01');
+      expect(result.plan).toMatchObject({ totalContribution: 23_300, taxSaved: 2_679.5 });
+      expect(result.warnings.map((w) => w.code)).not.toContain('PROJECTED_RULES');
+    }
   });
 });
 

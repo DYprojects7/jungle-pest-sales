@@ -922,8 +922,8 @@ class PlanEdgeCases(MoneyAssertions):
         lev = r["levers"]
         self.assertEqual(lev["srs"], {"statutoryCap": 35700, "used": 0, "room": 35700, "eligible": True, "enabled": True})
         self.assertEqual(lev["cpfSelf"], {"statutoryCap": 0, "used": 0, "room": 0, "eligible": False, "enabled": True})
-        self.assertTrue(lev["cpfFamily"]["eligible"])
-        self.assertEqual(lev["cpfFamily"]["statutoryCap"], 8000)
+        # SPEC 6.5: the family lever is for givers who are citizens or PRs only.
+        self.assertEqual(lev["cpfFamily"], {"statutoryCap": 0, "used": 0, "room": 0, "eligible": False, "enabled": False})
         plan = r["plan"]
         self.assertEqual(plan["contributions"], {"srs": 35700, "cpfSelf": 0, "cpfFamily": 0})
         self.assertEqual(plan["bindingConstraint"], "leverLimits")
@@ -945,18 +945,58 @@ class PlanEdgeCases(MoneyAssertions):
         self.assertMoney(ladder[1]["taxSaved"], 2505.00)
         self.assertMoney(ladder[1]["cumulativeTaxSaved"], 5925.00)
 
-    def test_foreigner_family_top_up_is_eligible(self):
-        # SPEC 6.5: cpfFamily is "always" eligible.
+    def test_foreigner_family_top_up_is_not_eligible(self):
+        # SPEC 6.5: cpfFamily is eligible only when the residency is listed in
+        # cpfTopUp.familyGiverResidency (citizens and PRs).  For a foreigner the statutory cap is 0,
+        # so an existing family top-up earns no relief, raises no warning, and none is recommended.
+        # 180,000 income, no CPF; EIR 1,000 -> CI 179,000 -> 13,950 + 18% x 19,000 = 17,370.
         r = ref.plan(make({
             "profile.residency": "foreigner", "profile.ageAtYearEnd": 40,
             "income.monthlyOrdinaryWage": 15000, "income.additionalWages": 0, "otherReliefs": 0,
             "levers.srs.enabled": False, "levers.cpfFamily.enabled": True,
-            "existing.cpfTopUpFamily": 1000,
+            "existing.cpfTopUpFamily": 9000,       # even above the S$8,000 cap of a citizen: no warning
         }))
-        self.assertEqual(r["baseline"]["reliefs"]["cpfTopUpFamily"], 1000)
-        self.assertEqual(r["levers"]["cpfFamily"], {"statutoryCap": 8000, "used": 1000, "room": 7000,
-                                                    "eligible": True, "enabled": True})
-        self.assertEqual(r["plan"]["contributions"], {"srs": 0, "cpfSelf": 0, "cpfFamily": 7000})
+        self.assertEqual(r["baseline"]["reliefs"]["cpfTopUpFamily"], 0)
+        self.assertEqual(r["baseline"]["reliefs"]["totalBeforeCap"], 1000)
+        self.assertEqual(r["baseline"]["chargeableIncome"], 179000)
+        self.assertMoney(r["baseline"]["taxPayable"], 17370.00)
+        self.assertEqual(r["levers"]["cpfFamily"], {"statutoryCap": 0, "used": 0, "room": 0,
+                                                    "eligible": False, "enabled": True})
+        self.assertEqual(r["plan"]["contributions"], {"srs": 0, "cpfSelf": 0, "cpfFamily": 0})
+        self.assertEqual(r["plan"]["bindingConstraint"], "leverLimits")     # tax payable, L = 0
+        self.assertMoney(r["plan"]["taxSaved"], 0)
+        self.assertEqual(codes(r), ["FOREIGNER_NO_CPF", "LEVER_LIMITS_PLAN"])
+        self.assertEqual(scenario(r, "maxAll")["contributions"], {"srs": 35700, "cpfSelf": 0, "cpfFamily": 0})
+        self.assertEqual(r["ladder"], [])
+        self.assertEqual(len(r["simulator"]), 1)
+
+    def test_foreigner_family_lever_worked_example(self):
+        # Foreigner, 35, S$10,000 x 12 + 15,000 bonus, no other reliefs, only the family lever on.
+        # No CPF; EIR 1,000; CI 135,000 - 1,000 = 134,000; tax 7,950 + 15% x 14,000 = 10,050.00.
+        inp = make({"profile.residency": "foreigner", "otherReliefs": 0,
+                    "levers.srs.enabled": False, "levers.cpfSelf.enabled": False, "levers.cpfFamily.enabled": True})
+        r = ref.plan(inp)
+        self.assertEqual(r["baseline"]["chargeableIncome"], 134000)
+        self.assertMoney(r["plan"]["taxBefore"], 10050.00)
+        self.assertMoney(r["plan"]["taxAfter"], 10050.00)
+        self.assertEqual(r["plan"]["totalContribution"], 0)
+        self.assertEqual(r["levers"]["cpfFamily"], {"statutoryCap": 0, "used": 0, "room": 0,
+                                                    "eligible": False, "enabled": True})
+        # The same person with S$8,000 already given to family and the lever off: still no relief.
+        inp = make({"profile.residency": "foreigner", "otherReliefs": 0, "existing.cpfTopUpFamily": 8000,
+                    "levers.srs.enabled": False, "levers.cpfSelf.enabled": False})
+        r = ref.plan(inp)
+        self.assertEqual(r["baseline"]["reliefs"]["cpfTopUpFamily"], 0)
+        self.assertEqual(r["baseline"]["chargeableIncome"], 134000)
+        self.assertMoney(r["baseline"]["taxPayable"], 10050.00)
+
+    def test_family_lever_is_open_to_citizens_and_prs(self):
+        for residency in ("citizen", "pr"):
+            r = ref.plan(make({"profile.residency": residency, "levers.cpfFamily.enabled": True,
+                               "existing.cpfTopUpFamily": 1000}))
+            self.assertEqual(r["levers"]["cpfFamily"], {"statutoryCap": 8000, "used": 1000, "room": 7000,
+                                                        "eligible": True, "enabled": True}, residency)
+            self.assertEqual(r["baseline"]["reliefs"]["cpfTopUpFamily"], 1000, residency)
 
     def test_top_bracket_only(self):
         # Foreigner on 171,000: CI 170,000.  minSavingRate 16% -> only the 18% band is worth it.
@@ -1343,9 +1383,185 @@ class Sanitising(unittest.TestCase):
         self.assertEqual(p(["srs", "srs", "cpfFamily", 7, None]), ["srs", "cpfFamily", "cpfSelf"])
 
     def test_idempotent(self):
-        for inp in (base_input(), a2_input(), make({"income.monthsWorked": 0, "preferences.simulatorStep": 7})):
+        for inp in (base_input(), a2_input(), make({"income.monthsWorked": 0, "preferences.simulatorStep": 7}),
+                    make({"today": "garbage"}), make({"today": "2026-11-13T23:59:59+08:00"}),
+                    make({"income.otherTaxableIncome": 10**12, "levers.srs.enabled": 1})):
             once = ref.sanitise_input(inp)
             self.assertEqual(ref.sanitise_input(once), once)
+
+    def test_money_is_clamped_to_ten_billion(self):
+        # SPEC 6.0: money inputs are clamped to at most S$10,000,000,000.
+        def s(changes):
+            return ref.sanitise_input(make(changes))
+        cap = 10_000_000_000
+        self.assertEqual(s({"income.monthlyOrdinaryWage": cap + 1})["income"]["monthlyOrdinaryWage"], cap)
+        self.assertEqual(s({"income.additionalWages": 1e12})["income"]["additionalWages"], cap)
+        self.assertEqual(s({"income.otherTaxableIncome": 9e15})["income"]["otherTaxableIncome"], cap)
+        self.assertEqual(s({"income.employmentExpenses": cap})["income"]["employmentExpenses"], cap)
+        self.assertEqual(s({"income.donations": cap - 1})["income"]["donations"], cap - 1)
+        self.assertEqual(s({"existing.srs": 1e300})["existing"]["srs"], cap)
+        self.assertEqual(s({"otherReliefs": 2**60})["otherReliefs"], cap)
+        # optional limits are "sanitised like money"
+        self.assertEqual(s({"preferences.cashBudget": cap + 5})["preferences"]["cashBudget"], cap)
+        self.assertEqual(s({"levers.cpfSelf.roomToLimit": 1e11})["levers"]["cpfSelf"]["roomToLimit"], cap)
+        self.assertEqual(s({"levers.cpfFamily.maxAmount": 1e11})["levers"]["cpfFamily"]["maxAmount"], cap)
+        self.assertEqual(s({"income.employeeCpfOverride": 1e11})["income"]["employeeCpfOverride"], cap)
+        # the simulator step is not a money input: it has a minimum (100) but no maximum
+        self.assertEqual(s({"preferences.simulatorStep": 20_000_000_000})["preferences"]["simulatorStep"], 20_000_000_000)
+
+    def test_clamped_money_worked_example(self):
+        # Appendix A.1 profile with other taxable income of S$10,000,000,001 (clamped to 10,000,000,000):
+        # total income 10,000,135,000; reliefs 26,400; chargeable income 10,000,108,600;
+        # tax 199,150 + 24% x 9,999,108,600 = 2,399,985,214.00.
+        r = ref.plan(make({"income.otherTaxableIncome": 10_000_000_001}))
+        self.assertEqual(r["baseline"]["totalIncome"], 10_000_135_000)
+        self.assertEqual(r["baseline"]["chargeableIncome"], 10_000_108_600)
+        self.assertEqual(round(r["baseline"]["taxPayable"] * 100), 239_998_521_400)
+        self.assertEqual(ref.plan(make({"income.otherTaxableIncome": 10_000_000_000})), r)
+        self.assertEqual(ref.plan(make({"income.otherTaxableIncome": 9e15})), r)
+
+    def test_numbers_beyond_a_double_are_not_finite(self):
+        # The data contract is a JSON number (a double).  10^400 is Infinity there: "not finite -> 0".
+        s = ref.sanitise_input(make({"income.additionalWages": 10**400, "preferences.cashBudget": 10**400,
+                                     "profile.ageAtYearEnd": 10**400, "preferences.minSavingRate": 10**400}))
+        self.assertEqual(s["income"]["additionalWages"], 0)
+        self.assertEqual(s["preferences"]["cashBudget"], 0)       # a number, so a limit - of zero
+        self.assertEqual(s["profile"]["ageAtYearEnd"], 0)
+        self.assertEqual(s["preferences"]["minSavingRate"], 1)    # +infinity clamped to 0...1
+        self.assertEqual(ref.sanitise_input(make({"preferences.minSavingRate": -10**400}))["preferences"]["minSavingRate"], 0)
+
+    def test_not_finite_numbers_are_numbers(self):
+        # SPEC 6.0: NaN and +/-Infinity are numbers, so they are sanitised to 0 (then clamped) rather than
+        # replaced by the default, and as an optional limit they are a limit of 0, not "no limit".
+        nan, inf = float("nan"), float("inf")
+        s = ref.sanitise_input(make({"income.monthsWorked": nan, "profile.birthMonth": inf,
+                                     "profile.ageAtYearEnd": nan, "preferences.simulatorStep": nan,
+                                     "preferences.cashBudget": inf, "levers.cpfSelf.roomToLimit": nan}))
+        self.assertEqual(s["income"]["monthsWorked"], 1)
+        self.assertEqual(s["profile"]["birthMonth"], 1)
+        self.assertEqual(s["profile"]["ageAtYearEnd"], 0)
+        self.assertEqual(s["preferences"]["simulatorStep"], 100)
+        self.assertEqual(s["preferences"]["cashBudget"], 0)
+        self.assertEqual(s["levers"]["cpfSelf"]["roomToLimit"], 0)
+        r = ref.plan(make({"preferences.cashBudget": inf}))
+        self.assertEqual(r["plan"]["totalContribution"], 0)
+        self.assertEqual(r["plan"]["bindingConstraint"], "cashBudget")
+
+    def test_a_lever_is_enabled_only_by_the_boolean_true(self):
+        # SPEC 6.0: a lever is enabled only when `enabled` is exactly true.
+        for value in (1, "true", "false", "yes", [True], {"on": True}, 1.0, None):
+            s = ref.sanitise_input(make({"levers.srs.enabled": value, "levers.cpfSelf.enabled": value,
+                                         "levers.cpfFamily.enabled": value}))
+            self.assertEqual([s["levers"][lever]["enabled"] for lever in ref.LEVER_IDS], [False] * 3, repr(value))
+        s = ref.sanitise_input({"incomeYear": 2026, "today": TODAY})                 # levers missing altogether
+        self.assertEqual([s["levers"][lever]["enabled"] for lever in ref.LEVER_IDS], [False] * 3)
+        # Appendix A.1 with truthy non-boolean flags: nothing is switched on, tax stays 6,639.00.
+        r = ref.plan(make({"levers": {"srs": {"enabled": 1}, "cpfSelf": {"enabled": "true"},
+                                      "cpfFamily": {"enabled": "false"}}}))
+        self.assertEqual(r["plan"]["totalContribution"], 0)
+        self.assertEqual(round(r["plan"]["taxAfter"] * 100), 663_900)
+        self.assertEqual([r["levers"][lever]["room"] for lever in ref.LEVER_IDS], [0, 0, 0])
+
+
+# ---------------------------------------------------------------------------
+# `today` (SPEC 6.0, 6.10)
+# ---------------------------------------------------------------------------
+
+class Today(unittest.TestCase):
+    UNPARSEABLE = ("", "garbage", "13/11/2026", "2026/11/13", "tomorrow", None, 20261113, True, "T",
+                   # impossible calendar dates
+                   "2026-02-30", "2026-13-01", "2026-00-10", "2026-11-00", "2026-11-31", "2027-02-29", "2026-02-29",
+                   # unpadded fields, leading whitespace, a further digit straight after the day
+                   "2026-1-5", "2026-11-5", " 2026-11-13", "2026-11-135", "02026-11-13", "26-11-13",
+                   # digits that are not ASCII digits
+                   "\u0662\u0660\u0662\u0666-11-13")
+
+    def test_unparseable_today_is_1_january_of_the_income_year(self):
+        # Appendix A.1 planned "as at" 1 January 2026: 364 days to 31 December, 12 instalment months.
+        # SRS 15,300 / 12 = 1,275 a month; CPF self 8,000 = 666 x 12 + 8 -> 667 for 8 months, then 666.
+        expected = ref.plan(make({"today": "2026-01-01"}))
+        self.assertEqual(expected["monthlyPlan"]["daysToDeadline"], 364)
+        self.assertEqual(expected["monthlyPlan"]["monthsRemaining"], 12)
+        self.assertEqual([row["amounts"]["srs"] for row in expected["monthlyPlan"]["schedule"]], [1275] * 12)
+        self.assertEqual([row["amounts"]["cpfSelf"] for row in expected["monthlyPlan"]["schedule"]], [667] * 8 + [666] * 4)
+        self.assertEqual([row["month"] for row in expected["monthlyPlan"]["schedule"]],
+                         ["2026-%02d" % m for m in range(1, 13)])
+        for value in self.UNPARSEABLE:
+            self.assertEqual(ref.sanitise_input(make({"today": value}))["today"], "2026-01-01", repr(value))
+            self.assertEqual(ref.plan(make({"today": value})), expected, repr(value))
+        missing = base_input()
+        del missing["today"]
+        self.assertEqual(ref.plan(missing), expected)
+        self.assertEqual(ref.run_batch([missing])[0], expected)        # no {"error": ...} any more
+        # ... of the income year of the input, whichever it is
+        self.assertEqual(ref.sanitise_input(make({"incomeYear": 2027, "today": "soon"}))["today"], "2027-01-01")
+        self.assertEqual(ref.plan(make({"incomeYear": 2025, "today": None}))["monthlyPlan"]["daysToDeadline"], 364)
+
+    def test_only_the_leading_date_is_read(self):
+        expected = ref.plan(base_input())                              # 2026-11-13: 48 days, 2 months
+        self.assertEqual(expected["monthlyPlan"]["daysToDeadline"], 48)
+        for value in ("2026-11-13T23:59:59+08:00", "2026-11-13 08:00", "2026-11-13Z", "2026-11-13-05",
+                      "2026-11-13T00:00:00.000Z", "2026-11-13 and then some"):
+            self.assertEqual(ref.sanitise_input(make({"today": value}))["today"], "2026-11-13", value)
+            self.assertEqual(ref.plan(make({"today": value})), expected, value)
+
+    def test_leap_days(self):
+        self.assertEqual(ref.sanitise_input(make({"today": "2028-02-29"}))["today"], "2028-02-29")
+        self.assertEqual(ref.sanitise_input(make({"today": "2024-02-29"}))["today"], "2024-02-29")
+        self.assertEqual(ref.sanitise_input(make({"today": "2000-02-29"}))["today"], "2000-02-29")
+        self.assertEqual(ref.sanitise_input(make({"today": "1900-02-29"}))["today"], "2026-01-01")   # not a leap year
+        self.assertEqual(ref.sanitise_input(make({"today": "2100-02-29"}))["today"], "2026-01-01")
+        # 29 February 2024 to 31 December 2026: 306 days left in 2024, then 365 + 365.
+        r = ref.plan(make({"today": "2024-02-29"}))
+        self.assertEqual(r["monthlyPlan"]["daysToDeadline"], 306 + 365 + 365)
+        self.assertEqual(r["monthlyPlan"]["monthsRemaining"], 12)
+
+    def test_day_counts_agree_with_the_calendar(self):
+        import datetime
+        deadline = datetime.date(2026, 12, 31)
+        day = datetime.date(2023, 1, 1)
+        while day <= datetime.date(2029, 12, 31):
+            r_days = ref._day_number((2026, 12, 31)) - ref._day_number((day.year, day.month, day.day))
+            self.assertEqual(r_days, (deadline - day).days, day.isoformat())
+            day += datetime.timedelta(days=17)
+        for year, month, dom in ((1, 1, 1), (1600, 2, 29), (1900, 3, 1), (2000, 2, 29), (2400, 12, 31), (9999, 12, 31)):
+            self.assertEqual(ref._day_number((year, month, dom)) - ref._day_number((1, 1, 1)),
+                             datetime.date(year, month, dom).toordinal() - 1, (year, month, dom))
+        # Year 0000 exists in the proleptic Gregorian calendar and is a leap year (366 days).
+        self.assertEqual(ref._day_number((1, 1, 1)) - ref._day_number((0, 1, 1)), 366)
+        self.assertEqual(ref.sanitise_input(make({"today": "0000-02-29"}))["today"], "0000-02-29")
+        self.assertEqual(ref.plan(make({"today": "0000-01-01"}))["monthlyPlan"]["monthsRemaining"], 12)
+
+    def test_default_income_year(self):
+        self.assertEqual(ref.default_income_year("2025-03-01"), 2025)
+        self.assertEqual(ref.default_income_year("2026-11-13"), 2026)
+        self.assertEqual(ref.default_income_year("2027-12-31T10:00:00Z"), 2027)
+        self.assertEqual(ref.default_income_year("2019-06-01"), 2025)      # nearest supported
+        self.assertEqual(ref.default_income_year("2040-01-01"), 2027)
+        # SPEC 7: an unparseable date gives the latest supported year whose rules are final (2026),
+        # never the projected year and never the back-testing year.
+        for value in ("", "garbage", None, 2026, "2025", "2027-1-5", " 2025-01-01", "2027-02-30"):
+            self.assertEqual(ref.default_income_year(value), 2026, repr(value))
+        self.assertEqual(ref.default_input("soon")["incomeYear"], 2026)
+        self.assertEqual(ref.plan(ref.default_input("soon"))["monthlyPlan"]["daysToDeadline"], 364)
+
+
+class PublicTaxFunctions(unittest.TestCase):
+    def test_argument_domain(self):
+        # SPEC 7: the argument is sanitised like any numeric input and clamped to S$140,000,000,000.
+        rules = ref.get_rules(2026)
+        # tax on 140bn: 199,150 + 24% x (140,000,000,000 - 1,000,000) = 33,599,959,150.00
+        self.assertEqual(round(ref.gross_tax(140_000_000_000, rules) * 100), 3_359_995_915_000)
+        self.assertEqual(ref.gross_tax(200_000_000_000, rules), ref.gross_tax(140_000_000_000, rules))
+        self.assertEqual(ref.gross_tax(1e300, rules), ref.gross_tax(140_000_000_000, rules))
+        # 20bn is above the S$10bn clamp of a money INPUT but inside the domain of the tax functions:
+        # 199,150 + 24% x 19,999,000,000 = 4,799,959,150.00
+        self.assertEqual(round(ref.gross_tax(20_000_000_000, rules) * 100), 479_995_915_000)
+        for bad in (float("inf"), float("-inf"), float("nan"), -1, -0.5, None, "50000"):
+            self.assertEqual(ref.gross_tax(bad, rules), 0, repr(bad))
+            self.assertEqual(ref.marginal_rate(bad, rules), 0, repr(bad))
+        self.assertEqual(ref.gross_tax(30000.99, rules), 200)              # floored
+        self.assertEqual(ref.marginal_rate(200_000_000_000, rules), 0.24)
 
     def test_plan_does_not_mutate_its_input(self):
         inp = a2_input()

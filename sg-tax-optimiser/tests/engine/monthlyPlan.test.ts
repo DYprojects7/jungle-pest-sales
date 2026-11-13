@@ -229,4 +229,27 @@ describe('the engine never reads the clock', () => {
       expect(result.warnings.map((w) => w.code)).not.toContain('DEADLINE_PASSED');
     }
   });
+
+  it('SPEC §6.0 spells out what cannot be parsed: impossible dates, unpadded fields, leading space, a trailing digit', () => {
+    const unparseable = [
+      '2026-02-30', '2026-13-01', '2026-1-5', ' 2026-11-13', '2026-11-135', // the SPEC's own examples
+      '2026-00-10', '2026-11-00', '2026-11-31', '2027-02-29', '2100-02-29', '2026-11-5', '02026-11-13', '26-11-13',
+      '\u0662\u0660\u0662\u0666-11-13', // digits, but not ASCII digits
+    ];
+    for (const today of unparseable) {
+      const result = plan(on(today));
+      expect(result.input.today, today).toBe('2026-01-01');
+      expect(result.monthlyPlan.daysToDeadline, today).toBe(364);
+      expect(result.monthlyPlan.monthsRemaining, today).toBe(12);
+    }
+    // Whatever follows a complete date is ignored (unless it is another digit).
+    for (const today of ['2026-11-13T23:59:59+08:00', '2026-11-13 08:00', '2026-11-13Z', '2026-11-13-05', '2026-11-13x']) {
+      const result = plan(on(today));
+      expect(result.input.today, today).toBe('2026-11-13');
+      expect(result.monthlyPlan.daysToDeadline, today).toBe(48);
+    }
+    // Year 0000 is a real (leap) year of the proleptic Gregorian calendar.
+    expect(plan(on('0000-02-29')).input.today).toBe('0000-02-29');
+    expect(plan(on('0000-02-29')).monthlyPlan.monthsRemaining).toBe(12);
+  });
 });

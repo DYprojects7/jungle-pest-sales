@@ -7,9 +7,13 @@ import {
   exampleState,
   itemisedReliefTotal,
   monthlyWage,
+  oddPay,
+  openIncomeYear,
   parseSaved,
   serialiseSaved,
+  switchPayMode,
   toPlannerInput,
+  whatIf,
 } from '../../src/web/state';
 import type { UiState } from '../../src/web/state';
 import { headline, stopReason, summaryText } from '../../src/web/text';
@@ -27,7 +31,32 @@ describe('toPlannerInput', () => {
     const ui: UiState = { ...example(), payMode: 'annual', salary: 120_000 };
     expect(monthlyWage(ui)).toBe(10_000);
     expect(toPlannerInput(ui, TODAY).income.monthlyOrdinaryWage).toBe(10_000);
+    expect(toPlannerInput(ui, TODAY).income.additionalWages).toBe(15_000);
     expect(monthlyWage({ payMode: 'annual', salary: 100_000 })).toBe(8_333);
+  });
+
+  it('counts every dollar of an annual salary that is not a multiple of twelve', () => {
+    // S$100,000 a year is S$8,333 a month with S$4 over; the S$4 travels with the extra pay.
+    const ui: UiState = { ...example(), payMode: 'annual', salary: 100_000 };
+    expect(oddPay(ui)).toBe(4);
+    const input = toPlannerInput(ui, TODAY);
+    expect(input.income.monthlyOrdinaryWage).toBe(8_333);
+    expect(input.income.additionalWages).toBe(15_004);
+    expect(computePlan(ui, TODAY).baseline.employmentIncome).toBe(115_000);
+    // Part of a year: three twelfths of S$100,000 is S$25,000.
+    const quarter: UiState = { ...ui, monthsWorked: 3, bonus: 0 };
+    expect(computePlan(quarter, TODAY).baseline.employmentIncome).toBe(25_000);
+    expect(oddPay({ payMode: 'monthly', salary: 8_333, monthsWorked: 12 })).toBe(0);
+  });
+
+  it('switching between monthly and annual entry never rewrites the typed figure', () => {
+    const typed = { payMode: 'annual' as const, salary: 100_000, salaryOther: null };
+    const monthly = switchPayMode(typed, 'monthly');
+    expect(monthly).toEqual({ payMode: 'monthly', salary: 8_333, salaryOther: 100_000 });
+    expect(switchPayMode(monthly, 'annual')).toEqual({ payMode: 'annual', salary: 100_000, salaryOther: 8_333 });
+    // Once the monthly figure is edited, the remembered annual figure is dropped and the pay is converted.
+    expect(switchPayMode({ payMode: 'monthly', salary: 8_400, salaryOther: null }, 'annual').salary).toBe(100_800);
+    expect(switchPayMode(typed, 'annual')).toEqual(typed);
   });
 
   it('maps the strategy presets', () => {
@@ -48,6 +77,15 @@ describe('toPlannerInput', () => {
     expect(input.levers.cpfFamily).toEqual({ enabled: true, maxAmount: 1_000 });
     const foreigner = toPlannerInput({ ...ui, residency: 'foreigner', cpfOverrideOn: true, cpfOverride: 9_999 }, TODAY);
     expect(foreigner.income.employeeCpfOverride).toBeNull();
+  });
+
+  it('an empty CPF override means "use the estimate", not S$0', () => {
+    const ui: UiState = { ...example(), cpfOverrideOn: true, cpfOverride: null };
+    expect(toPlannerInput(ui, TODAY).income.employeeCpfOverride).toBeNull();
+    const r = computePlan(ui, TODAY);
+    expect(r.cpf.source).toBe('auto');
+    expect(r.plan.taxSaved).toBe(2_679.5);
+    expect(toPlannerInput({ ...ui, cpfOverride: 18_000 }, TODAY).income.employeeCpfOverride).toBe(18_000);
   });
 
   it('adds up the itemised relief helper', () => {
@@ -77,6 +115,67 @@ describe('computePlan', () => {
     expect(r.input.preferences.minSavingRate).toBe(0.15);
     expect(r.plan.totalContribution).toBe(12_600);
     expect(r.plan.bindingConstraint).toBe('usefulRoom');
+  });
+
+  it('never quotes a saving that no setting can reach', () => {
+    // The opening example is stopped by the scheme limits. The engine's unrealisedSaving (S$2,359.50) assumes
+    // room that does not exist; the only thing left to switch on is the family top-up.
+    const ui = example();
+    const r = computePlan(ui, TODAY);
+    expect(r.plan.unrealisedSaving).toBe(2_359.5);
+    const hint = whatIf(ui, TODAY, r);
+    expect(hint?.kind).toBe('switchOn');
+    expect(hint?.levers).toEqual(['cpfFamily']);
+    const withFamily = computePlan({ ...ui, useCpfFamily: true }, TODAY);
+    expect(hint?.plan.taxSaved).toBe(withFamily.plan.taxSaved);
+    const reason = stopReason(r, hint);
+    expect(reason).not.toContain('2,359.50');
+    expect(reason).toContain('Switching on the family CPF top-up would raise the saving to S$3,478.00');
+    expect(stopReason(r)).not.toContain('2,359.50');
+    // With everything switched on there is nothing left to suggest.
+    expect(whatIf({ ...ui, useCpfFamily: true }, TODAY, withFamily)).toBeNull();
+  });
+
+  it('says what lifting a cash limit would do, using the engine plan without it', () => {
+    const ui: UiState = { ...example(), cashLimit: 10_000 };
+    const r = computePlan(ui, TODAY);
+    expect(r.plan.bindingConstraint).toBe('cashBudget');
+    const hint = whatIf(ui, TODAY, r);
+    expect(hint?.kind).toBe('noCashLimit');
+    expect(hint?.plan.totalContribution).toBe(23_300);
+    expect(stopReason(r, hint)).toBe(
+      'This uses your whole S$10,000 cash limit. Without the limit the plan would save S$2,679.50 by locking away S$23,300.',
+    );
+  });
+
+  it('lists the plan in the order chosen under "Which first?"', () => {
+    const ui: UiState = { ...example(), order: 'interest' };
+    expect(headline(computePlan(ui, TODAY))).toBe(
+      'Put S$8,000 into your CPF and S$15,300 into SRS. You save S$2,679.50 in tax.',
+    );
+  });
+
+  it('after the deadline, describes the plan as what it would have done', () => {
+    const r = computePlan({ ...example(), incomeYear: 2025 }, TODAY);
+    expect(r.monthlyPlan.daysToDeadline).toBeLessThan(0);
+    const said = headline(r);
+    expect(said).not.toMatch(/^Put /);
+    expect(said).toContain('The deadline for YA2026 has passed.');
+    expect(said).toContain('would have saved S$2,679.50');
+    const summary = summaryText(r, false);
+    expect(summary).toContain('looking back at YA2026');
+    expect(summary).not.toMatch(/You save/);
+    expect(summary).toContain('Tax it would have saved: S$2,679.50');
+    // The year to offer instead is the one today falls in, while its own deadline is still ahead.
+    expect(openIncomeYear(TODAY, 2025)).toBe(2026);
+    expect(openIncomeYear(TODAY, 2026)).toBeNull();
+    expect(openIncomeYear('2027-01-05', 2026)).toBe(2027);
+    expect(openIncomeYear('2028-03-02', 2027)).toBeNull();
+  });
+
+  it('flags projected rules in the copied summary', () => {
+    const summary = summaryText(computePlan({ ...example(), incomeYear: 2027 }, TODAY), false);
+    expect(summary).toMatch(/Projected rules/);
   });
 
   it('gives a reason for every way a plan can stop', () => {
@@ -133,6 +232,15 @@ describe('persistence', () => {
     expect(saved?.theme).toBe('dark');
   });
 
+  it('does not restore the untouched example, only the theme', () => {
+    const saved = parseSaved(serialiseSaved(example(), 'dark'), example());
+    expect(saved?.ui).toBeNull();
+    expect(saved?.theme).toBe('dark');
+    // Data written by an earlier build, which stored the example like any other state.
+    const old = JSON.stringify({ v: 1, theme: 'light', ui: { ...example(), incomeYear: 2025 } });
+    expect(parseSaved(old, example())?.ui).toBeNull();
+  });
+
   it('ignores unparseable or outdated data', () => {
     expect(parseSaved(null, example())).toBeNull();
     expect(parseSaved('{not json', example())).toBeNull();
@@ -142,12 +250,18 @@ describe('persistence', () => {
   });
 
   it('repairs fields of the wrong type instead of trusting them', () => {
-    const raw = { v: 1, theme: 'neon', ui: { ...example(), salary: 'lots', incomeYear: 1999, depth: 'deep', age: 400 } };
+    const raw = {
+      v: 1,
+      theme: 'neon',
+      ui: { ...example(), isExample: false, salary: 'lots', incomeYear: 1999, depth: 'deep', age: 400, cpfOverride: 'x' },
+    };
     const saved = parseSaved(JSON.stringify(raw), example());
     expect(saved?.theme).toBe('system');
-    expect(saved?.ui.salary).toBe(10_000);
-    expect(saved?.ui.incomeYear).toBe(2026);
-    expect(saved?.ui.depth).toBe('worth');
-    expect(saved?.ui.age).toBe(120);
+    expect(saved?.ui?.salary).toBe(10_000);
+    expect(saved?.ui?.incomeYear).toBe(2026);
+    expect(saved?.ui?.depth).toBe('worth');
+    expect(saved?.ui?.age).toBe(120);
+    expect(saved?.ui?.cpfOverride).toBeNull();
+    expect(saved?.ui?.salaryOther).toBeNull();
   });
 });

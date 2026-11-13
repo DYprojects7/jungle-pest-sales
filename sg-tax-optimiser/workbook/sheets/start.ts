@@ -42,9 +42,13 @@ export function buildStart(b: Book, version: string): ExcelJS.Worksheet {
   );
   r += 2;
 
-  /** Rough row height for wrapped text in a column `width` characters wide. */
+  /**
+   * Row height for wrapped text in a column `width` characters wide. Row heights are fixed because merged cells
+   * never grow by themselves, so the estimate errs on the tall side: it assumes fewer characters per line than
+   * Calibri fits, which leaves room for other fonts and applications.
+   */
   const heightFor = (text: string, width: number, lineHeight = 15.5): number =>
-    Math.max(1, Math.ceil(text.length / (width * 1.08))) * lineHeight + 3;
+    Math.max(1, Math.ceil(text.length / (width * 0.98))) * lineHeight + 4;
 
   const heading = (text: string): void => {
     ws.getRow(r).height = 22;
@@ -84,7 +88,7 @@ export function buildStart(b: Book, version: string): ExcelJS.Worksheet {
 
   heading('What is on each sheet');
   item('›', 'Planner', 'Your details on the left, the recommendation on the right.');
-  item('›', 'Ladder', 'The savings ladder: how many cents of tax each further slice of contribution saves, and which slices the plan uses.');
+  item('›', 'Ladder', 'The savings ladder as a chart and a table: how many cents of tax each further slice of contribution saves, and which slices the plan uses.');
   item('›', 'Scenarios', 'Side by side: do nothing, SRS only, CPF only, both, everything, and the recommended plan, with any wasted dollars called out.');
   item('›', 'Simulator', 'Tax and saving for every extra S$1,000 (or the step you choose).');
   item('›', 'Monthly Plan', 'Instalments from this month to December, the days left, and a "start in January" figure for next year.');
@@ -107,9 +111,9 @@ export function buildStart(b: Book, version: string): ExcelJS.Worksheet {
 
   heading('Good to know');
   item('•', 'Cream cells', 'Cream cells with blue text are yours to change. Everything else is a formula. The sheets are protected without a password so formulas are not overwritten by accident; switch protection off under Review › Unprotect Sheet if you want to explore.');
-  item('•', 'Where it works', 'Excel 2016 or later, Google Sheets (File › Import) and LibreOffice. No macros, no add-ins, no internet connection; nothing leaves your computer.');
+  item('•', 'Where it works', 'Made for Excel 2016 or later, Google Sheets (File › Import) and LibreOffice, using only functions all three share. No macros, no add-ins, no internet connection; nothing leaves your computer. Every figure is checked against the calculator by recalculating in LibreOffice; if another application shows something odd, the Tax Working sheet has every step.');
   item('•', 'Accuracy', 'CPF is worked out month by month from your salary; real payslips can differ by a few dollars. Enter your actual employee CPF on the Planner to be exact. Your Notice of Assessment from IRAS is the final word.');
-  item('•', 'A new year', 'Each year has its own rates and ceilings. Update the Rules sheet from the official sources listed there, or use the edition for that Year of Assessment.');
+  item('•', 'A new year', 'Each year has its own rates and ceilings. Update the cream cells on the Rules sheet from the official sources listed there (it says how to add a tax bracket, and checks the table for you), or use the edition for that Year of Assessment.');
   gap();
 
   heading('Important');
@@ -118,6 +122,6 @@ export function buildStart(b: Book, version: string): ExcelJS.Worksheet {
   para('The workbook never asks for your NRIC, name or account numbers. Information about tax relief is general information, not a recommendation to buy any investment product.', ST.note());
 
   view(ws, 0);
-  pageSetup(ws, { landscape: false, lastCol: 'D', lastRow: r - 1 });
+  pageSetup(ws, { landscape: false, lastCol: 'D', lastRow: r - 1, onePage: true });
   return ws;
 }

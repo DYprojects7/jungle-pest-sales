@@ -29,7 +29,6 @@ Standard library only.
 
 from __future__ import annotations
 
-import datetime as _dt
 import json
 import math
 import re
@@ -159,6 +158,9 @@ def _year(income_year, status, ow_ceiling, full_rates, frs, ers, bhs):
         "cpfTopUp": {
             "selfReliefCap": 8_000,
             "familyReliefCap": 8_000,
+            # SPEC 5.4 / 6.5: relief for topping up family members is for givers who are
+            # Singapore Citizens or PRs only.
+            "familyGiverResidency": ("citizen", "pr"),
             "fullRetirementSum": frs,          # informational
             "enhancedRetirementSum": ers,      # informational
             "basicHealthcareSum": bhs,         # informational
@@ -193,15 +195,37 @@ def _is_number(v):
     return isinstance(v, (int, float)) and not isinstance(v, bool)
 
 
-def _money(v):
-    """Not finite or < 0 -> 0; otherwise floor.  Non-numbers count as not finite."""
+# SPEC 6.0: "Money inputs are also clamped to at most S$10,000,000,000".
+_MAX_MONEY = 10_000_000_000
+
+# SPEC 7: the public tax functions clamp their chargeable-income argument to S$140,000,000,000,
+# the largest chargeable income the clamped money inputs can produce
+# (12 months of wages + additional wages + other income, each at most S$10,000,000,000).
+_MAX_CHARGEABLE_INCOME = 140_000_000_000
+
+
+def _whole(v):
+    """SPEC 6.0 numeric sanitising: not finite or < 0 -> 0; otherwise floor.
+
+    Non-numbers count as not finite.  The data contract is a JSON number, i.e. an IEEE-754
+    double, so a Python int is first read as the double it would be: one that is too large
+    for a double is "not finite" (0), like the Infinity a JSON parser would produce for it.
+    """
     if not _is_number(v):
         return 0
-    if isinstance(v, float):
-        if not math.isfinite(v) or v < 0:
+    if isinstance(v, int):
+        try:
+            v = float(v)
+        except OverflowError:
             return 0
-        return math.floor(v)
-    return v if v >= 0 else 0
+    if not math.isfinite(v) or v < 0:
+        return 0
+    return math.floor(v)
+
+
+def _money(v):
+    """A money input: sanitised (_whole), then clamped to at most S$10,000,000,000."""
+    return min(_whole(v), _MAX_MONEY)
 
 
 def _optional_money(v):
@@ -210,10 +234,71 @@ def _optional_money(v):
 
 
 def _clamped_int(v, lo, hi, default):
-    """Missing/None/non-number -> default; otherwise sanitise, then clamp to lo..hi."""
+    """Missing/None/non-number -> default; otherwise sanitise (not as money: no S$10bn clamp), then clamp to lo..hi."""
     if not _is_number(v):
         return default
-    return max(lo, min(hi, _money(v)))
+    return max(lo, min(hi, _whole(v)))
+
+
+# SPEC 6.0: `today` is read as its leading YYYY-MM-DD - exactly four digits, a hyphen, two digits,
+# a hyphen, two digits, and no further digit straight after.  ASCII digits only.
+_LEADING_DATE = re.compile(r"([0-9]{4})-([0-9]{2})-([0-9]{2})(?![0-9])")
+
+
+def _is_leap_year(year):
+    return year % 400 == 0 or (year % 4 == 0 and year % 100 != 0)
+
+
+def _month_length(year, month):
+    if month == 2:
+        return 29 if _is_leap_year(year) else 28
+    return 30 if month in (4, 6, 9, 11) else 31
+
+
+def _read_date(text):
+    """The leading YYYY-MM-DD of `text` as (year, month, day); None when it cannot be parsed.
+
+    Unparseable (SPEC 6.0): anything that is not a string, a string that does not start with that
+    pattern (leading whitespace and unpadded fields included), a date followed directly by another
+    digit, and a date that does not exist in the calendar (month 13, 30 February, 29 February of a
+    non-leap year).  Whatever follows the date (a time, a zone) is ignored.
+    """
+    if not isinstance(text, str):
+        return None
+    found = _LEADING_DATE.match(text)
+    if found is None:
+        return None
+    year, month, day = int(found.group(1)), int(found.group(2)), int(found.group(3))
+    if not 1 <= month <= 12:
+        return None
+    if not 1 <= day <= _month_length(year, month):
+        return None
+    return year, month, day
+
+
+def _day_number(date):
+    """A running day count in the proleptic Gregorian calendar (differences are whole days).
+
+    Years are counted from 1 March so that the leap day is the last day of the counting year;
+    400 Gregorian years are always 146,097 days.  Works for year 0000 as well.
+    """
+    year, month, day = date
+    counting_year = year if month >= 3 else year - 1
+    cycle, year_of_cycle = divmod(counting_year, 400)
+    months_since_march = (month - 3) % 12
+    day_of_counting_year = (153 * months_since_march + 2) // 5 + (day - 1)
+    day_of_cycle = 365 * year_of_cycle + year_of_cycle // 4 - year_of_cycle // 100 + day_of_counting_year
+    return 146_097 * cycle + day_of_cycle
+
+
+def _sanitise_today(value, income_year):
+    """`today` as YYYY-MM-DD; an unparseable value becomes 1 January of the income year (SPEC 6.0)."""
+    date = _read_date(value)
+    if date is None:
+        if not (_is_number(income_year) and isinstance(income_year, int) and 0 <= income_year <= 9999):
+            return None  # no usable income year either; plan() rejects such an input anyway
+        date = (income_year, 1, 1)
+    return "%04d-%02d-%02d" % date
 
 
 def _obj(v):
@@ -262,14 +347,18 @@ def sanitise_input(raw):
     min_rate = prefs.get("minSavingRate")
     if not _is_number(min_rate) or min_rate != min_rate:  # missing or NaN
         min_rate = 0.0
-    min_rate = min(1.0, max(0.0, float(min_rate)))
+    try:
+        min_rate = float(min_rate)
+    except OverflowError:  # an integer beyond the range of a double: +/- infinity, clamped below
+        min_rate = math.inf if min_rate > 0 else -math.inf
+    min_rate = min(1.0, max(0.0, min_rate))
 
     step = prefs.get("simulatorStep")
-    step = max(100, _money(step)) if _is_number(step) else 1000
+    step = max(100, _whole(step)) if _is_number(step) else 1000
 
     return {
         "incomeYear": income_year,
-        "today": raw.get("today"),
+        "today": _sanitise_today(raw.get("today"), income_year),
         "profile": {
             "residency": residency,
             "prYear": pr_year,
@@ -292,13 +381,14 @@ def sanitise_input(raw):
         },
         "otherReliefs": _money(raw.get("otherReliefs")),
         "levers": {
-            "srs": {"enabled": bool(lev_srs.get("enabled"))},
+            # SPEC 6.0: a lever is enabled only when `enabled` is exactly the boolean true.
+            "srs": {"enabled": lev_srs.get("enabled") is True},
             "cpfSelf": {
-                "enabled": bool(lev_self.get("enabled")),
+                "enabled": lev_self.get("enabled") is True,
                 "roomToLimit": _optional_money(lev_self.get("roomToLimit")),
             },
             "cpfFamily": {
-                "enabled": bool(lev_family.get("enabled")),
+                "enabled": lev_family.get("enabled") is True,
                 "maxAmount": _optional_money(lev_family.get("maxAmount")),
             },
         },
@@ -373,14 +463,19 @@ def _tax_payable_cents(ci, rules):
     return max(0, gross - _pit_rebate_cents(gross, rules["pitRebate"]))
 
 
+def _chargeable_income_argument(v):
+    """SPEC 7: sanitised like any numeric input (6.0), then clamped to S$140,000,000,000."""
+    return min(_whole(v), _MAX_CHARGEABLE_INCOME)
+
+
 def gross_tax(chargeable_income, rules):
     """Gross tax in dollars (float, 2 dp) on a chargeable income."""
-    return _dollars(_gross_tax_cents(_money(chargeable_income), rules["taxBrackets"]))
+    return _dollars(_gross_tax_cents(_chargeable_income_argument(chargeable_income), rules["taxBrackets"]))
 
 
 def marginal_rate(chargeable_income, rules):
     """Marginal rate (float fraction) at a chargeable income."""
-    return _rate(_marginal_mille(_money(chargeable_income), rules["taxBrackets"]))
+    return _rate(_marginal_mille(_chargeable_income_argument(chargeable_income), rules["taxBrackets"]))
 
 
 def _floor_ci(min_rate, brackets):
@@ -512,7 +607,8 @@ def _lever_rooms(s, rules):
     eligible = {
         "srs": prof["ageAtYearEnd"] >= rules["srs"]["minAge"],
         "cpfSelf": residency in ("citizen", "pr"),
-        "cpfFamily": True,
+        # SPEC 6.5: eligible only when the residency is listed in cpfTopUp.familyGiverResidency.
+        "cpfFamily": residency in rules["cpfTopUp"]["familyGiverResidency"],
     }
     statutory = {
         "srs": rules["srs"]["capForeigner"] if residency == "foreigner" else rules["srs"]["capCitizenPr"],
@@ -655,23 +751,6 @@ def _allocate(total, rooms, priority):
     return out
 
 
-def _parse_date(text):
-    """ISO date (YYYY-MM-DD, anything after the date is ignored) -> datetime.date."""
-    if not isinstance(text, str):
-        raise ValueError("invalid today")
-    match = re.match(r"^\s*(\d{4})-(\d{1,2})-(\d{1,2})", text)
-    if not match:
-        raise ValueError("invalid today")
-    year, month, day = (int(g) for g in match.groups())
-    try:
-        # Out-of-range month/day roll over, as JavaScript's Date.UTC does.
-        year += (month - 1) // 12
-        month = (month - 1) % 12 + 1
-        return _dt.date.fromordinal(_dt.date(year, month, 1).toordinal() + day - 1)
-    except (ValueError, OverflowError):
-        raise ValueError("invalid today")
-
-
 _SEVERITY = {
     "NO_TAX_PAYABLE": "info",
     "RELIEF_CAP_EXCEEDED_BASELINE": "caution",
@@ -701,7 +780,7 @@ def plan(input):
     brackets = rules["taxBrackets"]
     prefs = s["preferences"]
     priority = prefs["priority"]
-    today = _parse_date(s["today"])
+    today_year, today_month, _today_day = today = _read_date(s["today"])   # sanitised: always a real date here
 
     baseline, ci0, base_tax = p.evaluate(_amounts())
     rooms = {lever: p.levers[lever]["room"] for lever in LEVER_IDS}
@@ -858,12 +937,12 @@ def plan(input):
 
     # --- 6.10 monthly plan -------------------------------------------------
     income_year = rules["incomeYear"]
-    deadline = _dt.date(income_year, 12, 31)
-    days_to_deadline = deadline.toordinal() - today.toordinal()
-    if today.year < income_year:
+    deadline = _read_date(rules["contributionDeadline"])   # 31 December of the income year
+    days_to_deadline = _day_number(deadline) - _day_number(today)
+    if today_year < income_year:
         months_remaining = 12
-    elif today.year == income_year:
-        months_remaining = 12 - today.month + 1
+    elif today_year == income_year:
+        months_remaining = 12 - today_month + 1
     else:
         months_remaining = 0
 
@@ -955,8 +1034,16 @@ def plan(input):
 # ---------------------------------------------------------------------------
 
 def default_income_year(today):
-    """Today's year if supported, else the nearest supported year."""
-    year = _parse_date(today).year
+    """Today's year if supported, else the nearest supported year (SPEC 7).
+
+    When `today` cannot be parsed (SPEC 6.0) there is no year to go by: the answer is then the
+    latest supported income year whose rules are final (the latest supported year if none is).
+    """
+    date = _read_date(today)
+    if date is None:
+        final_years = [y for y in SUPPORTED_INCOME_YEARS if RULES[y]["status"] == "final"]
+        return final_years[-1] if final_years else SUPPORTED_INCOME_YEARS[-1]
+    year = date[0]
     if year in RULES:
         return year
     return min(SUPPORTED_INCOME_YEARS, key=lambda y: (abs(y - year), y))
@@ -1008,7 +1095,7 @@ def run_batch(inputs):
         except UnsupportedIncomeYear:
             results.append({"error": "unsupported incomeYear"})
         except (ValueError, OverflowError) as exc:
-            # e.g. an unparseable `today`, or amounts beyond the range of a double
+            # not expected for any JSON input: SPEC 6.0 sanitising gives every field a value
             results.append({"error": str(exc)})
     return results
 

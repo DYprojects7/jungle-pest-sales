@@ -1,8 +1,9 @@
 import type { ComponentChildren, JSX } from 'preact';
 import type { LeverId, PlannerResult, PlannerWarning, Scenario, TaxComputation } from '../../engine/types';
 import { bandRows } from '../bands';
-import { cents, centsPerDollar, countOf, dayAndMonth, dollars, longDate, monthLabel, pct } from '../format';
+import { cents, centsFigure, centsPerDollar, countOf, dayAndMonth, dollars, longDate, monthLabel, pct } from '../format';
 import { SIMULATOR_STEPS } from '../state';
+import type { WhatIf } from '../state';
 import {
   APPROXIMATIONS,
   DISCLAIMER,
@@ -11,8 +12,10 @@ import {
   LEVER_SHORT,
   NOT_MODELLED,
   SCENARIO_NAME,
+  deadlinePassed,
   eligibilityCautions,
   lockUpFacts,
+  stopReason,
 } from '../text';
 import { Row, SelectField, TableScroll } from './Controls';
 
@@ -51,48 +54,68 @@ function sameSplit(a: Scenario, b: Scenario): boolean {
   return LEVERS.every((l) => a.contributions[l] === b.contributions[l]);
 }
 
+/**
+ * The scenarios worth a row: "Do nothing more", the plan, and each ready-made option that puts money somewhere
+ * and is not a copy of an option already listed. A foreigner cannot use CPF top-ups, so for them "SRS and CPF
+ * top-up to self" and "Everything to the limit" are both "SRS only" under another name, and are left out.
+ */
+function compareRows(result: PlannerResult): Scenario[] {
+  const kept: Scenario[] = [];
+  for (const s of result.scenarios) {
+    if (s.id === 'none' || s.id === 'recommended') kept.push(s);
+    else if (s.totalContribution > 0 && !kept.some((k) => k.id !== 'recommended' && sameSplit(k, s))) kept.push(s);
+  }
+  return kept;
+}
+
+/** Narrowest box the comparison still fits as a table, by the number of scheme columns it has. */
+const COMPARE_FITS = [520, 590, 660, 750];
+
 export function Compare({ result }: SectionProps): JSX.Element {
   const recommended = result.scenarios.find((s) => s.id === 'recommended');
-  const rows = result.scenarios.filter((s) => s.id === 'none' || s.id === 'recommended' || s.totalContribution > 0);
+  const rows = compareRows(result);
   const levers = usableLevers(result).filter((l) => rows.some((s) => s.contributions[l] > 0));
+  const past = deadlinePassed(result);
   return (
-    <TableScroll label="Options compared">
-      <table class="table table-wide" data-testid="scenario-table">
+    <TableScroll label="Options compared" stackBelow={COMPARE_FITS[levers.length] ?? 750}>
+      <table class="table table-wide table-compare" data-testid="scenario-table" role="table">
         <caption class="sr-only">Ready-made options on the same numbers, compared with your plan</caption>
-        <thead>
-          <tr>
-            <th scope="col">Option</th>
+        <thead role="rowgroup">
+          <tr role="row">
+            <th scope="col" role="columnheader">
+              Option
+            </th>
             {levers.map((l) => (
-              <th scope="col" class="num" key={l}>
+              <th scope="col" role="columnheader" class="num" key={l}>
                 {LEVER_SHORT[l]}
               </th>
             ))}
-            <th scope="col" class="num">
+            <th scope="col" role="columnheader" class="num">
               Cash locked away
             </th>
-            <th scope="col" class="num">
+            <th scope="col" role="columnheader" class="num">
               Tax
             </th>
-            <th scope="col" class="num">
+            <th scope="col" role="columnheader" class="num">
               Tax saved
             </th>
-            <th scope="col" class="num">
-              Saved per dollar
+            <th scope="col" role="columnheader" class="num">
+              Saved per dollar (cents)
             </th>
-            <th scope="col" class="num">
+            <th scope="col" role="columnheader" class="num">
               Wasted dollars
             </th>
           </tr>
         </thead>
-        <tbody>
+        <tbody role="rowgroup">
           {rows.map((s) => {
             const isPlan = s.id === 'recommended';
             const twin = !isPlan && s.id !== 'none' && recommended !== undefined && sameSplit(s, recommended);
             return (
-              <tr key={s.id} class={isPlan ? 'is-plan' : undefined} data-scenario={s.id}>
-                <th scope="row">
+              <tr key={s.id} role="row" class={isPlan ? 'is-plan' : undefined} data-scenario={s.id}>
+                <th scope="row" role="rowheader">
                   {SCENARIO_NAME[s.id]}
-                  {isPlan ? (
+                  {isPlan && !past ? (
                     <span class="cell-note">
                       <span class="tag tag-plan">Recommended</span>
                     </span>
@@ -100,17 +123,31 @@ export function Compare({ result }: SectionProps): JSX.Element {
                   {twin ? <span class="cell-note">Same as your plan</span> : null}
                 </th>
                 {levers.map((l) => (
-                  <td class="num" key={l}>
+                  <td
+                    role="cell"
+                    class="num c-lever"
+                    key={l}
+                    data-label={LEVER_NAME[l]}
+                    data-zero={s.contributions[l] > 0 ? undefined : 'true'}
+                  >
                     {dollars(s.contributions[l])}
                   </td>
                 ))}
-                <td class="num">{dollars(s.totalContribution)}</td>
-                <td class="num">{cents(s.taxPayable)}</td>
-                <td class="num">{cents(s.taxSaved)}</td>
-                <td class="num">{s.totalContribution > 0 ? centsPerDollar(s.savingRate) : 'n/a'}</td>
-                <td class="num">
+                <td role="cell" class="num c-cash" data-label="Cash locked away">
+                  {dollars(s.totalContribution)}
+                </td>
+                <td role="cell" class="num c-tax" data-label="Tax">
+                  {cents(s.taxPayable)}
+                </td>
+                <td role="cell" class="num c-saved" data-label="Tax saved" data-testid={isPlan ? 'plan-row-saved' : undefined}>
+                  {cents(s.taxSaved)}
+                </td>
+                <td role="cell" class="num c-rate" data-label="Saved per dollar (cents)" data-testid={isPlan ? 'plan-row-rate' : undefined}>
+                  {s.totalContribution > 0 ? centsFigure(s.savingRate) : 'n/a'}
+                </td>
+                <td role="cell" class="num c-wasted" data-label="Wasted dollars">
                   {s.wastedContribution > 0 ? (
-                    <span class="tag tag-neg">{dollars(s.wastedContribution)} saves nothing</span>
+                    <span class="tag tag-neg">{dollars(s.wastedContribution)}</span>
                   ) : (
                     'None'
                   )}
@@ -148,52 +185,63 @@ export function MonthlyPlanView({ result }: SectionProps): JSX.Element {
               {mp.daysToDeadline}
             </span>
             <span class="countdown-text">
-              {mp.daysToDeadline === 1 ? 'day' : 'days'} until {longDate(mp.deadline)}, the last day a contribution
-              counts for YA{rules.ya}
+              {mp.daysToDeadline === 0
+                ? `days left. Today, ${longDate(mp.deadline)}, is the last day a contribution counts for YA${rules.ya}.`
+                : `${mp.daysToDeadline === 1 ? 'day' : 'days'} until ${longDate(mp.deadline)}, the last day a contribution counts for YA${rules.ya}`}
             </span>
           </>
         )}
       </div>
 
       {mp.schedule.length > 0 ? (
-        <TableScroll label="Monthly set-aside schedule">
-          <table class="table table-fit" data-testid="monthly-table">
+        <TableScroll label="Monthly set-aside schedule" stackBelow={480} stack="lines">
+          <table class="table table-fit" data-testid="monthly-table" role="table">
             <caption class="sr-only">How much to set aside each month until the deadline</caption>
-            <thead>
-              <tr>
-                <th scope="col">Month</th>
+            <thead role="rowgroup">
+              <tr role="row">
+                <th scope="col" role="columnheader">
+                  Month
+                </th>
                 {levers.map((l) => (
-                  <th scope="col" class="num" key={l}>
+                  <th scope="col" role="columnheader" class="num" key={l}>
                     {LEVER_SHORT[l]}
                   </th>
                 ))}
-                <th scope="col" class="num">
+                <th scope="col" role="columnheader" class="num">
                   Set aside
                 </th>
               </tr>
             </thead>
-            <tbody>
+            <tbody role="rowgroup">
               {mp.schedule.map((row) => (
-                <tr key={row.month}>
-                  <th scope="row">{monthLabel(row.month)}</th>
+                <tr key={row.month} role="row">
+                  <th scope="row" role="rowheader" class="nowrap">
+                    {monthLabel(row.month)}
+                  </th>
                   {levers.map((l) => (
-                    <td class="num" key={l}>
+                    <td role="cell" class="num c-lever" key={l} data-label={LEVER_SHORT[l]}>
                       {dollars(row.amounts[l])}
                     </td>
                   ))}
-                  <td class="num">{dollars(row.total)}</td>
+                  <td role="cell" class="num c-total" data-label="Set aside">
+                    {dollars(row.total)}
+                  </td>
                 </tr>
               ))}
             </tbody>
-            <tfoot>
-              <tr class="is-total">
-                <th scope="row">Total</th>
+            <tfoot role="rowgroup">
+              <tr class="is-total" role="row">
+                <th scope="row" role="rowheader">
+                  Total
+                </th>
                 {levers.map((l) => (
-                  <td class="num" key={l}>
+                  <td role="cell" class="num c-lever" key={l} data-label={LEVER_SHORT[l]}>
                     {dollars(p.contributions[l])}
                   </td>
                 ))}
-                <td class="num">{dollars(p.totalContribution)}</td>
+                <td role="cell" class="num c-total" data-label="Set aside">
+                  {dollars(p.totalContribution)}
+                </td>
               </tr>
             </tfoot>
           </table>
@@ -264,23 +312,23 @@ export function Simulator(props: SectionProps & { step: number; onStep: (step: n
               <thead>
                 <tr>
                   <th scope="col">Extra contribution</th>
-                  {levers.map((l) => (
-                    <th scope="col" class="num" key={l}>
-                      {LEVER_SHORT[l]}
-                    </th>
-                  ))}
                   <th scope="col" class="num">
-                    Tax
+                    This step saves
+                  </th>
+                  <th scope="col" class="num">
+                    Per dollar (cents)
                   </th>
                   <th scope="col" class="num">
                     Tax saved so far
                   </th>
                   <th scope="col" class="num">
-                    This step saves
+                    Tax
                   </th>
-                  <th scope="col" class="num">
-                    Per dollar
-                  </th>
+                  {levers.map((l) => (
+                    <th scope="col" class="num" key={l}>
+                      {LEVER_SHORT[l]}
+                    </th>
+                  ))}
                   <th scope="col">In your plan</th>
                 </tr>
               </thead>
@@ -290,15 +338,15 @@ export function Simulator(props: SectionProps & { step: number; onStep: (step: n
                     <th scope="row" class="nowrap">
                       {dollars(r.contribution)}
                     </th>
+                    <td class="num">{i === 0 ? 'n/a' : cents(r.stepSaving)}</td>
+                    <td class="num">{i === 0 ? 'n/a' : centsFigure(r.stepRate)}</td>
+                    <td class="num">{cents(r.taxSaved)}</td>
+                    <td class="num">{cents(r.taxPayable)}</td>
                     {levers.map((l) => (
                       <td class="num" key={l}>
                         {dollars(r.split[l])}
                       </td>
                     ))}
-                    <td class="num">{cents(r.taxPayable)}</td>
-                    <td class="num">{cents(r.taxSaved)}</td>
-                    <td class="num">{i === 0 ? 'n/a' : cents(r.stepSaving)}</td>
-                    <td class="num">{i === 0 ? 'n/a' : centsPerDollar(r.stepRate)}</td>
                     <td class="nowrap">{r.contribution === 0 ? 'Start' : r.withinPlan ? 'Yes' : 'Beyond it'}</td>
                   </tr>
                 ))}
@@ -321,7 +369,7 @@ interface WorkingRow {
   label: string;
   before: string;
   after: string;
-  kind?: 'sub' | 'strong' | 'total' | 'grand' | 'lost';
+  kind?: 'sub' | 'strong' | 'total' | 'grand' | 'lost' | 'saved';
 }
 
 function workingRow(
@@ -382,7 +430,10 @@ export function TaxWorking({ result }: SectionProps): JSX.Element {
     tax.push(workingRow('Less: Personal Income Tax Rebate', (t) => t.pitRebate, result, cents, 'sub'));
   }
   tax.push(workingRow('Tax payable', (t) => t.taxPayable, result, cents, 'grand'));
-  tax.push(workingRow('Rate on your next dollar of income', (t) => t.marginalRate, result, (n) => pct(n)));
+  tax.push({ label: 'Tax saved by the plan', before: '', after: cents(result.plan.taxSaved), kind: 'saved' });
+  // The engine's marginal rate is the rate on the last dollar of chargeable income: what one more dollar of
+  // relief would save. At a bracket edge that differs from the rate on the next dollar earned.
+  tax.push(workingRow('Tax saved by your next dollar of relief', (t) => t.marginalRate, result, (n) => pct(n)));
   tax.push(workingRow('Tax as a share of total income', (t) => t.effectiveRate, result, (n) => pct(n)));
 
   const groups: { title: string; rows: WorkingRow[] }[] = [
@@ -420,7 +471,10 @@ export function TaxWorking({ result }: SectionProps): JSX.Element {
                 <tr key={r.label} class={r.kind ? `is-${r.kind}` : undefined}>
                   <th scope="row">{r.label}</th>
                   <td class="num">{r.before}</td>
-                  <td class={`num${r.before !== r.after ? ' changed' : ''}`}>{r.after}</td>
+                  <td class={`num${r.before !== r.after && r.before !== '' ? ' changed' : ''}`}>
+                    {r.after}
+                    {r.before !== r.after && r.before !== '' ? <span class="sr-only"> (changed by the plan)</span> : null}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -429,57 +483,83 @@ export function TaxWorking({ result }: SectionProps): JSX.Element {
       </TableScroll>
 
       <h3 class="sub-title">The rate table, band by band</h3>
-      <TableScroll label="Tax by band before and after the plan">
-        <table class="table table-wide" data-testid="band-table">
+      <TableScroll label="Tax by band before and after the plan" stackBelow={600}>
+        <table class="table table-wide table-bands" data-testid="band-table" role="table">
           <caption class="sr-only">How much of your chargeable income falls in each tax band, and the tax on it</caption>
-          <thead>
-            <tr>
-              <th scope="col">Chargeable income band</th>
-              <th scope="col" class="num">
+          <thead role="rowgroup">
+            <tr role="row">
+              <th scope="col" role="columnheader">
+                Chargeable income band
+              </th>
+              <th scope="col" role="columnheader" class="num">
                 Rate
               </th>
-              <th scope="col" class="num">
+              <th scope="col" role="columnheader" class="num">
                 In band now
               </th>
-              <th scope="col" class="num">
+              <th scope="col" role="columnheader" class="num">
                 Tax now
               </th>
-              <th scope="col" class="num">
+              <th scope="col" role="columnheader" class="num">
                 In band with the plan
               </th>
-              <th scope="col" class="num">
+              <th scope="col" role="columnheader" class="num">
                 Tax with the plan
               </th>
             </tr>
           </thead>
-          <tbody>
-            {bands.map((band) => (
-              <tr key={band.from}>
-                <th scope="row" class="nowrap">
-                  {band.to === null
-                    ? `Above ${dollars(band.from)}`
-                    : band.from === 0
-                      ? `First ${dollars(band.to)}`
-                      : `${dollars(band.from)} to ${dollars(band.to)}`}
-                </th>
-                <td class="num">{pct(band.rate)}</td>
-                <td class="num">{dollars(band.before.income)}</td>
-                <td class="num">{cents(band.before.tax)}</td>
-                <td class={`num${band.before.income !== band.after.income ? ' changed' : ''}`}>
-                  {dollars(band.after.income)}
-                </td>
-                <td class={`num${band.before.tax !== band.after.tax ? ' changed' : ''}`}>{cents(band.after.tax)}</td>
-              </tr>
-            ))}
+          <tbody role="rowgroup">
+            {bands.map((band) => {
+              const incomeChanged = band.before.income !== band.after.income;
+              const taxChanged = band.before.tax !== band.after.tax;
+              return (
+                <tr key={band.from} role="row">
+                  <th scope="row" role="rowheader" class="nowrap">
+                    {band.to === null
+                      ? `Above ${dollars(band.from)}`
+                      : band.from === 0
+                        ? `First ${dollars(band.to)}`
+                        : `${dollars(band.from)} to ${dollars(band.to)}`}
+                  </th>
+                  <td role="cell" class="num" data-label="Rate">
+                    {pct(band.rate)}
+                  </td>
+                  <td role="cell" class="num" data-label="In band now">
+                    {dollars(band.before.income)}
+                  </td>
+                  <td role="cell" class="num" data-label="Tax now">
+                    {cents(band.before.tax)}
+                  </td>
+                  <td role="cell" class={`num${incomeChanged ? ' changed' : ''}`} data-label="In band with the plan">
+                    {dollars(band.after.income)}
+                    {incomeChanged ? <span class="sr-only"> (changed by the plan)</span> : null}
+                  </td>
+                  <td role="cell" class={`num${taxChanged ? ' changed' : ''}`} data-label="Tax with the plan">
+                    {cents(band.after.tax)}
+                    {taxChanged ? <span class="sr-only"> (changed by the plan)</span> : null}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
-          <tfoot>
-            <tr class="is-total">
-              <th scope="row">Tax from the rate table</th>
-              <td />
-              <td class="num">{dollars(b.chargeableIncome)}</td>
-              <td class="num">{cents(b.grossTax)}</td>
-              <td class="num">{dollars(o.chargeableIncome)}</td>
-              <td class="num">{cents(o.grossTax)}</td>
+          <tfoot role="rowgroup">
+            <tr class="is-total" role="row">
+              <th scope="row" role="rowheader">
+                Tax from the rate table
+              </th>
+              <td role="cell" data-empty="true" />
+              <td role="cell" class="num" data-label="Chargeable income now">
+                {dollars(b.chargeableIncome)}
+              </td>
+              <td role="cell" class="num" data-label="Tax now">
+                {cents(b.grossTax)}
+              </td>
+              <td role="cell" class="num" data-label="Chargeable income with the plan">
+                {dollars(o.chargeableIncome)}
+              </td>
+              <td role="cell" class="num" data-label="Tax with the plan">
+                {cents(o.grossTax)}
+              </td>
             </tr>
           </tfoot>
         </table>
@@ -495,17 +575,71 @@ export function TaxWorking({ result }: SectionProps): JSX.Element {
 const SEVERITY_ORDER: PlannerWarning['severity'][] = ['blocker', 'caution', 'info'];
 const SEVERITY_TAG: Record<PlannerWarning['severity'], string> = { blocker: 'Stop', caution: 'Check', info: 'Note' };
 
-export function Notice({ warning }: { warning: PlannerWarning }): JSX.Element {
+/**
+ * One engine warning. `message` replaces the engine's wording where the page has a more exact sentence, and
+ * `action` adds a button that does something about it.
+ */
+export function Notice(props: {
+  warning: PlannerWarning;
+  message?: string;
+  action?: { label: string; onClick: () => void; testid?: string };
+}): JSX.Element {
+  const { warning, message, action } = props;
   return (
     <li class={`notice notice-${warning.severity}`} data-code={warning.code}>
       <span class={`tag tag-${warning.severity}`}>{SEVERITY_TAG[warning.severity]}</span>
-      <p>{warning.message}</p>
+      <div class="notice-body">
+        <p>{message ?? warning.message}</p>
+        {action ? (
+          <button type="button" class="btn btn-small" data-testid={action.testid} onClick={action.onClick}>
+            {action.label}
+          </button>
+        ) : null}
+      </div>
     </li>
   );
 }
 
-export function BeforeYouTransfer({ result }: SectionProps): JSX.Element {
-  const warnings = SEVERITY_ORDER.flatMap((sev) => result.warnings.filter((w) => w.severity === sev));
+/**
+ * Three engine warnings are worded by the page, not the engine.
+ * - The two about what stops the plan: the engine's sentences quote `unrealisedSaving`, a saving that needs
+ *   room no setting can create, and describe "the schemes you switched on" even when none is. `stopReason`
+ *   says the same thing in figures the person can reach.
+ * - The one about the minimum saving: the engine writes the rates as percentages, and the page talks in cents
+ *   per dollar everywhere else. The figures are still the engine's.
+ */
+export function noticeMessage(warning: PlannerWarning, result: PlannerResult, hint: WhatIf | null): string {
+  if (warning.code === 'LEVER_LIMITS_PLAN' || warning.code === 'BUDGET_LIMITS_PLAN') return stopReason(result, hint);
+  if (warning.code === 'BELOW_MIN_SAVING_RATE') {
+    const most = result.baseline.marginalRate;
+    const asked = result.input.preferences.minSavingRate;
+    return (
+      `Each extra dollar would save ${centsPerDollar(most)} or less in tax, below the ${centsPerDollar(asked)} ` +
+      'minimum you set, so nothing is recommended. Choose Every tax dollar under "How far down the ladder?" to ' +
+      'see these smaller savings.'
+    );
+  }
+  return warning.message;
+}
+
+/**
+ * The engine warnings to list, most serious first.
+ * - When the reliefs are already over the cap, the engine says so twice (once about the reliefs, once about
+ *   the plan); the first says everything the second does.
+ * - Once the deadline has passed, the notes about what stops the plan and how to save more are left out: there
+ *   is nothing left to change for that year.
+ */
+export function listedWarnings(result: PlannerResult): PlannerWarning[] {
+  const codes = new Set(result.warnings.map((w) => w.code));
+  const past = deadlinePassed(result);
+  const skip = new Set<string>();
+  if (codes.has('RELIEF_CAP_EXCEEDED_BASELINE')) skip.add('RELIEF_CAP_LIMITS_PLAN');
+  if (past) for (const code of ['LEVER_LIMITS_PLAN', 'BUDGET_LIMITS_PLAN', 'BELOW_MIN_SAVING_RATE']) skip.add(code);
+  return SEVERITY_ORDER.flatMap((sev) => result.warnings.filter((w) => w.severity === sev && !skip.has(w.code)));
+}
+
+export function BeforeYouTransfer({ result, hint }: SectionProps & { hint: WhatIf | null }): JSX.Element {
+  const warnings = listedWarnings(result);
   const levers = usableLevers(result);
   const facts = lockUpFacts(result);
   return (
@@ -515,7 +649,7 @@ export function BeforeYouTransfer({ result }: SectionProps): JSX.Element {
           <h3 class="sub-title">About your numbers</h3>
           <ul class="notices" data-testid="warnings">
             {warnings.map((w) => (
-              <Notice key={w.code} warning={w} />
+              <Notice key={w.code} warning={w} message={noticeMessage(w, result, hint)} />
             ))}
           </ul>
         </>
@@ -583,12 +717,25 @@ export function Sources({ result }: SectionProps): JSX.Element {
           <dl class="rows rows-plain">
             <Row label="Overall cap on personal reliefs" value={dollars(rules.personalReliefCap)} />
             <Row label="SRS cap for you" value={dollars(levers.srs.statutoryCap)} />
-            <Row label="CPF top-up relief, self" value={dollars(rules.cpfTopUp.selfReliefCap)} />
-            <Row label="CPF top-up relief, family" value={dollars(rules.cpfTopUp.familyReliefCap)} />
-            <Row label="Monthly salary ceiling for CPF" value={dollars(rules.cpf.owCeilingMonthly)} />
-            <Row label="Yearly wage ceiling for CPF" value={dollars(rules.cpf.annualWageCeiling)} />
-            <Row label="Full Retirement Sum" value={dollars(rules.cpfTopUp.fullRetirementSum)} />
-            <Row label="Basic Healthcare Sum" value={dollars(rules.cpfTopUp.basicHealthcareSum)} />
+            {/* CPF figures only for people the CPF rules apply to: a foreigner on a work pass has no CPF. */}
+            {levers.cpfSelf.eligible ? (
+              <Row label="CPF top-up relief, self" value={dollars(levers.cpfSelf.statutoryCap)} />
+            ) : null}
+            {levers.cpfFamily.eligible ? (
+              <Row label="CPF top-up relief, family" value={dollars(levers.cpfFamily.statutoryCap)} />
+            ) : null}
+            {result.cpf.source !== 'none' ? (
+              <>
+                <Row label="Monthly salary ceiling for CPF" value={dollars(rules.cpf.owCeilingMonthly)} />
+                <Row label="Yearly wage ceiling for CPF" value={dollars(rules.cpf.annualWageCeiling)} />
+              </>
+            ) : null}
+            {levers.cpfSelf.eligible || levers.cpfFamily.eligible ? (
+              <>
+                <Row label="Full Retirement Sum" value={dollars(rules.cpfTopUp.fullRetirementSum)} />
+                <Row label="Basic Healthcare Sum" value={dollars(rules.cpfTopUp.basicHealthcareSum)} />
+              </>
+            ) : null}
             <Row label="Donations deducted at" value={pct(rules.donationDeductionMultiplier)} />
             <Row label="Last day to contribute" value={longDate(rules.contributionDeadline)} />
           </dl>
@@ -629,7 +776,8 @@ export function Sources({ result }: SectionProps): JSX.Element {
       </p>
       <p class="prose small">
         The calculator runs in your browser. Your numbers are saved on this device only and are not sent anywhere.
-        It never asks for your name, NRIC or account numbers.
+        It never asks for your name, NRIC or account numbers. The page asks Google Fonts for its two typefaces
+        and requests nothing else; it works the same without them.
       </p>
     </div>
   );
@@ -638,5 +786,6 @@ export function Sources({ result }: SectionProps): JSX.Element {
 /** "Days left" phrasing shared by the readout bar. */
 export function daysLeftText(result: PlannerResult): string {
   const d = result.monthlyPlan.daysToDeadline;
-  return d < 0 ? 'deadline passed' : `${countOf(d, 'day')} left`;
+  if (d < 0) return 'deadline passed';
+  return d === 0 ? 'last day today' : `${countOf(d, 'day')} left`;
 }

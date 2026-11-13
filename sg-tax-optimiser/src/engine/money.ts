@@ -7,9 +7,9 @@
  */
 
 /**
- * Largest value accepted for any money input (S$10 billion). SPEC §6.0 sets no upper bound; this one exists only
- * so that every intermediate integer (the largest is tax in cents × a rebate rate per mille) stays below 2^53
- * and the arithmetic remains exact. No realistic input is affected.
+ * Largest value accepted for any money input (S$10 billion, SPEC §6.0). The bound exists only so that every
+ * intermediate integer (the largest is tax in cents × a rebate rate per mille) stays below 2^53 and the
+ * arithmetic remains exact. No realistic input is affected.
  */
 export const MAX_MONEY = 10_000_000_000;
 

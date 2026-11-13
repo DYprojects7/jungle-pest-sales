@@ -36,8 +36,10 @@ function daysInMonth(year: number, month: number): number {
 }
 
 /**
- * Parse a string that starts with a real calendar date written `YYYY-MM-DD` (a time suffix is ignored).
- * Returns null for anything else, including impossible dates such as 2026-02-30.
+ * SPEC §6.0: parse a string that starts with a real calendar date written `YYYY-MM-DD` — exactly four digits,
+ * a hyphen, two digits, a hyphen, two digits, with no leading whitespace and no further digit straight after
+ * (a time suffix is ignored). Returns null for anything else, including impossible dates such as 2026-02-30
+ * and unpadded ones such as 2026-1-5.
  */
 export function parseIsoDate(text: unknown): CivilDate | null {
   if (typeof text !== 'string') return null;

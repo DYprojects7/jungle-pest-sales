@@ -265,7 +265,9 @@ describe('binding constraint: cashBudget', () => {
     // min(U, C) = 53,600 -> tax(55,000) = 1,600; 5,489 - 1,600
     expect(result.plan.unrealisedSaving).toBe(3_889);
     expect(codes(result)).toEqual(['BUDGET_LIMITS_PLAN']);
-    expect(result.warnings[0]?.params).toEqual({ cashBudget: 10_000, unrealisedSaving: 3_889 });
+    // With the cash limit lifted the schemes stop the plan at L = 23,300: tax 3,959.50, i.e. 5,489 - 3,959.50
+    // = 1,529.50 more (SPEC §6.11: the saving more cash can actually deliver).
+    expect(result.warnings[0]?.params).toEqual({ cashBudget: 10_000, unrealisedSaving: 3_889, savingWithMoreCash: 1_529.5 });
   });
 
   it('a budget of zero recommends nothing', () => {

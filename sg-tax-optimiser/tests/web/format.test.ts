@@ -52,6 +52,8 @@ describe('rates', () => {
     expect(centsPerDollar(0.07)).toBe('7 cents');
     expect(centsPerDollar(0.01)).toBe('1 cent');
     expect(centsPerDollar(0)).toBe('0 cents');
+    // The same precision as pct(), so a rate never shows as 2.5 cents in one place and 2.53% in another.
+    expect(centsPerDollar(389 / 15400)).toBe('2.53 cents');
   });
 });
 

@@ -15,8 +15,7 @@ import {
   pct,
   shortDate,
 } from './format';
-import type { Depth, Order, UiState } from './state';
-import { monthlyWage } from './state';
+import type { Depth, Order, UiState, WhatIf } from './state';
 
 export const LEVERS: LeverId[] = ['srs', 'cpfSelf', 'cpfFamily'];
 
@@ -41,6 +40,13 @@ const LEVER_INTO: Record<LeverId, string> = {
   cpfFamily: "family members' CPF",
 };
 
+/** Scheme names that read as part of a sentence ("Switching on ... would ..."). */
+const LEVER_PROSE: Record<LeverId, string> = {
+  srs: 'SRS',
+  cpfSelf: 'the CPF top-up to yourself',
+  cpfFamily: 'the family CPF top-up',
+};
+
 export const SCENARIO_NAME: Record<ScenarioId, string> = {
   none: 'Do nothing more',
   srsOnly: 'SRS only',
@@ -61,7 +67,7 @@ export const ORDER_LABEL: Record<Order, { title: string; route: string; why: str
   flexibility: {
     title: 'Flexibility first',
     route: 'SRS, then CPF self, then family',
-    why: 'SRS can be withdrawn early for a 5% penalty. CPF top-ups cannot be taken back.',
+    why: 'SRS can be withdrawn early, but the whole amount is taxed and there is a 5% penalty. CPF top-ups cannot be taken back.',
   },
   interest: {
     title: 'Guaranteed interest first',
@@ -84,29 +90,64 @@ export const DISCLAIMER =
 // Recommendation
 // ---------------------------------------------------------------------------
 
-/** "S$15,300 into SRS", "S$8,000 into your CPF" for each scheme the plan uses. */
+/** True once the last day to contribute for the income year on screen has gone by. */
+export function deadlinePassed(r: PlannerResult): boolean {
+  return r.monthlyPlan.daysToDeadline < 0;
+}
+
+/**
+ * "S$15,300 into SRS", "S$8,000 into your CPF" for each scheme the plan uses, in the order the person
+ * chose under "Which first?".
+ */
 export function planParts(r: PlannerResult): { lever: LeverId; amount: number; into: string }[] {
-  return LEVERS.filter((lever) => r.plan.contributions[lever] > 0).map((lever) => ({
-    lever,
-    amount: r.plan.contributions[lever],
-    into: LEVER_INTO[lever],
-  }));
+  return r.input.preferences.priority
+    .filter((lever) => r.plan.contributions[lever] > 0)
+    .map((lever) => ({ lever, amount: r.plan.contributions[lever], into: LEVER_INTO[lever] }));
+}
+
+/**
+ * After the deadline the plan can no longer be acted on, so it is described as what it would have done.
+ * "Putting S$15,300 into SRS and S$8,000 into your CPF by 31 Dec 2025 would have saved S$2,679.50 in tax for YA2026."
+ */
+export function lookingBack(r: PlannerResult): string {
+  const parts = planParts(r).map((p) => `${dollars(p.amount)} into ${p.into}`);
+  if (parts.length === 0) return `On these numbers there was nothing more worth putting in for YA${r.rules.ya}.`;
+  return (
+    `Putting ${listOf(parts)} by ${shortDate(r.monthlyPlan.deadline)} would have saved ` +
+    `${cents(r.plan.taxSaved)} in tax for YA${r.rules.ya}.`
+  );
 }
 
 /** The one-sentence recommendation, as plain text (announced to screen readers and copied). */
 export function headline(r: PlannerResult): string {
+  if (deadlinePassed(r)) return `The deadline for YA${r.rules.ya} has passed. ${lookingBack(r)}`;
   const parts = planParts(r).map((p) => `${dollars(p.amount)} into ${p.into}`);
   if (parts.length === 0) return 'Nothing more to put in this year.';
   return `Put ${listOf(parts)}. You save ${cents(r.plan.taxSaved)} in tax.`;
 }
 
-/** Why the plan stops where it does. Covers every BindingConstraint, with and without a contribution. */
-export function stopReason(r: PlannerResult): string {
+/** What one change of setting would do, in the engine's own figures. Starts with a space; empty without a hint. */
+function whatIfSentence(hint: WhatIf | null | undefined): string {
+  if (!hint) return '';
+  const saved = cents(hint.plan.taxSaved);
+  if (hint.kind === 'noCashLimit') {
+    return ` Without the limit the plan would save ${saved} by locking away ${dollars(hint.plan.totalContribution)}.`;
+  }
+  const names = listOf(hint.levers.map((l) => LEVER_PROSE[l]));
+  const family = hint.levers.includes('cpfFamily') ? ', if you have a family member who qualifies' : '';
+  return ` Switching on ${names} would raise the saving to ${saved}${family}.`;
+}
+
+/**
+ * Why the plan stops where it does. Covers every BindingConstraint, with and without a contribution.
+ * `hint` is the engine's plan with one setting changed (see `whatIf` in state.ts); when it is given, the
+ * sentence says what that change would save. It never quotes a saving that no setting can reach.
+ */
+export function stopReason(r: PlannerResult, hint?: WhatIf | null): string {
   const { plan: p, rules, baseline, levers } = r;
   const some = p.totalContribution > 0;
   const minRate = r.input.preferences.minSavingRate;
   const cap = dollars(rules.personalReliefCap);
-  const more = p.unrealisedSaving > 0 ? cents(p.unrealisedSaving) : null;
 
   switch (p.bindingConstraint) {
     case 'usefulRoom': {
@@ -133,27 +174,26 @@ export function stopReason(r: PlannerResult): string {
         : `Your reliefs already reach the ${cap} overall relief cap, so extra contributions would save no tax.`;
     case 'cashBudget': {
       const limit = dollars(r.input.preferences.cashBudget ?? 0);
-      const tail = more ? ` With a higher limit you could save up to ${more} more.` : '';
       return some
-        ? `This uses your whole ${limit} cash limit.${tail}`
-        : `Your cash limit is ${limit}, so there is nothing to put in.${tail}`;
+        ? `This uses your whole ${limit} cash limit.${whatIfSentence(hint)}`
+        : `Your cash limit is ${limit}, so there is nothing to put in.${whatIfSentence(hint)}`;
     }
     case 'leverLimits': {
       const anyOn = LEVERS.some((l) => levers[l].eligible && levers[l].enabled);
-      const off = LEVERS.filter((l) => levers[l].eligible && !levers[l].enabled).map((l) => LEVER_NAME[l]);
       if (!anyOn) {
         return 'No scheme is switched on. Choose at least one under "Schemes to use" to get a plan.';
       }
-      const offNote = off.length > 0 ? ` You left ${listOf(off)} switched off.` : '';
       if (!some) {
-        return `The schemes you switched on have no room left for ${rules.incomeYear}.${offNote}`;
+        return `The schemes you switched on have no room left for ${rules.incomeYear}.${whatIfSentence(hint)}`;
       }
-      const still =
+      // marginalRateAfter is the rate on the last dollar of chargeable income, which is what one more
+      // dollar of relief would save.
+      const next =
         p.marginalRateAfter > 0
-          ? ` Your next dollar of income is still taxed at ${pct(p.marginalRateAfter)}` +
-            (more ? `, and with more room you could save up to ${more} more.` : '.')
+          ? ` Another dollar of relief would still save ${centsPerDollar(p.marginalRateAfter)} in tax` +
+            (hint ? '.' : ', but there is no room left for it.')
           : '';
-      return `You have used every scheme's limit.${still}${offNote}`;
+      return `You have filled every scheme you switched on.${next}${whatIfSentence(hint)}`;
     }
     case 'none':
     default:
@@ -197,15 +237,53 @@ export function zeroReasonText(t: LadderTier, rules: YearRules): string {
   return 'income already tax-free';
 }
 
+/** The explanation shown in place of the chart when no slice of the ladder saves any tax. */
+export function flatLadderText(r: PlannerResult): string {
+  const reasons = new Set(r.ladder.map((t) => t.zeroReason));
+  const why =
+    reasons.size !== 1
+      ? 'The table gives the reason for each slice.'
+      : reasons.has('reliefCap')
+        ? `Your reliefs are already over the ${dollars(r.rules.personalReliefCap)} cap.`
+        : 'The income they would come off is already tax-free.';
+  return `On these numbers no extra contribution would save tax, so there are no steps to draw. ${why}`;
+}
+
 export function tierPlanUse(t: LadderTier): string {
   if (t.usedByPlan <= 0) return 'None';
   if (t.usedByPlan >= t.amount) return 'All';
   return `${dollars(t.usedByPlan)} of it`;
 }
 
+/** The same, for the middle of a sentence: "none", "all", "S$20,000 of it" (the S of S$ stays a capital). */
+export function tierPlanUseInline(t: LadderTier): string {
+  if (t.usedByPlan <= 0) return 'none';
+  if (t.usedByPlan >= t.amount) return 'all';
+  return `${dollars(t.usedByPlan)} of it`;
+}
+
+/**
+ * Shown in place of the ladder when there are no tiers at all: either nothing is switched on, or everything
+ * that is switched on is already full. It only suggests switching a scheme on when one is there to switch on.
+ */
+export function ladderEmptyText(r: PlannerResult): string {
+  const open = LEVERS.filter((l) => r.levers[l].eligible);
+  const anyOn = open.some((l) => r.levers[l].enabled);
+  const anyOff = open.some((l) => !r.levers[l].enabled);
+  if (!anyOn) {
+    return anyOff
+      ? 'No scheme is switched on. Switch one on under "Schemes to use" to see its ladder.'
+      : 'No scheme is open to you on these numbers, so there is no ladder to draw.';
+  }
+  return (
+    `The schemes you switched on are full for ${r.rules.incomeYear}.` +
+    (anyOff ? ' Switch on another under "Schemes to use" to see what it would save.' : '')
+  );
+}
+
 /** Text alternative for the chart as a whole. */
 export function ladderSummary(r: PlannerResult): string {
-  if (r.ladder.length === 0) return 'No scheme has room left, so there is no ladder to draw.';
+  if (r.ladder.length === 0) return ladderEmptyText(r);
   const tiers = r.ladder.map((t) =>
     t.rate > 0
       ? `${tierRange(t)} saves ${centsPerDollar(t.rate)} per dollar, ${cents(t.taxSaved)} in total`
@@ -228,7 +306,7 @@ const RESIDENCY_NAME: Record<UiState['residency'], string> = {
 export function inputsSummary(ui: UiState, otherReliefs: number): string[] {
   const lines: string[] = [];
   lines.push(`${RESIDENCY_NAME[ui.residency]}, age ${ui.age}`);
-  const pay = `${dollars(monthlyWage(ui))} a month`;
+  const pay = ui.payMode === 'annual' ? `${dollars(ui.salary)} a year` : `${dollars(ui.salary)} a month`;
   const months = ui.monthsWorked < 12 ? ` for ${countOf(ui.monthsWorked, 'month')}` : '';
   lines.push(`${pay}${months}, ${dollars(ui.bonus)} bonus`);
   lines.push(`${dollars(otherReliefs)} other reliefs`);
@@ -242,28 +320,44 @@ export function inputsSummary(ui: UiState, otherReliefs: number): string[] {
   return lines;
 }
 
+/** "Still using the example's bonus and other reliefs." Empty when nothing of the example is left. */
+export function exampleLeftText(names: string[]): string {
+  return names.length === 0 ? '' : `Still using the example's ${listOf(names)}.`;
+}
+
 /** The plain-text summary behind the Copy summary button. */
-export function summaryText(r: PlannerResult, isExample: boolean): string {
+export function summaryText(r: PlannerResult, isExample: boolean, hint?: WhatIf | null): string {
   const { plan: p, rules, monthlyPlan } = r;
+  const past = deadlinePassed(r);
   const lines: string[] = [];
-  lines.push(`Singapore Tax Optimiser: plan for YA${rules.ya} (income year ${rules.incomeYear})`);
+  lines.push(
+    `Singapore Tax Optimiser: ${past ? 'looking back at' : 'plan for'} YA${rules.ya} (income year ${rules.incomeYear})`,
+  );
+  if (rules.status === 'projected') {
+    lines.push(`Projected rules: the figures for ${rules.incomeYear} are provisional and may change.`);
+  }
   if (isExample) lines.push('Example figures, not my own numbers.');
   lines.push('');
   lines.push(headline(r));
+  if (past) lines.push('Money put in now counts for the following year instead.');
   for (const part of planParts(r)) {
     lines.push(`- ${LEVER_NAME[part.lever]}: ${dollars(part.amount)}`);
   }
-  lines.push(`Cash locked away: ${dollars(p.totalContribution)}`);
+  lines.push(`${past ? 'Cash it would have locked away' : 'Cash locked away'}: ${dollars(p.totalContribution)}`);
   lines.push(`Tax before: ${cents(p.taxBefore)}`);
-  lines.push(`Tax after: ${cents(p.taxAfter)}`);
-  lines.push(`Tax saved: ${cents(p.taxSaved)}` + (p.totalContribution > 0 ? ` (${centsPerDollar(p.savingRate)} back per dollar)` : ''));
-  lines.push(`Why it stops there: ${stopReason(r)}`);
-  if (monthlyPlan.schedule.length > 0) {
+  lines.push(`${past ? 'Tax with the plan' : 'Tax after'}: ${cents(p.taxAfter)}`);
+  lines.push(
+    `${past ? 'Tax it would have saved' : 'Tax saved'}: ${cents(p.taxSaved)}` +
+      (p.totalContribution > 0 ? ` (${centsPerDollar(p.savingRate)} back per dollar)` : ''),
+  );
+  if (!past) lines.push(`Why it stops there: ${stopReason(r, hint)}`);
+  if (!past && monthlyPlan.schedule.length > 0) {
     lines.push('');
     lines.push(`Set aside by ${longDate(monthlyPlan.deadline)}:`);
     for (const row of monthlyPlan.schedule) {
-      const split = LEVERS.filter((l) => row.amounts[l] > 0)
-        .map((l) => `${LEVER_SHORT[l]} ${dollars(row.amounts[l])}`)
+      const split = planParts(r)
+        .filter((part) => row.amounts[part.lever] > 0)
+        .map((part) => `${LEVER_SHORT[part.lever]} ${dollars(row.amounts[part.lever])}`)
         .join(', ');
       lines.push(`- ${monthLabel(row.month)}: ${dollars(row.total)}` + (split ? ` (${split})` : ''));
     }
@@ -285,7 +379,6 @@ export interface FactRow {
 /** What locking the money away means for each scheme (SPEC 5.4), with the year's figures filled in. */
 export function lockUpFacts(r: PlannerResult): FactRow[] {
   const { rules, levers } = r;
-  const year = rules.incomeYear;
   const frs = dollars(rules.cpfTopUp.fullRetirementSum);
   const bhs = dollars(rules.cpfTopUp.basicHealthcareSum);
   const floor = pct(rules.cpfTopUp.interestRateSmra);
@@ -303,8 +396,8 @@ export function lockUpFacts(r: PlannerResult): FactRow[] {
       label: 'Locked until',
       values: {
         srs:
-          `The retirement age set when you made your first contribution: ${rules.srs.statutoryRetirementAge} ` +
-          `if you start by the end of ${year}. Older accounts keep the age that applied when they were opened.`,
+          'The retirement age in force when you made your first contribution: 64 if that is on or after ' +
+          '1 July 2026, 63 if it was between 1 July 2022 and 30 June 2026, 62 if earlier.',
         cpfSelf:
           'You can start CPF payouts. The money becomes part of your monthly retirement payouts (CPF LIFE). ' +
           'MediSave top-ups can only pay for healthcare.',
@@ -402,10 +495,16 @@ export function eligibilityCautions(r: PlannerResult): string[] {
     'If you have unused Parenthood Tax Rebate, you will pay less tax this year than shown here. The saving from ' +
       'this plan arrives later, when the rebate would otherwise have run out.',
   );
-  out.push(
-    `Aim to transfer a few working days before ${shortDate(rules.contributionDeadline)}. Banks stop taking ` +
-      'same-day SRS contributions before midnight on the last day, and a CPF top-up counts on the day the CPF Board receives it.',
-  );
+  if (deadlinePassed(r)) {
+    out.push(
+      `The deadline for ${rules.incomeYear} has passed. Money you put in now counts for the following year.`,
+    );
+  } else {
+    out.push(
+      `Aim to transfer a few working days before ${shortDate(rules.contributionDeadline)}. Banks stop taking ` +
+        'same-day SRS contributions before midnight on the last day, and a CPF top-up counts on the day the CPF Board receives it.',
+    );
+  }
   return out;
 }
 
@@ -424,6 +523,8 @@ export const APPROXIMATIONS: string[] = [
   'Employee CPF is worked out month by month on your salary, with the employee share rounded down each month. ' +
     'Bonuses are treated as paid in December. Real payslips can differ by a few dollars: for an exact match, ' +
     'enter the figure from your CPF statement under Income, More options.',
+  'An annual salary is split into twelve equal months of whole dollars. Any dollars left over are counted ' +
+    'with your extra pay, so your income is right to the dollar and your CPF is within a dollar or two.',
   'If you worked part of the year, the months are counted as the last months of the year.',
   'A Permanent Resident is treated as being in the same PR year for the whole income year.',
 ];

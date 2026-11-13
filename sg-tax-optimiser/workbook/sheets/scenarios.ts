@@ -47,7 +47,7 @@ const ROWS: ScenarioRow[] = [
 
 export function buildScenarios(b: Book): ExcelJS.Worksheet {
   const ws = b.sheet(SHEETS.scenarios, C.good);
-  setWidths(ws, [2, 42, 14, 14, 14, 16, 16, 16, 14, 16, 56, 3, 16, 18]);
+  setWidths(ws, [2, 42, 14, 14, 14, 16, 16, 16, 14, 16, 66, 3, 16, 18]);
   const LAST = 11;
 
   ws.getRow(1).height = 32;
@@ -96,7 +96,12 @@ export function buildScenarios(b: Book): ExcelJS.Worksheet {
       row,
       ($) =>
         isPlan
-          ? `IF(F${row}=0,"Nothing more is recommended; see the Planner for why.","Stops where the next dollar is not worth it. Never includes a wasted dollar.")`
+          ? // Why the plan stops is taken from the limit that stopped it.
+            `IF(F${row}=0,"Nothing more is recommended; see the Planner for why.",` +
+            `IF(${$('w_binding')}="usefulRoom","Stops where the next dollar would save less than your minimum.",` +
+            `IF(${$('w_binding')}="reliefCap","Stops at the overall relief cap.",` +
+            `IF(${$('w_binding')}="cashBudget","Stops at your cash limit.",` +
+            `IF(${$('w_binding')}="leverLimits","Uses all the room in the schemes you switched on.","The recommended plan."))))&" Never includes a wasted dollar.")`
           : `IF(J${row}>0,${dollarsText(`J${row}`)}&" would be locked away without saving any tax.",IF(AND(F${row}>0,F${row}=${$('w_X')},H${row}=${$('w_taxSaved')}),"Saves the same tax as the recommended plan.",""))`,
       isPlan ? { ...ST.total(undefined, 'left'), font: ST.note().font } : ST.td(undefined, 'left', { size: 9, color: { argb: C.muted } }),
     );
@@ -138,6 +143,7 @@ export function buildScenarios(b: Book): ExcelJS.Worksheet {
     b.regRange(name, ws, col, top, col, end);
     b.define(name, name);
   }
+  b.regRange('sc_comment', ws, 11, top, 11, end);
 
   view(ws, head);
   pageSetup(ws, { landscape: true, lastCol: 'K', lastRow: r });

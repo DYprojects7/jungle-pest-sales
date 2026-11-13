@@ -1,4 +1,4 @@
-/* Layout: a control panel pinned to the left edge holds the inputs and a live readout; the results run down
+/* Layout: a rail pinned to the left edge holds the name, the inputs and a live readout; the results run down
    the right as one statement, led by an ink slab with the answer. On phones it is one column, with the readout
    fixed to the bottom edge. */
 :root {
@@ -24,7 +24,6 @@
   --slab-pos: #63dca6;
   /* Semantic colours, kept apart from the accent. */
   --pos: #0a7045;
-  --pos-soft: #dbf1e5;
   --caution: #7d5000;
   --caution-soft: #faeecb;
   --neg: #b0251d;
@@ -37,6 +36,7 @@
   --chart-hatch: var(--field-border);
   --tip: #131a33;
   --tip-ink: #f3f5fa;
+  --edge-shade: rgb(17 26 64 / 0.2); /* the side of a scrolling table with more to see */
   --shadow: 0 1px 2px rgb(17 26 64 / 0.1), 0 18px 40px -18px rgb(17 26 64 / 0.45);
   --bar-shadow: 0 -8px 24px -12px rgb(17 26 64 / 0.5);
 
@@ -50,11 +50,13 @@
   --fs-4: 1rem; /* 16: running text, inputs */
   --fs-5: 1.25rem; /* 20: section headings */
   --fs-6: 1.5rem; /* 24: the recommendation sentence */
-  --fs-hero: clamp(3.25rem, 15cqi, 4.75rem);
+  --fs-figure: 3.5rem; /* 56: the deadline countdown */
+  --fs-hero: clamp(2.75rem, 18.5cqi, 4.75rem); /* the tax saved, sized against its own column */
 
   --radius: 6px;
   --radius-lg: 14px;
   --panel-w: 404px;
+  --results-max: 960px;
 
   color-scheme: light;
   padding-top: env(safe-area-inset-top, 0px);
@@ -73,7 +75,7 @@
     --ink-3: #949fbf;
     --rule: #252e52;
     --rule-strong: #4a5786;
-  --field-border: #7482b4;
+    --field-border: #7482b4;
     --accent: #8fa3ff;
     --accent-ink: #0b1020;
     --accent-soft: #1c2757;
@@ -84,7 +86,6 @@
     --slab-rule: #4757a6;
     --slab-pos: #63dca6;
     --pos: #5cd49e;
-    --pos-soft: #0f3325;
     --caution: #f1b94e;
     --caution-soft: #37290a;
     --neg: #ff9485;
@@ -93,6 +94,7 @@
     --seg-thumb: #2b3768;
     --tip: #e9edf9;
     --tip-ink: #0b1020;
+    --edge-shade: rgb(0 0 0 / 0.6);
     --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 18px 40px -18px rgb(0 0 0 / 0.8);
     --bar-shadow: 0 -8px 24px -12px rgb(0 0 0 / 0.9);
     color-scheme: dark;
@@ -119,7 +121,6 @@
   --slab-rule: #4757a6;
   --slab-pos: #63dca6;
   --pos: #5cd49e;
-  --pos-soft: #0f3325;
   --caution: #f1b94e;
   --caution-soft: #37290a;
   --neg: #ff9485;
@@ -128,6 +129,7 @@
   --seg-thumb: #2b3768;
   --tip: #e9edf9;
   --tip-ink: #0b1020;
+  --edge-shade: rgb(0 0 0 / 0.6);
   --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 18px 40px -18px rgb(0 0 0 / 0.8);
   --bar-shadow: 0 -8px 24px -12px rgb(0 0 0 / 0.9);
   color-scheme: dark;
@@ -189,10 +191,11 @@ textarea {
   color: inherit;
 }
 
-/* Tabular figures wherever a number stands as data. Running prose keeps proportional figures: in Inter the
-   tabular set also widens hyphens and commas, which reads badly inside sentences. */
-.table td,
-.table thead th,
+/* Tabular figures wherever a number stands as data: figure columns (.num), figures set on their own (.fig)
+   and the headline numbers. Anything that reads as a sentence keeps proportional figures, including prose
+   inside table cells and tags: in Inter the tabular set also widens hyphens and commas. */
+.table .num,
+.fig,
 .row dd,
 .input,
 .hero-figure,
@@ -202,11 +205,9 @@ textarea {
 .countdown-figure,
 .readout b,
 .aside-figure strong,
-.summary-lines,
 .prose b,
-.tag,
 .chart-svg,
-.chart-tip {
+.chart-tip strong {
   font-variant-numeric: tabular-nums;
 }
 
@@ -241,11 +242,20 @@ textarea {
   padding-block: 16px 116px;
 }
 
+.rail,
 .panel {
   display: flex;
   flex-direction: column;
   gap: 16px;
   min-width: 0;
+}
+
+.panel {
+  scroll-margin-top: 12px;
+}
+
+.panel:focus {
+  outline: none;
 }
 
 .panel-scroll {
@@ -266,7 +276,7 @@ textarea {
   container-type: inline-size;
 }
 
-@media (min-width: 960px) {
+@media screen and (min-width: 960px) {
   .app {
     display: block;
     max-width: none;
@@ -274,7 +284,7 @@ textarea {
     padding-block: 32px 72px;
   }
 
-  .panel {
+  .rail {
     position: fixed;
     top: 0;
     bottom: 0;
@@ -285,6 +295,12 @@ textarea {
     background: var(--panel);
     border-right: 1px solid var(--rule);
     padding-left: env(safe-area-inset-left, 0px);
+  }
+
+  .panel {
+    flex: 1 1 auto;
+    min-height: 0;
+    gap: 0;
   }
 
   .panel-scroll {
@@ -298,15 +314,30 @@ textarea {
     gap: 0;
   }
 
+  /* Beside the rail with a 24px gap; once there is more room than the column needs, centred in what is left. */
   .results {
-    margin-left: calc(var(--panel-w) + env(safe-area-inset-left, 0px) + 24px);
-    max-width: 920px;
+    --rail-w: calc(var(--panel-w) + env(safe-area-inset-left, 0px));
+    max-width: var(--results-max);
+    margin-left: calc(var(--rail-w) + max(24px, (100% - var(--rail-w) - var(--results-max)) / 2));
   }
 }
 
-@media (min-width: 1500px) {
-  .results {
-    margin-left: calc(var(--panel-w) + env(safe-area-inset-left, 0px) + 64px);
+/* Between 960px and 1199px the rail gives up 68px, so the results column is wide enough for its tables. */
+@media screen and (min-width: 960px) and (max-width: 1199px) {
+  :root {
+    --panel-w: 336px;
+  }
+
+  .panel-scroll {
+    padding-inline: 20px;
+  }
+
+  .brand {
+    padding-inline: 20px;
+  }
+
+  .readout {
+    padding-inline: 20px;
   }
 }
 
@@ -333,7 +364,7 @@ textarea {
 
 .brand-title {
   font-family: var(--font-display);
-  font-size: 1.375rem;
+  font-size: var(--fs-5);
   font-weight: 700;
   font-stretch: 84%;
   letter-spacing: -0.01em;
@@ -345,7 +376,7 @@ textarea {
   color: var(--ink-2);
 }
 
-@media (min-width: 960px) {
+@media screen and (min-width: 960px) {
   .brand {
     padding: calc(20px + env(safe-area-inset-top, 0px)) 24px 16px;
     border-bottom: 1px solid var(--rule);
@@ -383,10 +414,11 @@ textarea {
   display: inline-block;
   font-size: var(--fs-1);
   font-weight: 650;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em; /* with the 6px padding, one line inside the plan card at 360px */
   line-height: 1.5;
   text-transform: uppercase;
-  padding: 2px 8px;
+  text-wrap: balance;
+  padding: 2px 6px;
   border: 1.5px solid var(--caution);
   border-radius: 3px;
   color: var(--caution);
@@ -478,6 +510,34 @@ textarea {
   text-decoration-color: var(--ink);
 }
 
+.btn-small {
+  min-height: 34px;
+  padding: 4px 12px;
+  font-size: var(--fs-2);
+}
+
+/* Text links that act on your numbers get a full-height tap target on touch layouts. */
+@media (max-width: 959px), (pointer: coarse) {
+  .panel-status .btn-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+    padding-inline: 4px;
+  }
+}
+
+.print-only {
+  display: none;
+}
+
+.inputs-end {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--rule-strong);
+}
+
 /* ---------------------------------------------------------------- inputs */
 
 .groups {
@@ -497,7 +557,7 @@ textarea {
   padding-bottom: 4px;
 }
 
-@media (min-width: 960px) {
+@media screen and (min-width: 960px) {
   .panel-head {
     padding-bottom: 20px;
   }
@@ -534,6 +594,14 @@ legend {
   min-width: 0;
 }
 
+.field-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px 8px;
+}
+
 .field-label {
   font-size: var(--fs-3);
   font-weight: 500;
@@ -557,13 +625,6 @@ legend.field-label {
   background: var(--caution-soft);
   border-radius: 4px;
   padding: 6px 8px;
-}
-
-.field-pair {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 12px;
-  align-items: end;
 }
 
 .field-inline {
@@ -638,7 +699,7 @@ legend.field-label {
   padding-left: 40px;
 }
 
-.input-wrap:has(.affix-post) .input {
+.has-suffix .input {
   padding-right: 58px;
 }
 
@@ -696,7 +757,7 @@ legend.field-label {
   align-items: center;
   justify-content: center;
   min-height: 38px;
-  padding: 4px 8px;
+  padding: 4px 6px;
   border-radius: 6px;
   font-size: var(--fs-3);
   font-weight: 500;
@@ -730,7 +791,7 @@ legend.field-label {
   font-size: var(--fs-2);
 }
 
-.seg-field:has(.seg-small) {
+.seg-field-small {
   flex: none;
 }
 
@@ -741,6 +802,14 @@ legend.field-label {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.radio-list-compact {
+  gap: 8px;
+}
+
+.radio-list + .field-hint {
+  margin-top: 8px;
 }
 
 .check {
@@ -835,6 +904,12 @@ legend.field-label {
   padding-top: 12px;
 }
 
+.aside-figures {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .aside-figure {
   display: flex;
   align-items: baseline;
@@ -878,6 +953,54 @@ legend.field-label {
   color: var(--ink-3);
 }
 
+/* Thumb-sized targets on touch layouts: small segments, tick boxes with their labels, and disclosures. */
+@media (max-width: 959px), (pointer: coarse) {
+  .seg-opt span,
+  .seg-small span {
+    min-height: 40px;
+  }
+
+  .check > input {
+    position: relative;
+    z-index: 1;
+    width: 20px;
+    height: 20px;
+    margin-top: 10px;
+  }
+
+  /* The label runs under the box and out to the edge of the row, so the whole 40px line takes the tap. */
+  .check-label {
+    display: block;
+    margin-left: -30px;
+    padding: 9px 0 9px 30px;
+  }
+
+  .check-body {
+    gap: 0;
+  }
+
+  .check-body > .field-hint {
+    margin-top: -5px;
+  }
+
+  .check-body > .field {
+    margin-top: 10px;
+  }
+
+  .check-list,
+  .radio-list {
+    gap: 6px;
+  }
+
+  .radio-list-compact {
+    gap: 0;
+  }
+
+  .more > summary {
+    min-height: 40px;
+  }
+}
+
 /* --------------------------------------------------------------- readout */
 
 .readout {
@@ -914,13 +1037,21 @@ legend.field-label {
   outline-color: var(--slab-ink);
 }
 
+/* The whole bar takes the tap, not only the line of text: the button's hit area is stretched over it. */
+.readout-main::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
 .readout-line {
   font-size: var(--fs-3);
   color: var(--slab-ink-2);
 }
 
 .readout-line b {
-  font-size: 1.0625rem;
+  font-size: var(--fs-4);
   font-weight: 700;
   color: var(--slab-ink);
 }
@@ -935,8 +1066,21 @@ legend.field-label {
 }
 
 .readout-fine {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0 12px;
   font-size: var(--fs-1);
   color: var(--slab-ink-2);
+}
+
+.readout-fine span {
+  white-space: nowrap;
+}
+
+/* On a phone the bar's headline steps back while the same figure is on screen in the plan above it. */
+.readout.is-compact .readout-main {
+  display: none;
 }
 
 @media (min-width: 480px) {
@@ -945,13 +1089,17 @@ legend.field-label {
   }
 }
 
-@media (min-width: 960px) {
+@media screen and (min-width: 960px) {
   .readout-go {
     display: none;
   }
 
+  .readout.is-compact .readout-main {
+    display: flex;
+  }
+
   .readout {
-    position: static;
+    position: relative;
     flex: none;
     gap: 4px;
     padding: 14px 24px calc(14px + env(safe-area-inset-bottom, 0px));
@@ -1009,6 +1157,7 @@ legend.field-label {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  container-type: inline-size; /* the headline figure is sized against this column */
 }
 
 .hero-label {
@@ -1025,7 +1174,13 @@ legend.field-label {
   line-height: 1;
   letter-spacing: -0.015em;
   margin-block: 4px 8px;
-  overflow-wrap: anywhere;
+  /* One line, always: a figure split across two lines reads as two numbers. The size is set so system
+     fallback fonts fit as well; hooks.ts scales it down for the rare font that is wider still. */
+  white-space: nowrap;
+}
+
+.hero-figure.is-past {
+  color: var(--slab-ink-2);
 }
 
 .hero-sub {
@@ -1041,7 +1196,7 @@ legend.field-label {
 .slab-headline {
   margin-top: 22px;
   max-width: 30ch;
-  font-size: clamp(1.25rem, 3.6cqi, var(--fs-6));
+  font-size: clamp(1.25rem, 6.2cqi, var(--fs-6));
   font-weight: 450;
   line-height: 1.3;
   letter-spacing: -0.005em;
@@ -1087,9 +1242,9 @@ legend.field-label {
   border-top: 1px solid var(--slab-rule);
 }
 
-@container (min-width: 700px) {
+@container (min-width: 760px) {
   .slab-grid {
-    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
     gap: 40px;
   }
 
@@ -1147,7 +1302,7 @@ legend.field-label {
 }
 
 .row-total dd {
-  font-size: 1.0625rem;
+  font-size: var(--fs-4);
   font-weight: 700;
 }
 
@@ -1158,7 +1313,7 @@ legend.field-label {
 }
 
 .row-strong dd {
-  font-size: 1.0625rem;
+  font-size: var(--fs-4);
   font-weight: 700;
 }
 
@@ -1211,12 +1366,15 @@ legend.field-label {
   background: var(--slab-pos);
 }
 
-.slab-foot {
+/* The deadline and the copy button close the slip. On a wide card they sit at the foot of the right-hand
+   column, level with the end of the sentence beside it. */
+.slip-foot {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px 24px;
+  margin-top: auto;
   padding-top: 16px;
   border-top: 1px solid var(--slab-rule);
 }
@@ -1284,6 +1442,19 @@ legend.field-label {
 .jump-link:hover {
   color: var(--ink);
   text-decoration-color: var(--ink);
+}
+
+@media (max-width: 959px), (pointer: coarse) {
+  .jump {
+    gap: 0 20px;
+    margin-top: -24px;
+  }
+
+  .jump-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+  }
 }
 
 .section,
@@ -1392,16 +1563,67 @@ legend.field-label {
 
 /* tables */
 
-/* The scroll box runs 8px past the text on each side, so a tinted row has room around its figures. */
-.table-scroll {
+/* A table sits in three boxes: the block (table plus the line that says it scrolls), the wrap (which carries
+   the shading on the side with more to see) and the scroll box itself. The wrap runs 8px past the text on each
+   side, so a tinted row has room around its figures. */
+.table-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.table-wrap {
+  position: relative;
   max-width: calc(100% + 16px);
   margin-inline: -8px;
+}
+
+.table-scroll {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
 
 .table-scroll:focus-visible {
   outline-offset: 0;
+}
+
+.table-wrap::before,
+.table-wrap::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 2;
+  width: 18px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.table-wrap::before {
+  left: 0;
+  background: linear-gradient(to right, var(--edge-shade), transparent);
+}
+
+.table-wrap::after {
+  right: 0;
+  background: linear-gradient(to left, var(--edge-shade), transparent);
+}
+
+.table-wrap[data-more-left]::before,
+.table-wrap[data-more-right]::after {
+  opacity: 1;
+}
+
+/* Where the row labels stay put, columns slide under them, so only the far side is shaded. */
+.table-wrap:has(.table-wide)::before {
+  display: none;
+}
+
+.scroll-hint {
+  font-size: var(--fs-1);
+  color: var(--ink-3);
 }
 
 .table {
@@ -1443,7 +1665,19 @@ legend.field-label {
 }
 
 .table-mid {
-  min-width: 620px;
+  min-width: 560px;
+}
+
+/* A nine-column comparison has to fit a 820px column: step the type down until there is room. */
+@container (max-width: 900px) {
+  .table-wide {
+    font-size: var(--fs-2);
+  }
+
+  .table-wide th,
+  .table-wide td {
+    padding-inline: 8px;
+  }
 }
 
 .table .nowrap {
@@ -1507,7 +1741,13 @@ legend.field-label {
   font-weight: 600;
 }
 
+.table tr.is-saved > td {
+  color: var(--pos);
+  font-weight: 700;
+}
+
 .table .changed {
+  background: var(--accent-soft);
   font-weight: 700;
 }
 
@@ -1583,6 +1823,167 @@ legend.field-label {
   color: var(--ink-2);
 }
 
+.tag-example {
+  margin-left: 0;
+  background: var(--caution-soft);
+  box-shadow: inset 0 0 0 1px var(--caution);
+  color: var(--caution);
+}
+
+/* A table too wide for its box, restacked (see TableScroll): each row becomes a block and each cell a
+   "label  value" line, the way a payslip sets them. The column headings stay in the page for screen readers. */
+.table-scroll[data-stacked] {
+  overflow-x: visible;
+}
+
+.table-scroll[data-stacked] > .table {
+  display: block;
+  min-width: 0;
+  max-width: none;
+  font-size: var(--fs-3);
+}
+
+.table-scroll[data-stacked] > .table > thead {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.table-scroll[data-stacked] > .table > tbody,
+.table-scroll[data-stacked] > .table > tfoot {
+  display: block;
+}
+
+.table-scroll[data-stacked] > .table tr {
+  display: flex;
+  padding: 12px 8px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.table-scroll[data-stacked] > .table tr > th,
+.table-scroll[data-stacked] > .table tr > td {
+  position: static;
+  padding: 0;
+  border: 0;
+  white-space: normal;
+}
+
+.table-scroll[data-stacked] > .table tbody th,
+.table-scroll[data-stacked] > .table tfoot th {
+  background: none;
+  font-weight: 650;
+}
+
+.table-scroll[data-stacked] > .table tr.is-plan {
+  background: var(--accent-soft);
+}
+
+.table-scroll[data-stacked] > .table tr.is-total {
+  margin-top: -1px;
+  border-top: 1px solid var(--ink);
+  border-bottom: 0;
+}
+
+.table-scroll[data-stacked] > .table td::before {
+  content: attr(data-label);
+  color: var(--ink-2);
+  font-variant-numeric: normal;
+  font-weight: 400;
+  text-align: left;
+}
+
+/* rows: one label and value per line */
+.table-scroll[data-stacked='rows'] > .table tr {
+  flex-direction: column;
+  gap: 4px;
+}
+
+.table-scroll[data-stacked='rows'] > .table tbody th,
+.table-scroll[data-stacked='rows'] > .table tfoot th {
+  padding-bottom: 2px;
+}
+
+.table-scroll[data-stacked='rows'] > .table td {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  text-align: right;
+}
+
+.table-scroll[data-stacked='rows'] > .table td::before {
+  flex: 1 1 auto;
+}
+
+/* A scheme the option puts nothing into, and cells with nothing in them, are left out of the block. */
+.table-scroll[data-stacked='rows'] > .table td[data-zero],
+.table-scroll[data-stacked='rows'] > .table td[data-empty] {
+  display: none;
+}
+
+/* The comparison leads with what each option saves; the split and the tax bill follow. */
+.table-scroll[data-stacked='rows'] > .table-compare .c-saved {
+  order: 1;
+}
+
+.table-scroll[data-stacked='rows'] > .table-compare .c-cash {
+  order: 2;
+}
+
+.table-scroll[data-stacked='rows'] > .table-compare .c-rate {
+  order: 3;
+}
+
+.table-scroll[data-stacked='rows'] > .table-compare .c-wasted {
+  order: 4;
+}
+
+.table-scroll[data-stacked='rows'] > .table-compare .c-lever {
+  order: 5;
+}
+
+.table-scroll[data-stacked='rows'] > .table-compare .c-tax {
+  order: 6;
+}
+
+/* lines: the row heading and its total on one line, the breakdown on the next */
+.table-scroll[data-stacked='lines'] > .table tr {
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 14px;
+  padding-block: 10px;
+}
+
+.table-scroll[data-stacked='lines'] > .table tr::after {
+  content: '';
+  order: 2;
+  flex-basis: 100%;
+  height: 0;
+}
+
+.table-scroll[data-stacked='lines'] > .table tr > th {
+  order: 1;
+  flex: 1 1 auto;
+}
+
+.table-scroll[data-stacked='lines'] > .table td.c-total {
+  order: 1;
+  font-weight: 650;
+}
+
+.table-scroll[data-stacked='lines'] > .table td.c-lever {
+  order: 3;
+  font-size: var(--fs-2);
+  color: var(--ink-2);
+}
+
+.table-scroll[data-stacked='lines'] > .table td::before {
+  content: attr(data-label) ' ';
+  font-size: var(--fs-2);
+}
+
 /* facts table: restacks by fact on a narrow column */
 
 .table-facts {
@@ -1627,8 +2028,14 @@ legend.field-label {
     border-bottom: 1px solid var(--rule);
   }
 
-  .table-facts tbody th,
-  .table-facts td {
+  /* The scroll box runs 8px past the text gutter, so the row carries that 8px and every cell starts on the
+     same line as the row heading. (.table.table-facts outweighs the first/last-child padding rules.) */
+  .table-facts tr {
+    padding-inline: 8px;
+  }
+
+  .table.table-facts tbody th,
+  .table.table-facts td {
     padding: 0;
     border: 0;
   }
@@ -1673,6 +2080,14 @@ legend.field-label {
   text-align: center;
 }
 
+.notice-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
 .notice-blocker {
   background: var(--neg-soft);
 }
@@ -1714,7 +2129,7 @@ p.notice {
 
 .countdown-figure {
   font-family: var(--font-display);
-  font-size: 3.5rem;
+  font-size: var(--fs-figure);
   font-weight: 650;
   font-stretch: 82%;
   line-height: 1;
@@ -1786,26 +2201,26 @@ p.notice {
 }
 
 .chart-tick {
-  font-size: 12px;
+  font-size: var(--fs-1);
 }
 
 .chart-axis-title {
-  font-size: 12px;
+  font-size: var(--fs-1);
   font-weight: 600;
 }
 
 .chart-label {
-  font-size: 12px;
+  font-size: var(--fs-1);
   font-weight: 500;
 }
 
 .chart-label-strong {
-  font-size: 13px;
+  font-size: var(--fs-2);
   font-weight: 700;
 }
 
 .chart-flag {
-  font-size: 12px;
+  font-size: var(--fs-1);
   font-weight: 650;
 }
 
@@ -1875,6 +2290,170 @@ p.notice {
 .key-open {
   background: var(--chart-open);
   border: 1.5px solid var(--ink-2);
+}
+
+/* ----------------------------------------------------------------- print */
+
+/* A printed plan is a record: the answer, the working and the cautions on white paper, whatever theme the
+   screen was in. Controls, the form and the bottom bar are left out; the numbers behind the plan are listed
+   in their place. */
+@page {
+  margin: 14mm;
+}
+
+@media print {
+  :root:root:root {
+    --ground: #ffffff;
+    --panel: #eef1f7;
+    --surface: #ffffff;
+    --ink: #131a33;
+    --ink-2: #434c69;
+    --ink-3: #58617f;
+    --rule: #d5dae8;
+    --rule-strong: #a3adc8;
+    --field-border: #75809f;
+    --accent: #2743d6;
+    --accent-ink: #ffffff;
+    --accent-soft: #e0e6fb;
+    --slab: #ffffff;
+    --slab-raised: #eef1f7;
+    --slab-ink: #131a33;
+    --slab-ink-2: #434c69;
+    --slab-rule: #a3adc8;
+    --slab-pos: #0a7045;
+    --pos: #0a7045;
+    --caution: #7d5000;
+    --caution-soft: #faeecb;
+    --neg: #b0251d;
+    --neg-soft: #fae3e0;
+    --seg-track: #d7dcea;
+    --seg-thumb: #ffffff;
+    --tip: #131a33;
+    --tip-ink: #f3f5fa;
+    --edge-shade: rgb(17 26 64 / 0);
+    --shadow: none;
+    --bar-shadow: none;
+    color-scheme: light;
+    padding: 0;
+  }
+
+  .app {
+    display: block;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .rail {
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+
+  .panel-scroll {
+    padding: 0;
+    background: none;
+  }
+
+  .readout,
+  .jump,
+  .brand .seg-field,
+  .btn,
+  .btn-link,
+  .copy,
+  #inputs,
+  .inputs-end,
+  .scroll-hint,
+  .chart-tip,
+  .saved-note,
+  .table-wrap::before,
+  .table-wrap::after {
+    display: none !important;
+  }
+
+  .print-only {
+    display: flex;
+  }
+
+  .results {
+    gap: 28px;
+  }
+
+  .slab {
+    border: 1.5px solid var(--ink);
+    box-shadow: none;
+  }
+
+  /* Fills that carry meaning are printed even when "background graphics" is off. */
+  .meter span,
+  .dot,
+  .tag,
+  .stamp,
+  .chart-svg,
+  .key-swatch,
+  .field-note,
+  .notice,
+  .table tr.is-plan > *,
+  .table .changed,
+  .table-scroll[data-stacked] > .table tr.is-plan {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* The chart was drawn for the screen's width: let it scale to the page's. */
+  .chart-scroll {
+    overflow: visible;
+  }
+
+  .chart-box {
+    min-width: 0;
+  }
+
+  .chart-svg {
+    width: 100%;
+    height: auto;
+  }
+
+  .table-wrap {
+    max-width: 100%;
+    margin-inline: 0;
+  }
+
+  .table-scroll {
+    overflow: visible;
+  }
+
+  .table-wide,
+  .table-mid {
+    min-width: 0;
+    font-size: var(--fs-2);
+  }
+
+  .table-wide thead th:first-child,
+  .table-wide tbody th,
+  .table-wide tfoot th {
+    position: static;
+  }
+
+  .section-title,
+  .sub-title,
+  .fold > summary,
+  .lede {
+    break-after: avoid;
+  }
+
+  .slab,
+  .notice,
+  .countdown,
+  .chart,
+  .rows,
+  .disclaimer,
+  .table tr {
+    break-inside: avoid;
+  }
+
+  a {
+    color: inherit;
+  }
 }
 
 /* ---------------------------------------------------------------- motion */

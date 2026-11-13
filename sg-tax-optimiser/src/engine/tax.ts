@@ -9,13 +9,15 @@ import type { TaxBracket, YearRules } from './types';
 
 /**
  * The largest chargeable income the engine can produce: twelve months' wages, additional wages and other
- * income, each at MAX_MONEY. The public tax functions clamp their argument to it so the mills stay exact.
+ * income, each at MAX_MONEY (S$140 billion). SPEC §7: the public tax functions clamp their argument to it, so
+ * the mills stay exact.
  */
 const MAX_CHARGEABLE_INCOME = 14 * MAX_MONEY;
 
 /**
  * Chargeable income is a whole-dollar amount (§6.3 floors it), so an argument from outside the engine is
- * sanitised like every money input (§6.0): not finite or negative -> 0, otherwise rounded down.
+ * sanitised like every numeric input (§6.0, §7): not finite or negative -> 0, otherwise rounded down, then
+ * clamped to MAX_CHARGEABLE_INCOME.
  */
 function chargeableIncomeArgument(value: number): number {
   return Math.min(wholeNumber(value), MAX_CHARGEABLE_INCOME);

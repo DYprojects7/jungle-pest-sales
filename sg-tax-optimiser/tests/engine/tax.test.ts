@@ -96,6 +96,20 @@ describe('grossTax — bracket boundaries (§5.1, §6.4)', () => {
     expect(grossTax(34_750.99, RULES)).toBe(366.25); // chargeable income is whole dollars
   });
 
+  it('clamps its argument to S$140,000,000,000, the largest chargeable income the inputs can produce (SPEC §7)', () => {
+    // 199,150 + 24% x (140,000,000,000 - 1,000,000) = 199,150 + 33,599,760,000 = 33,599,959,150.00
+    expect(grossTax(140_000_000_000, RULES)).toBe(33_599_959_150);
+    expect(grossTax(140_000_000_001, RULES)).toBe(33_599_959_150);
+    expect(grossTax(200_000_000_000, RULES)).toBe(33_599_959_150);
+    expect(grossTax(1e300, RULES)).toBe(33_599_959_150);
+    // One dollar below the clamp is still exact: 24 cents less.
+    expect(grossTax(139_999_999_999, RULES)).toBe(33_599_959_149.76);
+    // The clamp is NOT the S$10bn clamp of a money input: 199,150 + 24% x 19,999,000,000 = 4,799,959,150.00
+    expect(grossTax(20_000_000_000, RULES)).toBe(4_799_959_150);
+    expect(marginalRate(200_000_000_000, RULES)).toBe(0.24);
+    expect(marginalRate(Number.POSITIVE_INFINITY, RULES)).toBe(0); // not finite -> 0 (§6.0), then no tax
+  });
+
   it('never decreases as income rises', () => {
     let previous = 0;
     for (let income = 0; income <= 1_100_000; income += 937) {

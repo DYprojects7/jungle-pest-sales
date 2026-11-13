@@ -104,8 +104,8 @@ function priority(value: unknown): LeverId[] {
 }
 
 /**
- * `today` as `YYYY-MM-DD`. The SPEC does not say what to do with an unreadable date; the engine then plans as
- * if it were 1 January of the income year (the whole year ahead, no deadline warning).
+ * `today` as `YYYY-MM-DD` (SPEC §6.0): its leading date when it can be parsed, otherwise 1 January of the income
+ * year (the whole year ahead, no deadline warning).
  */
 function today(value: unknown, incomeYear: number): string {
   const parsed = parseIsoDate(value);
@@ -148,6 +148,7 @@ export function sanitise(input: PlannerInput): SanitisedInput {
       cpfTopUpFamily: money(existing.cpfTopUpFamily),
     },
     otherReliefs: money(raw.otherReliefs),
+    // §6.0: a lever is enabled only when its flag is exactly `true` (never for 1, "true" or a missing flag).
     levers: {
       srs: { enabled: asRecord(levers.srs).enabled === true },
       cpfSelf: {

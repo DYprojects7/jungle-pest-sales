@@ -1,67 +1,95 @@
-import type { JSX } from 'preact';
+import type { JSX, RefObject } from 'preact';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { PlannerResult } from '../../engine/types';
 import { cents, centsPerDollar, countOf, dollars, shortDate } from '../format';
-import type { UiState } from '../state';
-import { computePlan } from '../state';
+import { useFitText } from '../hooks';
+import type { UiState, WhatIf } from '../state';
+import { beyondRules, computePlan } from '../state';
 import { copyText } from '../storage';
-import { LEVERS, LEVER_NAME, headline, planParts, stopReason, summaryText } from '../text';
+import { LEVER_NAME, deadlinePassed, headline, lookingBack, planParts, stopReason, summaryText } from '../text';
 import { Row } from './Controls';
 
 const LEVER_TESTID = { srs: 'reco-srs', cpfSelf: 'reco-cpf-self', cpfFamily: 'reco-cpf-family' } as const;
+
+/** Said wherever a plan for a closed year is shown, so nobody reads it as an instruction. */
+const COUNTS_NEXT_YEAR = 'Money you put in now counts for the following year instead.';
 
 interface RecommendationProps {
   result: PlannerResult;
   ui: UiState;
   today: string;
+  /** The engine's plan with one setting changed, when that change would save more (see `whatIf`). */
+  hint: WhatIf | null;
+  /** The income year to offer when the one on screen has closed, or null. */
+  openYear: number | null;
   /** Switch "How far down the ladder?" to Every tax dollar. */
   onEveryDollar: () => void;
+  onYear: (incomeYear: number) => void;
+  /** The tax-saved figure, so the page can tell when it is on screen. */
+  heroRef: RefObject<HTMLParagraphElement | null>;
 }
 
 /** The answer: what to put where, what it saves, what it locks away, and why it stops there. */
-export function Recommendation({ result, ui, today, onEveryDollar }: RecommendationProps): JSX.Element {
+export function Recommendation(props: RecommendationProps): JSX.Element {
+  const { result, ui, today, hint, openYear, onEveryDollar, onYear, heroRef } = props;
   const { plan: p, rules, levers, monthlyPlan } = result;
   const parts = planParts(result);
   const nothing = p.totalContribution === 0;
+  const past = deadlinePassed(result);
+  const figure = cents(p.taxSaved);
+  useFitText(heroRef, figure);
 
   // When nothing is recommended, see whether going all the way down the ladder would find something.
   const everyDollar = useMemo(() => {
-    if (!nothing || ui.depth === 'every') return null;
+    if (past || !nothing || ui.depth === 'every') return null;
     try {
       const alt = computePlan({ ...ui, depth: 'every' }, today).plan;
       return alt.totalContribution > 0 ? alt : null;
     } catch {
       return null;
     }
-  }, [nothing, ui, today]);
+  }, [past, nothing, ui, today]);
 
-  const shownLevers = LEVERS.filter((l) => (levers[l].eligible && levers[l].enabled) || p.contributions[l] > 0);
+  // Schemes in the order the person chose under "Which first?".
+  const shownLevers = result.input.preferences.priority.filter(
+    (l) => (levers[l].eligible && levers[l].enabled) || p.contributions[l] > 0,
+  );
   const paidShare = p.taxBefore > 0 ? Math.min(1, Math.max(0, p.taxAfter / p.taxBefore)) : 1;
+  const deadline = shortDate(monthlyPlan.deadline);
+  // Opened in a year this build has no rules for: there is no open year to offer, so say what is needed.
+  const beyond = past && openYear === null ? beyondRules(today) : null;
 
   return (
     <section class="slab" id="recommendation" aria-labelledby="reco-title" tabIndex={-1}>
       <div class="slab-top">
         <p class="eyebrow">
-          Your plan for YA{rules.ya}
+          {past ? `YA${rules.ya}, deadline passed` : `Your plan for YA${rules.ya}`}
           {rules.status === 'projected' ? ', projected rules' : ''}
         </p>
-        {ui.isExample ? <span class="stamp stamp-slab">Example: replace with your numbers</span> : null}
+        {ui.isExample ? (
+          <span class="stamp stamp-slab" data-testid="example-flag-plan">
+            Example: replace with your numbers
+          </span>
+        ) : null}
       </div>
 
       <div class="slab-grid">
         <div class="slab-main">
-          <p class="hero-label">Tax saved</p>
-          <p class="hero-figure" data-testid="reco-tax-saved">
-            {cents(p.taxSaved)}
+          <p class="hero-label">{past ? 'Tax this would have saved' : 'Tax saved'}</p>
+          <p class={`hero-figure${past ? ' is-past' : ''}`} ref={heroRef} data-testid="reco-tax-saved">
+            {figure}
           </p>
           {!nothing ? (
             <p class="hero-sub">
-              <span data-testid="reco-rate">{centsPerDollar(p.savingRate)}</span> back for every dollar you lock away
+              <span data-testid="reco-rate">{centsPerDollar(p.savingRate)}</span> back for every dollar{' '}
+              {past ? 'it would have locked away' : 'you lock away'}
             </p>
           ) : null}
 
           <h2 class="slab-headline" id="reco-title" data-testid="reco-headline">
-            {nothing ? (
+            {past ? (
+              `The ${deadline} deadline has passed.`
+            ) : nothing ? (
               'Nothing more to put in this year.'
             ) : (
               <>
@@ -76,15 +104,29 @@ export function Recommendation({ result, ui, today, onEveryDollar }: Recommendat
                   .
                 </span>{' '}
                 <span>
-                  You save <b>{cents(p.taxSaved)}</b> in tax.
+                  You save <b>{figure}</b> in tax.
                 </span>
               </>
             )}
           </h2>
 
           <p class="slab-reason" data-testid="reco-reason">
-            {stopReason(result)}
+            {past ? `${lookingBack(result)} ${COUNTS_NEXT_YEAR}` : stopReason(result, hint)}
           </p>
+          {beyond !== null ? (
+            <p class="slab-reason" data-testid="reco-outdated">
+              This copy of the calculator has rules up to income year {beyond.newest}. Planning for {beyond.year}{' '}
+              needs a newer version.
+            </p>
+          ) : null}
+
+          {past && openYear !== null ? (
+            <div class="slab-offer">
+              <button type="button" class="btn btn-slab" data-testid="reco-switch-year" onClick={() => onYear(openYear)}>
+                Plan for {openYear} instead
+              </button>
+            </div>
+          ) : null}
 
           {everyDollar ? (
             <div class="slab-offer">
@@ -104,11 +146,21 @@ export function Recommendation({ result, ui, today, onEveryDollar }: Recommendat
             {shownLevers.map((l) => (
               <Row key={l} label={LEVER_NAME[l]} value={dollars(p.contributions[l])} testid={LEVER_TESTID[l]} />
             ))}
-            <Row total label="Cash you lock away" value={dollars(p.totalContribution)} testid="reco-locked" />
+            <Row
+              total
+              label={past ? 'Would have locked away' : 'Cash you lock away'}
+              value={dollars(p.totalContribution)}
+              testid="reco-locked"
+            />
           </dl>
           <dl class="rows">
             <Row label="Tax before" value={cents(p.taxBefore)} testid="reco-tax-before" />
-            <Row strong label="Tax after" value={cents(p.taxAfter)} testid="reco-tax-after" />
+            <Row
+              strong
+              label={past ? 'Tax with the plan' : 'Tax after'}
+              value={cents(p.taxAfter)}
+              testid="reco-tax-after"
+            />
           </dl>
           {p.taxBefore > 0 ? (
             <div class="meter" aria-hidden="true">
@@ -119,39 +171,44 @@ export function Recommendation({ result, ui, today, onEveryDollar }: Recommendat
           {p.taxBefore > 0 ? (
             <p class="meter-key" aria-hidden="true">
               <span>
-                <i class="dot dot-paid" /> still to pay
+                <i class="dot dot-paid" /> {past ? 'tax with the plan' : 'still to pay'}
               </span>
               <span>
-                <i class="dot dot-saved" /> saved
+                <i class="dot dot-saved" /> {past ? 'would have saved' : 'saved'}
               </span>
             </p>
           ) : null}
-        </div>
-      </div>
 
-      <div class="slab-foot">
-        <CopySummary result={result} isExample={ui.isExample} />
-        <p class="slab-deadline">
-          {monthlyPlan.daysToDeadline >= 0 ? (
-            <>
-              <b>{countOf(monthlyPlan.daysToDeadline, 'day')}</b> left to transfer, by{' '}
-              {shortDate(monthlyPlan.deadline)}
-            </>
-          ) : (
-            <>The {shortDate(monthlyPlan.deadline)} deadline has passed</>
-          )}
-        </p>
+          {/* The deadline and the copy button close the slip, so the column ends level with the sentence
+              beside it on a wide card. */}
+          <div class="slip-foot">
+            <p class="slab-deadline" data-testid="reco-deadline">
+              {past ? (
+                <>The {deadline} deadline has passed</>
+              ) : monthlyPlan.daysToDeadline === 0 ? (
+                <>
+                  <b>Today is the last day</b> to transfer
+                </>
+              ) : (
+                <>
+                  <b>{countOf(monthlyPlan.daysToDeadline, 'day')}</b> left to transfer, by {deadline}
+                </>
+              )}
+            </p>
+            <CopySummary result={result} isExample={ui.isExample} hint={hint} />
+          </div>
+        </div>
       </div>
     </section>
   );
 }
 
 /** Copy the plan as plain text. If the browser refuses, show the text selected so it can be copied by hand. */
-function CopySummary({ result, isExample }: { result: PlannerResult; isExample: boolean }): JSX.Element {
+function CopySummary(props: { result: PlannerResult; isExample: boolean; hint: WhatIf | null }): JSX.Element {
   const [state, setState] = useState<'idle' | 'copied' | 'manual'>('idle');
   const boxRef = useRef<HTMLTextAreaElement>(null);
   const timer = useRef<number | undefined>(undefined);
-  const text = summaryText(result, isExample);
+  const text = summaryText(props.result, props.isExample, props.hint);
 
   useEffect(() => () => window.clearTimeout(timer.current), []);
 
@@ -159,6 +216,7 @@ function CopySummary({ result, isExample }: { result: PlannerResult; isExample: 
     if (state === 'manual' && boxRef.current) {
       boxRef.current.focus();
       boxRef.current.select();
+      boxRef.current.scrollTop = 0;
     }
   }, [state]);
 
@@ -182,7 +240,7 @@ function CopySummary({ result, isExample }: { result: PlannerResult; isExample: 
       {state === 'manual' ? (
         <div class="copy-manual">
           <label for="summary-text">Your browser blocked the copy. The summary is selected below: copy it from here.</label>
-          <textarea id="summary-text" ref={boxRef} class="copy-box" readOnly rows={8} value={text} data-testid="summary-text" />
+          <textarea id="summary-text" ref={boxRef} class="copy-box" readOnly rows={10} value={text} data-testid="summary-text" />
         </div>
       ) : null}
     </div>
@@ -190,6 +248,7 @@ function CopySummary({ result, isExample }: { result: PlannerResult; isExample: 
 }
 
 /** The plain sentence announced to screen readers when the plan changes. */
-export function announcement(result: PlannerResult): string {
-  return `${headline(result)} ${stopReason(result)}`;
+export function announcement(result: PlannerResult, hint: WhatIf | null): string {
+  if (deadlinePassed(result)) return `${headline(result)} ${COUNTS_NEXT_YEAR}`;
+  return `${headline(result)} ${stopReason(result, hint)}`;
 }

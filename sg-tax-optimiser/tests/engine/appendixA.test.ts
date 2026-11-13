@@ -239,7 +239,13 @@ describe('Appendix A.1 — the opening example', () => {
 
   it('warnings: only LEVER_LIMITS_PLAN', () => {
     expect(result.warnings.map((w) => w.code)).toEqual(['LEVER_LIMITS_PLAN']);
-    expect(result.warnings[0]?.params).toEqual({ leverRoom: 23_300, unrealisedSaving: 2_359.5 });
+    // savingIfSwitchedOn (SPEC §6.11): the family top-up is the only scheme left off; its 8,000 of room would
+    // take CI from 85,300 to 77,300: 5,300 x 11.5% + 2,700 x 7% = 798.50.
+    expect(result.warnings[0]?.params).toEqual({ leverRoom: 23_300, unrealisedSaving: 2_359.5, savingIfSwitchedOn: 798.5 });
+    expect(result.warnings[0]?.message).toBe(
+      'The plan uses all S$23,300 of room left in the schemes you switched on. ' +
+        'Switching on the schemes you left off could save up to S$798.50 more tax.',
+    );
   });
 });
 
@@ -457,7 +463,12 @@ describe('Appendix A.2 — older PR with a budget and the relief cap in play', (
 
   it('warnings: the budget binds; age 55+ top-up note', () => {
     expect(result.warnings.map((w) => w.code)).toEqual(['BUDGET_LIMITS_PLAN', 'AGE_55_PLUS_TOPUP']);
-    expect(result.warnings[0]?.params).toEqual({ cashBudget: 20_000, unrealisedSaving: 96 });
+    // savingWithMoreCash (SPEC §6.11): without the cash limit the relief cap stops the plan at C = 20,640
+    // (L = 26,300 is further away), 640 more dollars at 15% = 96.00 — here the same as unrealisedSaving.
+    expect(result.warnings[0]?.params).toEqual({ cashBudget: 20_000, unrealisedSaving: 96, savingWithMoreCash: 96 });
+    expect(result.warnings[0]?.message).toBe(
+      'Your cash limit of S$20,000 is what stops the plan. With more cash you could save up to S$96.00 more tax.',
+    );
   });
 });
 

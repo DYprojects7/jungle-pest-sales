@@ -3,7 +3,15 @@ import { useRef, useState } from 'preact/hooks';
 import type { LadderTier, PlannerResult } from '../../engine/types';
 import { cents, centsPerDollar, dollars, pct, plain } from '../format';
 import { useElementWidth } from '../hooks';
-import { ladderSummary, tierPlanUse, tierRange, zeroReasonText } from '../text';
+import {
+  flatLadderText,
+  ladderEmptyText,
+  ladderSummary,
+  tierPlanUse,
+  tierPlanUseInline,
+  tierRange,
+  zeroReasonText,
+} from '../text';
 import { TableScroll } from './Controls';
 
 interface LadderProps {
@@ -17,10 +25,21 @@ export function Ladder({ result }: LadderProps): JSX.Element {
 
   if (tiers.length === 0) {
     return (
-      <p class="empty">
-        No scheme has room left for {result.rules.incomeYear}, so there is no ladder to draw. Switch on a scheme
-        under Your preferences to see one.
+      <p class="empty" data-testid="ladder-empty">
+        {ladderEmptyText(result)}
       </p>
+    );
+  }
+
+  // With no tax to save anywhere there are no steps: an axis over an all-hatched plot would say nothing.
+  if (tiers.every((t) => t.rate <= 0)) {
+    return (
+      <div class="ladder">
+        <p class="empty" data-testid="ladder-flat">
+          {flatLadderText(result)}
+        </p>
+        <LadderTable result={result} active={null} onActive={setActive} />
+      </div>
     );
   }
 
@@ -48,9 +67,9 @@ function niceStep(max: number, maxTicks: number): number {
   return 10 * power;
 }
 
-/** Rough rendered width of a label, to decide whether it fits before drawing it. */
-function textWidth(text: string, fontSize = 12): number {
-  return text.length * fontSize * 0.56;
+/** Rough rendered width of a label, to decide whether it fits before drawing it. `perChar` is in ems. */
+function textWidth(text: string, fontSize = 12, perChar = 0.56): number {
+  return text.length * fontSize * perChar;
 }
 
 interface ChartProps extends LadderProps {
@@ -60,6 +79,14 @@ interface ChartProps extends LadderProps {
 
 function LadderChart({ result, active, onActive }: ChartProps): JSX.Element {
   const boxRef = useRef<HTMLDivElement>(null);
+  // Mouse: hovering shows a block's figures. Keyboard: focus shows them. Touch: a tap shows them, and a tap on
+  // the block that is already showing puts them away. A tap also moves focus, and the order of the focus, blur
+  // and click events around it is not something to rely on, so the tap is judged by what was showing when the
+  // finger went down.
+  const lastPointer = useRef<string>('mouse');
+  const shownAtPress = useRef<number | null>(null);
+  const activeNow = useRef<number | null>(active);
+  activeNow.current = active;
   const measured = useElementWidth(boxRef, 640);
   const tiers = result.ladder;
   const planTotal = result.plan.totalContribution;
@@ -67,7 +94,8 @@ function LadderChart({ result, active, onActive }: ChartProps): JSX.Element {
   // Drawn at 1 unit = 1 CSS pixel, so labels keep their size on a phone.
   const W = Math.max(288, Math.floor(measured));
   const compact = W < 520;
-  const H = compact ? 240 : 280;
+  // A lone tier is one flat block; it does not need the height a staircase does.
+  const H = tiers.length === 1 ? (compact ? 200 : 216) : compact ? 240 : 280;
   const m = { top: 30, right: 12, bottom: 42, left: 42 };
   const plotW = W - m.left - m.right;
   const plotH = H - m.top - m.bottom;
@@ -92,8 +120,19 @@ function LadderChart({ result, active, onActive }: ChartProps): JSX.Element {
   const yTicks: number[] = [];
   for (let v = 0; v <= yMax + 1e-9; v += yStep) yTicks.push(Math.round(v * 100) / 100);
 
+  // The plan marker's label goes on the side with room for it, in the longest wording that fits.
   const flagX = x(planTotal);
-  const flagLeft = flagX > m.left + plotW * 0.55;
+  const flagPrefersLeft = flagX > m.left + plotW * 0.55;
+  let flag: { text: string; x: number; anchor: 'start' | 'end' } | null = null;
+  for (const text of [`Your plan: ${dollars(planTotal)}`, `Plan: ${dollars(planTotal)}`, 'Plan']) {
+    const w = textWidth(text, 12, 0.6);
+    const fitsLeft = flagX - 7 - w >= 2;
+    const fitsRight = flagX + 7 + w <= W - 2;
+    if (!fitsLeft && !fitsRight) continue;
+    const left = fitsLeft && (flagPrefersLeft || !fitsRight);
+    flag = { text, x: left ? flagX - 7 : flagX + 7, anchor: left ? 'end' : 'start' };
+    break;
+  }
   const tip = active !== null ? tiers[active] : undefined;
 
   return (
@@ -209,41 +248,47 @@ function LadderChart({ result, active, onActive }: ChartProps): JSX.Element {
                   style={{ stroke: 'var(--ink)' }}
                   stroke-width="1.5"
                 />
-                <text
-                  class="chart-flag"
-                  x={flagLeft ? flagX - 7 : flagX + 7}
-                  y={m.top - 13}
-                  text-anchor={flagLeft ? 'end' : 'start'}
-                  style={{ fill: 'var(--ink)' }}
-                >
-                  {`Your plan: ${dollars(planTotal)}`}
-                </text>
+                {flag ? (
+                  <text
+                    class="chart-flag"
+                    x={flag.x}
+                    y={m.top - 13}
+                    text-anchor={flag.anchor}
+                    style={{ fill: 'var(--ink)' }}
+                  >
+                    {flag.text}
+                  </text>
+                ) : null}
               </g>
             ) : null}
 
             {/* x axis */}
-            {xTicks.map((v) => (
-              <g key={`x${v}`}>
-                <line
-                  x1={x(v)}
-                  x2={x(v)}
-                  y1={base}
-                  y2={base + 5}
-                  fill="none"
-                  style={{ stroke: 'var(--rule-strong)' }}
-                  stroke-width="1"
-                />
-                <text
-                  class="chart-tick"
-                  x={x(v)}
-                  y={base + 18}
-                  text-anchor={v === 0 ? 'start' : 'middle'}
-                  style={{ fill: 'var(--ink-3)' }}
-                >
-                  {plain(v)}
-                </text>
-              </g>
-            ))}
+            {xTicks.map((v) => {
+              // A label centred on a tick at the right-hand edge would run off the drawing: end it at the tick.
+              const runsOff = x(v) + textWidth(plain(v), 12, 0.62) / 2 > W - 1;
+              return (
+                <g key={`x${v}`}>
+                  <line
+                    x1={x(v)}
+                    x2={x(v)}
+                    y1={base}
+                    y2={base + 5}
+                    fill="none"
+                    style={{ stroke: 'var(--rule-strong)' }}
+                    stroke-width="1"
+                  />
+                  <text
+                    class="chart-tick"
+                    x={x(v)}
+                    y={base + 18}
+                    text-anchor={v === 0 ? 'start' : runsOff ? 'end' : 'middle'}
+                    style={{ fill: 'var(--ink-3)' }}
+                  >
+                    {plain(v)}
+                  </text>
+                </g>
+              );
+            })}
             {showEnd ? (
               <text class="chart-tick" x={x(xMax)} y={base + 18} text-anchor="end" style={{ fill: 'var(--ink-3)' }}>
                 {plain(xMax)}
@@ -290,11 +335,21 @@ function LadderChart({ result, active, onActive }: ChartProps): JSX.Element {
                     tabIndex={0}
                     role="img"
                     aria-label={tierSentence(t, result)}
-                    onPointerEnter={() => onActive(i)}
+                    onPointerDown={(e) => {
+                      lastPointer.current = e.pointerType;
+                      shownAtPress.current = activeNow.current;
+                    }}
+                    onPointerEnter={(e) => {
+                      if (e.pointerType === 'mouse') onActive(i);
+                    }}
                     onPointerLeave={(e) => {
                       if (e.pointerType === 'mouse') onActive(null);
                     }}
-                    onClick={() => onActive(active === i && !window.matchMedia('(hover: hover)').matches ? null : i)}
+                    onClick={() => {
+                      const putAway = lastPointer.current !== 'mouse' && shownAtPress.current === i;
+                      shownAtPress.current = null;
+                      onActive(putAway ? null : i);
+                    }}
                     onFocus={() => onActive(i)}
                     onBlur={() => onActive(null)}
                   />
@@ -322,7 +377,7 @@ function tierSentence(t: LadderTier, result: PlannerResult): string {
   if (t.rate <= 0) return `${tierRange(t)}: no tax saved, ${zeroReasonText(t, result.rules)}.`;
   return (
     `${tierRange(t)}: saves ${centsPerDollar(t.rate)} per dollar, ${cents(t.taxSaved)} in total. ` +
-    `In your plan: ${tierPlanUse(t).toLowerCase()}.`
+    `In your plan: ${tierPlanUseInline(t)}.`
   );
 }
 
@@ -404,7 +459,7 @@ function ChartTip(props: { tier: LadderTier; result: PlannerResult; cx: number; 
       <span>
         {tier.rate > 0 ? `${centsPerDollar(tier.rate)} per dollar` : zeroReasonText(tier, result.rules)}
       </span>
-      {tier.rate > 0 ? <span>In your plan: {tierPlanUse(tier).toLowerCase()}</span> : null}
+      {tier.rate > 0 ? <span>In your plan: {tierPlanUseInline(tier)}</span> : null}
     </div>
   );
 }
@@ -463,49 +518,63 @@ function HatchSwatch({ pattern }: { pattern: string }): JSX.Element {
 
 function LadderTable({ result, active, onActive }: ChartProps): JSX.Element {
   return (
-    <TableScroll label="Savings ladder figures">
-      <table class="table table-mid" data-testid="ladder-table">
+    <TableScroll label="Savings ladder figures" stackBelow={600}>
+      <table class="table table-mid" data-testid="ladder-table" role="table">
         <caption class="sr-only">The savings ladder as figures, one row per tier</caption>
-        <thead>
-          <tr>
-            <th scope="col">Extra contribution</th>
-            <th scope="col" class="num">
+        <thead role="rowgroup">
+          <tr role="row">
+            <th scope="col" role="columnheader">
+              Extra contribution
+            </th>
+            <th scope="col" role="columnheader" class="num">
               Amount
             </th>
-            <th scope="col" class="num">
+            <th scope="col" role="columnheader" class="num">
               Tax saved per dollar
             </th>
-            <th scope="col" class="num">
+            <th scope="col" role="columnheader" class="num">
               Tax saved
             </th>
-            <th scope="col" class="num">
+            <th scope="col" role="columnheader" class="num">
               Running total
             </th>
-            <th scope="col">In your plan</th>
+            <th scope="col" role="columnheader">
+              In your plan
+            </th>
           </tr>
         </thead>
-        <tbody>
+        <tbody role="rowgroup">
           {result.ladder.map((t, i) => (
             <tr
               key={i}
+              role="row"
               class={active === i ? 'is-active' : undefined}
               onMouseEnter={() => onActive(i)}
               onMouseLeave={() => onActive(null)}
             >
-              <th scope="row" class="nowrap">
-                {tierRange(t)}
-              </th>
-              <td class="num">{dollars(t.amount)}</td>
-              <td class="num">
-                {t.rate > 0 ? (
-                  pct(t.rate)
-                ) : (
-                  <span class="tag tag-neg">0%, {zeroReasonText(t, result.rules)}</span>
+              <th scope="row" role="rowheader">
+                <span class="fig nowrap">{tierRange(t)}</span>
+                {t.rate > 0 ? null : (
+                  <span class="cell-note" data-testid="tier-zero-reason">
+                    No tax saved: {zeroReasonText(t, result.rules)}
+                  </span>
                 )}
+              </th>
+              <td role="cell" class="num" data-label="Amount">
+                {dollars(t.amount)}
               </td>
-              <td class="num">{cents(t.taxSaved)}</td>
-              <td class="num">{cents(t.cumulativeTaxSaved)}</td>
-              <td class="nowrap">{tierPlanUse(t)}</td>
+              <td role="cell" class="num" data-label="Tax saved per dollar">
+                {t.rate > 0 ? pct(t.rate) : <span class="tag tag-neg">0%</span>}
+              </td>
+              <td role="cell" class="num" data-label="Tax saved">
+                {cents(t.taxSaved)}
+              </td>
+              <td role="cell" class="num" data-label="Running total">
+                {cents(t.cumulativeTaxSaved)}
+              </td>
+              <td role="cell" class="fig nowrap" data-label="In your plan">
+                {tierPlanUse(t)}
+              </td>
             </tr>
           ))}
         </tbody>

@@ -3,7 +3,7 @@
  * that reads the Tax Working sheet; nothing is typed in.
  */
 import type ExcelJS from 'exceljs';
-import { Book, C, MAX_MONEY, NF, SHEETS, ST, longDate, mergeRow, pageSetup, setWidths, view } from '../kit';
+import { Book, C, MAX_MONEY, NF, SHEETS, ST, dollarsText, lit, longDate, mergeRow, pageSetup, pctText, setWidths, view } from '../kit';
 import type { Resolver, Style } from '../kit';
 import { MONTH_LABELS, NO, PRIORITY_PRESETS, PR_YEAR_LABELS, RESIDENCY_LABELS, YES } from './rules';
 
@@ -35,14 +35,20 @@ export const EXAMPLE = {
   simulatorStep: 1_000,
 } as const;
 
-/** How many "Things to check" lines the Planner can show (one per warning code, SPEC §6.11). */
-export const WARNING_LINES = 16;
+/**
+ * How many "Things to check" lines the Planner can show. Never more than 14 are needed: the two workbook checks,
+ * at most ten of the sixteen SPEC §6.11 warnings (NO_TAX_PAYABLE, BELOW_MIN_SAVING_RATE and the three
+ * "… limits the plan" codes exclude one another, as do the two deadline codes; a foreigner cannot also get the
+ * CPF override, PR or age-55 top-up lines), and two more because EXISTING_EXCEEDS_CAP takes a line for each
+ * scheme that is over its cap.
+ */
+export const WARNING_LINES = 14;
 
 type Note = string | (($: Resolver) => string);
 
 export function buildPlanner(b: Book): ExcelJS.Worksheet {
   const ws = b.sheet(SHEETS.planner, C.slate);
-  setWidths(ws, [2, 43, 19, 50, 3, 41, 19, 44]);
+  setWidths(ws, [2, 50, 25, 52, 3, 41, 19, 46]);
   const $ = b.resolver(ws);
 
   // ---- Heading ----------------------------------------------------------------------------------------------
@@ -61,6 +67,18 @@ export function buildPlanner(b: Book): ExcelJS.Worksheet {
   );
   ws.getRow(3).height = 22;
   mergeRow(ws, 3, 2, 8, ST.banner());
+  b.reg('p_banner', ws, 2, 3);
+  ws.addConditionalFormatting({
+    ref: 'B3:H3',
+    rules: [
+      {
+        type: 'expression',
+        priority: 1,
+        formulae: ['LEFT($B$3,5)="CHECK"'],
+        style: { font: { bold: true, color: { argb: C.warn } }, fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: C.warnFill } } },
+      },
+    ],
+  });
   ws.getRow(4).height = 6;
 
   ws.getRow(5).height = 22;
@@ -95,6 +113,7 @@ export function buildPlanner(b: Book): ExcelJS.Worksheet {
     if (typeof note === 'string') b.v(ws, 4, r, note, ST.note());
     else b.f(ws, 4, r, note, ST.note());
     b.reg(name, ws, 3, r);
+    b.reg(`note_${name}`, ws, 4, r);
     b.define(name, name);
     const example = value;
     exampleTests.push(($) =>
@@ -236,8 +255,13 @@ export function buildPlanner(b: Book): ExcelJS.Worksheet {
     'Your actual employee CPF for the year (S$, optional)',
     EXAMPLE.cpfOverride,
     ST.input(NF.int),
-    'Leave blank and it is worked out from your pay. Fill in to use the figure on your payslips or CPF statement.',
-    money('Actual employee CPF', 'Optional. Your own compulsory contributions for the whole year. Leave blank to have them calculated.'),
+    // Says which figure is in use, so a 0 typed to "clear" the cell does not pass unnoticed.
+    ($) =>
+      `IF(${$('u_res')}=3,${lit('Not used: foreigners on work passes make no CPF contributions.')},` +
+      `IF(${$('u_overrideOn')}=0,"Blank, so it is worked out from your pay: "&${dollarsText($('w_cpfAuto'))}&". Fill in to use the figure on your payslips or CPF statement.",` +
+      `IF(${$('u_override')}>${$('w_maxCompulsory')},"Above the most possible in a year, so "&${dollarsText($('w_maxCompulsory'))}&" is used. Clear the cell to have it worked out ("&${dollarsText($('w_cpfAuto'))}&").",` +
+      `"Using your figure of "&${dollarsText($('u_override'))}&" instead of the worked-out "&${dollarsText($('w_cpfAuto'))}&". Clear the cell to go back.")))`,
+    money('Actual employee CPF', 'Optional. Your own compulsory contributions for the whole year. Leave blank (not 0) to have them calculated.'),
     { indent: true, height: 26 },
   );
 
@@ -284,8 +308,10 @@ export function buildPlanner(b: Book): ExcelJS.Worksheet {
     'Use SRS?',
     EXAMPLE.useSrs,
     ST.input(undefined, 'center'),
+    // A scheme that is not open to the user says so here, instead of quoting a cap they cannot use.
     ($) =>
-      `"Up to S$"&TEXT(IF(${$('u_res')}=3,${$('r_srsCapForeigner')},${$('r_srsCapCitizenPr')}),"#,##0")&" a year. Locked until retirement age; early withdrawals are taxed with a 5% penalty."`,
+      `IF(${$('w_eligible_srs')}=0,"Not open to you: you must be at least "&${$('r_srsMinAge')}&" to contribute to SRS.",` +
+      `"Up to S$"&TEXT(IF(${$('u_res')}=3,${$('r_srsCapForeigner')},${$('r_srsCapCitizenPr')}),"#,##0")&" a year. Locked until retirement age; early withdrawals are taxed with a 5% penalty.")`,
     list('l_yesNo', 'Use SRS?', 'Choose No to leave SRS out of the plan.'),
     { height: 26 },
   );
@@ -294,7 +320,9 @@ export function buildPlanner(b: Book): ExcelJS.Worksheet {
     'Use CPF cash top-ups to yourself?',
     EXAMPLE.useCpfSelf,
     ST.input(undefined, 'center'),
-    ($) => `"Up to S$"&TEXT(${$('r_selfCap')},"#,##0")&" a year earns relief. CPF top-ups cannot be reversed."`,
+    ($) =>
+      `IF(${$('w_eligible_cpfSelf')}=0,${lit('Not open to you: CPF top-ups are for Singapore Citizens and Permanent Residents.')},` +
+      `"Up to S$"&TEXT(${$('r_selfCap')},"#,##0")&" a year earns relief. CPF top-ups cannot be reversed.")`,
     list('l_yesNo', 'Use CPF top-ups to yourself?', 'Citizens and PRs only. Choose No to leave them out of the plan.'),
   );
   input(
@@ -302,7 +330,9 @@ export function buildPlanner(b: Book): ExcelJS.Worksheet {
     'Room left before your CPF limits (S$, optional)',
     EXAMPLE.cpfSelfRoom,
     ST.input(NF.int),
-    'How much you can still top up before the Full Retirement Sum and Basic Healthcare Sum. Blank = plenty of room.',
+    ($) =>
+      `IF(${$('u_selfLimitOn')}=1,"Top-ups to yourself are held to "&${dollarsText($('u_selfLimit'))}&". Clear the cell if you have plenty of room.",` +
+      `${lit('How much you can still top up before the Full Retirement Sum and Basic Healthcare Sum. Blank = plenty of room.')})`,
     money('Room left in your CPF accounts', 'Optional. Top-ups above the Full Retirement Sum (Special/Retirement Account) or Basic Healthcare Sum (MediSave) earn no relief.'),
     { indent: true, height: 26 },
   );
@@ -311,7 +341,9 @@ export function buildPlanner(b: Book): ExcelJS.Worksheet {
     'Use CPF cash top-ups to family?',
     EXAMPLE.useCpfFamily,
     ST.input(undefined, 'center'),
-    ($) => `"Up to S$"&TEXT(${$('r_famCap')},"#,##0")&" a year earns relief. It is a gift: the money becomes theirs."`,
+    ($) =>
+      `IF(${$('w_eligible_cpfFamily')}=0,${lit('Not open to you: family top-ups do not earn you tax relief (see the Rules sheet).')},` +
+      `"Up to S$"&TEXT(${$('r_famCap')},"#,##0")&" a year earns relief. It is a gift: the money becomes theirs.")`,
     list('l_yesNo', 'Use CPF top-ups to family?', 'Choose Yes only if you have an eligible family member with a CPF account.'),
   );
   input(
@@ -319,7 +351,7 @@ export function buildPlanner(b: Book): ExcelJS.Worksheet {
     'Most you would give to family (S$, optional)',
     EXAMPLE.cpfFamilyMax,
     ST.input(NF.int),
-    'Blank = up to the relief cap.',
+    ($) => `IF(${$('u_famLimitOn')}=1,"Family top-ups are held to "&${dollarsText($('u_famLimit'))}&". Clear the cell to go up to the relief cap.","Blank = up to the relief cap.")`,
     money('Most you would give', 'Optional. The plan will not recommend more than this for family members.'),
     { indent: true },
   );
@@ -328,18 +360,22 @@ export function buildPlanner(b: Book): ExcelJS.Worksheet {
     'Smallest tax saving per dollar worth locking money away for',
     EXAMPLE.minSavingRate,
     ST.input(NF.minRate),
-    'The plan only uses dollars that save at least this much tax each. Choose "Any saving" to chase every tax dollar.',
+    ($) =>
+      `IF(${$('u_minRate')}=0,${lit('Any saving counts: the plan uses every dollar that saves some tax, however little.')},` +
+      `"The plan only uses dollars that each save at least "&${pctText($('u_minRate'))}&" in tax. Choose 0.0% to chase every tax dollar.")`,
     {
+      // The choices are plain percentages, so what the dropdown shows is what it puts in the cell in every
+      // application; the cell itself shows 0 as "Any saving". A rate that is not in the list can still be typed.
       type: 'list',
-      allowBlank: false,
+      allowBlank: true,
       formulae: [$('l_minRate')],
       showErrorMessage: true,
-      errorStyle: 'stop',
-      errorTitle: 'Pick from the list',
-      error: 'Choose one of the tax rates in the dropdown.',
+      errorStyle: 'warning',
+      errorTitle: 'Not one of the tax rates',
+      error: 'That is not one of the tax rates in the list. You can still use it as your own minimum (for example 10%), or go back and pick from the list.',
       showInputMessage: true,
       promptTitle: 'How far down the ladder?',
-      prompt: 'Each extra dollar saves tax at your top rate first, then at lower rates. 7% is a sensible minimum for money you cannot touch for years.',
+      prompt: 'Each extra dollar saves tax at your top rate first, then at lower rates. Pick the lowest rate that is still worth locking money away for. 0.0% means any saving counts.',
     },
     { height: 26 },
   );
@@ -348,8 +384,10 @@ export function buildPlanner(b: Book): ExcelJS.Worksheet {
     'Most cash you can lock away this year (S$, optional)',
     EXAMPLE.cashBudget,
     ST.input(NF.int),
-    'Blank = no limit.',
-    money('Cash limit', 'Optional. The plan will fit inside this amount.'),
+    ($) =>
+      `IF(${$('u_budgetOn')}=0,"Blank = no limit.",IF(${$('u_budget')}=0,"A limit of S$0 means nothing is recommended. Clear the cell for no limit.",` +
+      `"The plan will not go above "&${dollarsText($('u_budget'))}&". Clear the cell for no limit."))`,
+    money('Cash limit', 'Optional. The plan will fit inside this amount. Leave blank (not 0) for no limit.'),
   );
   input(
     'in_priority',
@@ -368,9 +406,11 @@ export function buildPlanner(b: Book): ExcelJS.Worksheet {
     2,
     3,
     ($) =>
+      // A problem with the Rules sheet outranks everything: the figures below may then be wrong.
+      `IF(SUM(${$('w_checkFlags')})>0,"CHECK THE RULES SHEET FIRST — see the first line under ""Things to check"". Until it is fixed, the figures below may be wrong.",` +
       `IF(AND(${exampleTests.map((test) => test($)).join(',')}),` +
       `"EXAMPLE SHOWN — age 35, S$10,000 a month, S$15,000 bonus, S$5,000 other reliefs. Type over the cream cells with your own figures.",` +
-      `"Your figures — results on the right update as you type. Other sheets show the ladder, comparisons, a monthly plan and the full working.")`,
+      `"Your figures — results on the right update as you type. Other sheets show the ladder, comparisons, a monthly plan and the full working."))`,
   );
 
   // ---- Results (right) --------------------------------------------------------------------------------------
@@ -412,7 +452,7 @@ export function buildPlanner(b: Book): ExcelJS.Worksheet {
     'Total cash to lock away',
     ($) => $('w_X'),
     ST.total(NF.dollars),
-    ($) => `IF(${$('m_days')}<0,"The deadline has passed.","Transfer by "&${longDate($, $('r_deadline'))}&"; banks may cut off earlier.")`,
+    ($) => `IF(${$('m_days')}<0,"The deadline has passed.","Transfer by "&${longDate($, $('m_deadline'))}&"; banks may cut off earlier.")`,
     ST.total(undefined, 'left'),
     { ...ST.total(undefined, 'left'), font: ST.note().font },
   );
@@ -454,7 +494,7 @@ export function buildPlanner(b: Book): ExcelJS.Worksheet {
     'Further saving out of reach',
     ($) => $('w_unrealised'),
     ST.value(NF.tax),
-    'What more room in the schemes, or more cash, could still save at or above your minimum.',
+    'What the plan would still save, at or above your minimum, if neither the schemes nor your cash had a limit.',
   );
   result('out_reliefCapRoom', 'Room left under the overall relief cap', ($) => $('w_C'), ST.value(NF.dollars), ($) => `"Before the plan. The cap is S$"&TEXT(${$('r_reliefCap')},"#,##0")&" a year."`);
   result('out_monthsRemaining', 'Months left to contribute', ($) => $('m_monthsRemaining'), ST.value(NF.plain), 'Counting this month. See the Monthly Plan sheet.');
@@ -469,7 +509,12 @@ export function buildPlanner(b: Book): ExcelJS.Worksheet {
       font: { ...ST.note().font, size: 10, color: { argb: C.ink } },
       alignment: { vertical: 'middle', horizontal: 'left', indent: 1, wrapText: true },
     });
-    b.f(ws, 6, q, ($) => `IFERROR(INDEX(${$('w_warnText')},MATCH(${k},${$('w_warnCount')},0)),"")`);
+    // Line k comes from the first check whose "lines so far" reaches k; a check with several lines gives them in turn.
+    b.f(ws, 6, q, ($) => {
+      const count = $('w_warnCount');
+      const row = `COUNTIF(${count},"<${k}")+1`;
+      return `IF(${k}>MAX(${count}),"",INDEX(${$('w_warnLines')},${row},${k}-INDEX(${count},${row})+INDEX(${$('w_warnLineCount')},${row})))`;
+    });
     q++;
   }
   b.regRange('out_warnings', ws, 6, warnTop, 6, q - 1);
@@ -504,6 +549,6 @@ export function buildPlanner(b: Book): ExcelJS.Worksheet {
   });
 
   view(ws, 5, { selected: true, activeCell: 'C7' });
-  pageSetup(ws, { landscape: true, lastCol: 'H', lastRow });
+  pageSetup(ws, { landscape: true, lastCol: 'H', lastRow, onePage: true });
   return ws;
 }

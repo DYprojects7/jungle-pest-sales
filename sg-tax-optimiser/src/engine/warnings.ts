@@ -4,9 +4,11 @@
  */
 import { maxCompulsoryEmployeeCpf } from './cpf';
 import { formatLongDate, parseIsoDate } from './dates';
+import { taxPayableAfter } from './evaluate';
 import type { EngineContext } from './evaluate';
 import { formatDollars, formatPercent, formatTax } from './format';
-import { LEVER_IDS } from './levers';
+import { LEVER_IDS, totalOf } from './levers';
+import { subtractMoney } from './money';
 import type { Optimisation } from './optimiser';
 import type { LeverId, MonthlyPlan, PlannerWarning } from './types';
 
@@ -94,38 +96,81 @@ function belowMinSavingRate(ctx: EngineContext, optimisation: Optimisation): Pla
   };
 }
 
-/** " <lead-in> you could save up to S$X more tax." when there is tax left to save, otherwise nothing. */
-function unrealisedSentence(unrealisedSaving: number, leadIn: string): string {
-  return unrealisedSaving > 0 ? ` ${leadIn} you could save up to ${formatTax(unrealisedSaving)} more tax.` : '';
+/**
+ * The extra tax the plan would save if the ONE limit that stops it were lifted and it could run on to `reach`
+ * dollars of contribution: `N(X) − N(reach)` in the SPEC §6.6 notation. `reach` is the smallest of the limits
+ * that remain, so this is a saving the person can actually get. (`plan.unrealisedSaving` is not: it is
+ * measured down to `min(U, C)` as if the cash limit and every scheme limit were lifted together, which no
+ * setting can do, because each scheme is capped by law.)
+ */
+function savingWithinReach(ctx: EngineContext, optimisation: Optimisation, reach: number): number {
+  const { totalContribution, taxAfter } = optimisation.plan;
+  return subtractMoney(taxAfter, taxPayableAfter(ctx, Math.max(totalContribution, reach)));
+}
+
+/** " <lead-in> could save up to S$X more tax." when there is such a saving, otherwise nothing. */
+function couldSaveSentence(saving: number, leadIn: string): string {
+  return saving > 0 ? ` ${leadIn} could save up to ${formatTax(saving)} more tax.` : '';
 }
 
 function budgetLimitsPlan(ctx: EngineContext, optimisation: Optimisation): PlannerWarning | null {
   const { bindingConstraint, unrealisedSaving } = optimisation.plan;
   const { cashBudget } = ctx.input.preferences;
   if (bindingConstraint !== 'cashBudget' || cashBudget === null) return null;
+  // With the cash limit lifted the plan runs on until the minimum rate, the relief cap or the schemes stop it.
+  const savingWithMoreCash = savingWithinReach(
+    ctx,
+    optimisation,
+    Math.min(optimisation.usefulRoom, ctx.reliefCapRoom, ctx.leverRoom),
+  );
   return {
     code: 'BUDGET_LIMITS_PLAN',
     severity: 'info',
     message:
       `Your cash limit of ${formatDollars(cashBudget)} is what stops the plan.` +
-      unrealisedSentence(unrealisedSaving, 'With more cash'),
-    params: { cashBudget, unrealisedSaving },
+      couldSaveSentence(savingWithMoreCash, 'With more cash you'),
+    params: { cashBudget, unrealisedSaving, savingWithMoreCash },
   };
+}
+
+/** Why the schemes stop the plan, in words that are true for this person. */
+function leverLimitsReason(ctx: EngineContext): string {
+  const leverRoom = ctx.leverRoom;
+  if (leverRoom > 0) {
+    return `The plan uses all ${formatDollars(leverRoom)} of room left in the schemes you switched on.`;
+  }
+  const switchedOn = LEVER_IDS.filter((lever) => ctx.levers[lever].enabled);
+  if (switchedOn.length === 0) return 'No scheme is switched on, so nothing can be contributed.';
+  if (switchedOn.every((lever) => !ctx.levers[lever].eligible)) {
+    return 'None of the schemes you switched on is open to you, so nothing can be contributed.';
+  }
+  return 'The schemes you switched on have no room left this year, so nothing more can be contributed.';
 }
 
 function leverLimitsPlan(ctx: EngineContext, optimisation: Optimisation): PlannerWarning | null {
   const { bindingConstraint, unrealisedSaving } = optimisation.plan;
   if (bindingConstraint !== 'leverLimits') return null;
   const leverRoom = ctx.leverRoom;
+  const { cashBudget } = ctx.input.preferences;
+  // The only room a person can add is in schemes that are open to them but switched off (§6.5 roomIfEnabled,
+  // which is 0 for a scheme they are not eligible for and respects their own limits). With those switched on
+  // the plan runs on until the minimum rate, the relief cap, the cash limit or the schemes stop it.
+  const savingIfSwitchedOn = savingWithinReach(
+    ctx,
+    optimisation,
+    Math.min(
+      optimisation.usefulRoom,
+      ctx.reliefCapRoom,
+      cashBudget === null ? Infinity : cashBudget,
+      totalOf(ctx.roomIfEnabled),
+    ),
+  );
   return {
     code: 'LEVER_LIMITS_PLAN',
     severity: 'info',
     message:
-      (leverRoom > 0
-        ? `The plan uses all ${formatDollars(leverRoom)} of room left in the schemes you switched on.`
-        : 'The schemes you switched on have no room left this year, so nothing more can be contributed.') +
-      unrealisedSentence(unrealisedSaving, 'With more room'),
-    params: { leverRoom, unrealisedSaving },
+      leverLimitsReason(ctx) + couldSaveSentence(savingIfSwitchedOn, 'Switching on the schemes you left off'),
+    params: { leverRoom, unrealisedSaving, savingIfSwitchedOn },
   };
 }
 
@@ -175,13 +220,16 @@ function cpfOverrideAboveMax(ctx: EngineContext): PlannerWarning | null {
 
 function foreignerNoCpf(ctx: EngineContext): PlannerWarning | null {
   if (ctx.input.profile.residency !== 'foreigner') return null;
-  const srsCap = ctx.rules.srs.capForeigner;
+  // SRS is open only from age 18 (§6.5); below that the cap is 0 and SRS_UNDER_18 says why, so this message
+  // must not invite the person to use SRS.
+  const { eligible, statutoryCap: srsCap } = ctx.levers.srs;
   return {
     code: 'FOREIGNER_NO_CPF',
     severity: 'info',
     message:
       'Foreigners on work passes do not contribute to CPF, so there is no CPF relief and CPF top-ups do not ' +
-      `earn tax relief. You can put up to ${formatDollars(srsCap)} a year into SRS.`,
+      'earn tax relief.' +
+      (eligible ? ` You can put up to ${formatDollars(srsCap)} a year into SRS.` : ''),
     params: { srsCap },
   };
 }

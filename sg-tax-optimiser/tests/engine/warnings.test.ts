@@ -146,13 +146,32 @@ describe('BELOW_MIN_SAVING_RATE', () => {
 });
 
 describe('BUDGET_LIMITS_PLAN', () => {
-  it('fires when the cash budget is the binding constraint', () => {
+  it('fires when the cash budget is the binding constraint, and quotes only what more cash can deliver', () => {
+    // Opening example with a S$10,000 cash limit: CI 108,600 -> 98,600, tax 5,489.00.
+    // unrealisedSaving (§6.6) runs to min(U, C) = 53,600: 5,489.00 - tax(55,000) = 5,489.00 - 1,600.00 = 3,889.00.
+    // But with the cash limit lifted the schemes stop the plan at L = 23,300 (tax 3,959.50), so more cash can
+    // add at most 5,489.00 - 3,959.50 = 1,529.50 (13,300 x 11.5%). SPEC §6.11: the message quotes that figure.
     const w = warning(plan(input({ preferences: { cashBudget: 10_000 } })), 'BUDGET_LIMITS_PLAN');
     expect(w.severity).toBe('info');
-    expect(w.params).toEqual({ cashBudget: 10_000, unrealisedSaving: 3_889 });
+    expect(w.params).toEqual({ cashBudget: 10_000, unrealisedSaving: 3_889, savingWithMoreCash: 1_529.5 });
     expect(w.message).toBe(
-      'Your cash limit of S$10,000 is what stops the plan. With more cash you could save up to S$3,889.00 more tax.',
+      'Your cash limit of S$10,000 is what stops the plan. With more cash you could save up to S$1,529.50 more tax.',
     );
+  });
+
+  it('quotes exactly the saving of the plan without the cash limit, whichever limit comes next', () => {
+    const limited = (overrides: Parameters<typeof input>[0]): void => {
+      const withLimit = plan(input(overrides));
+      const without = plan(input({ ...overrides, preferences: { ...overrides?.preferences, cashBudget: null } }));
+      const w = warning(withLimit, 'BUDGET_LIMITS_PLAN');
+      const extraCents = Math.round(without.plan.taxSaved * 100) - Math.round(withLimit.plan.taxSaved * 100);
+      expect(Math.round(Number(w.params?.savingWithMoreCash) * 100)).toBe(extraCents);
+      expect(extraCents).toBeGreaterThan(0);
+    };
+    limited({ preferences: { cashBudget: 2_500 } }); // schemes next (L = 23,300)
+    limited({ preferences: { cashBudget: 2_500, minSavingRate: 0.115 }, otherReliefs: 30_000 }); // minimum rate next
+    limited({ preferences: { cashBudget: 2_500 }, otherReliefs: 45_000 }); // relief cap next (C = 13,600)
+    limited({ preferences: { cashBudget: 1 }, cpfFamily: { enabled: true } });
   });
 
   it('does not fire when the budget is not what binds', () => {
@@ -161,28 +180,125 @@ describe('BUDGET_LIMITS_PLAN', () => {
 });
 
 describe('LEVER_LIMITS_PLAN', () => {
-  it('fires when the schemes are full', () => {
+  it('fires when the schemes are full, and quotes only what switching on the other schemes can deliver', () => {
+    // Opening example: SRS and own CPF are full at 23,300 (tax 3,959.50). unrealisedSaving (§6.6) = 2,359.50
+    // needs 30,300 more dollars of room, but the only room left is the family top-up that is switched off
+    // (8,000): CI 85,300 -> 77,300, tax 550 + 7% x 37,300 = 3,161.00, i.e. 3,959.50 - 3,161.00 = 798.50
+    // (5,300 x 11.5% + 2,700 x 7%). SPEC §6.11: the message quotes that figure, not unrealisedSaving.
     const w = warning(plan(input()), 'LEVER_LIMITS_PLAN');
     expect(w.severity).toBe('info');
-    expect(w.params).toEqual({ leverRoom: 23_300, unrealisedSaving: 2_359.5 });
+    expect(w.params).toEqual({ leverRoom: 23_300, unrealisedSaving: 2_359.5, savingIfSwitchedOn: 798.5 });
     expect(w.message).toBe(
       'The plan uses all S$23,300 of room left in the schemes you switched on. ' +
-        'With more room you could save up to S$2,359.50 more tax.',
+        'Switching on the schemes you left off could save up to S$798.50 more tax.',
     );
   });
 
-  it('has its own wording when there is no room at all', () => {
+  it('promises nothing when every scheme open to the person is already full', () => {
+    const w = warning(plan(input({ cpfFamily: { enabled: true } })), 'LEVER_LIMITS_PLAN');
+    // L = 31,300 < U = 68,600: unrealisedSaving = tax(77,300) - tax(55,000) = 3,161.00 - 1,600.00 = 1,561.00,
+    // but no setting can create more room, so the message stops after the first sentence.
+    expect(w.params).toEqual({ leverRoom: 31_300, unrealisedSaving: 1_561, savingIfSwitchedOn: 0 });
+    expect(w.message).toBe('The plan uses all S$31,300 of room left in the schemes you switched on.');
+  });
+
+  it('says that nothing is switched on, and what switching the schemes on would save', () => {
     const w = warning(plan(input({ srs: { enabled: false }, cpfSelf: { enabled: false } })), 'LEVER_LIMITS_PLAN');
-    expect(w.params).toEqual({ leverRoom: 0, unrealisedSaving: 5_039 });
-    expect(w.message).toContain('no room left');
+    // All three schemes together have 31,300 of room: tax 6,639.00 -> 3,161.00, a saving of 3,478.00
+    // (not the 5,039.00 of unrealisedSaving, which would need 53,600 of room).
+    expect(w.params).toEqual({ leverRoom: 0, unrealisedSaving: 5_039, savingIfSwitchedOn: 3_478 });
+    expect(w.message).toBe(
+      'No scheme is switched on, so nothing can be contributed. ' +
+        'Switching on the schemes you left off could save up to S$3,478.00 more tax.',
+    );
+  });
+
+  it('says so when none of the schemes switched on is open to the person', () => {
+    // A foreigner with only own-CPF top-ups switched on: not eligible. SRS is open to them but off:
+    // CI 134,000 (tax 10,050.00); 35,700 of SRS takes it to 98,300: 3,350 + 11.5% x 18,300 = 5,454.50.
+    const w = warning(
+      plan(input({ profile: { residency: 'foreigner' }, otherReliefs: 0, srs: { enabled: false } })),
+      'LEVER_LIMITS_PLAN',
+    );
+    expect(w.params).toMatchObject({ leverRoom: 0, savingIfSwitchedOn: 4_595.5 });
+    expect(w.message).toBe(
+      'None of the schemes you switched on is open to you, so nothing can be contributed. ' +
+        'Switching on the schemes you left off could save up to S$4,595.50 more tax.',
+    );
+    // A 17-year-old foreigner has no scheme at all: nothing to switch on, so no figure.
+    const minor = warning(
+      plan(input({ profile: { residency: 'foreigner', ageAtYearEnd: 17 }, cpfFamily: { enabled: true } })),
+      'LEVER_LIMITS_PLAN',
+    );
+    expect(minor.params).toMatchObject({ leverRoom: 0, savingIfSwitchedOn: 0 });
+    expect(minor.message).toBe('None of the schemes you switched on is open to you, so nothing can be contributed.');
+  });
+
+  it('keeps the "no room left" wording for schemes that are open but full', () => {
+    const w = warning(
+      plan(input({ existing: { srs: 15_300, cpfTopUpSelf: 8_000 } })),
+      'LEVER_LIMITS_PLAN',
+    );
+    // Reliefs 49,700 -> CI 85,300 (tax 3,959.50). Only the family top-up (off) has room: 798.50 as above.
+    expect(w.params).toEqual({ leverRoom: 0, unrealisedSaving: 2_359.5, savingIfSwitchedOn: 798.5 });
+    expect(w.message).toBe(
+      'The schemes you switched on have no room left this year, so nothing more can be contributed. ' +
+        'Switching on the schemes you left off could save up to S$798.50 more tax.',
+    );
+  });
+
+  it('does not count room that a cash limit would stop the person from using', () => {
+    // Cash limit 23,300 = L: the schemes bind first (tie order), and switching on the family top-up would not
+    // help because there is no cash left for it.
+    const w = warning(plan(input({ preferences: { cashBudget: 23_300 } })), 'LEVER_LIMITS_PLAN');
+    expect(w.params).toEqual({ leverRoom: 23_300, unrealisedSaving: 2_359.5, savingIfSwitchedOn: 0 });
+    expect(w.message).toBe('The plan uses all S$23,300 of room left in the schemes you switched on.');
+    // With 1,000 more cash than the schemes take, only 1,000 of the family room is within reach: 11.5% of it.
+    const some = warning(plan(input({ preferences: { cashBudget: 24_300 } })), 'LEVER_LIMITS_PLAN');
+    expect(some.params).toMatchObject({ savingIfSwitchedOn: 115 });
+    expect(some.message).toContain('could save up to S$115.00 more tax.');
   });
 
   it('quotes only the tax still on the table at the chosen minimum rate', () => {
-    // minSavingRate 11.5%: U = 28,600 > L = 23,300; the 5,300 dollars in between are worth 11.5% = 609.50
+    // minSavingRate 11.5%: U = 28,600 > L = 23,300; the 5,300 dollars in between are worth 11.5% = 609.50,
+    // and the family top-up (off, 8,000 of room) could take all of them.
     const result = plan(input({ preferences: { minSavingRate: 0.115 } }));
     const w = warning(result, 'LEVER_LIMITS_PLAN');
     expect(result.plan.unrealisedSaving).toBe(609.5);
+    expect(w.params).toMatchObject({ savingIfSwitchedOn: 609.5 });
     expect(w.message).toContain('S$609.50 more tax');
+  });
+
+  it('quotes exactly the saving of the plan with every scheme switched on', () => {
+    const on = { enabled: true };
+    const cases: Parameters<typeof input>[0][] = [
+      {},
+      { srs: { enabled: false } },
+      { cpfSelf: { enabled: false }, cpfFamily: { enabled: true } },
+      { srs: { enabled: false }, cpfSelf: { enabled: false } },
+      { cpfSelf: { enabled: true, roomToLimit: 1_000 }, srs: { enabled: false } },
+      { cpfFamily: { enabled: false, maxAmount: 500 } },
+      { profile: { residency: 'foreigner' }, srs: { enabled: false } },
+      { otherReliefs: 30_000, srs: { enabled: false } },
+      { preferences: { minSavingRate: 0.115 }, srs: { enabled: false } },
+      { preferences: { cashBudget: 9_000 }, srs: { enabled: false } },
+    ];
+    for (const overrides of cases) {
+      const now = plan(input(overrides));
+      if (now.plan.bindingConstraint !== 'leverLimits') throw new Error(`not lever-limited: ${JSON.stringify(overrides)}`);
+      const allOn = plan(
+        input({
+          ...overrides,
+          srs: { ...overrides?.srs, ...on },
+          cpfSelf: { ...overrides?.cpfSelf, ...on },
+          cpfFamily: { ...overrides?.cpfFamily, ...on },
+        }),
+      );
+      const extraCents = Math.round(allOn.plan.taxSaved * 100) - Math.round(now.plan.taxSaved * 100);
+      const w = warning(now, 'LEVER_LIMITS_PLAN');
+      expect({ overrides, cents: Math.round(Number(w.params?.savingIfSwitchedOn) * 100) }).toEqual({ overrides, cents: extraCents });
+      expect(w.message.includes('could save up to')).toBe(extraCents > 0);
+    }
   });
 });
 
@@ -259,9 +375,28 @@ describe('FOREIGNER_NO_CPF', () => {
     const w = warning(plan(input({ profile: { residency: 'foreigner' } })), 'FOREIGNER_NO_CPF');
     expect(w.severity).toBe('info');
     expect(w.params).toEqual({ srsCap: 35_700 });
-    expect(w.message).toContain('S$35,700');
+    expect(w.message).toBe(
+      'Foreigners on work passes do not contribute to CPF, so there is no CPF relief and CPF top-ups do not ' +
+        'earn tax relief. You can put up to S$35,700 a year into SRS.',
+    );
     expect(codes(plan(input({ profile: { residency: 'pr' } })))).not.toContain('FOREIGNER_NO_CPF');
     expect(codes(plan(input()))).not.toContain('FOREIGNER_NO_CPF');
+  });
+
+  it('does not invite a foreigner under 18 to use SRS (SPEC §6.5: srs is eligible from 18)', () => {
+    const result = plan(input({ profile: { residency: 'foreigner', ageAtYearEnd: 17 } }));
+    const w = warning(result, 'FOREIGNER_NO_CPF');
+    expect(result.levers.srs).toMatchObject({ eligible: false, statutoryCap: 0 });
+    expect(codes(result)).toContain('SRS_UNDER_18');
+    expect(w.params).toEqual({ srsCap: 0 });
+    expect(w.message).toBe(
+      'Foreigners on work passes do not contribute to CPF, so there is no CPF relief and CPF top-ups do not ' +
+        'earn tax relief.',
+    );
+    // At 18 the sentence is back.
+    expect(warning(plan(input({ profile: { residency: 'foreigner', ageAtYearEnd: 18 } })), 'FOREIGNER_NO_CPF').message).toContain(
+      'You can put up to S$35,700 a year into SRS.',
+    );
   });
 });
 

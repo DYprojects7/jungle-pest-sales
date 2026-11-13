@@ -3,7 +3,7 @@ import { SUPPORTED_INCOME_YEARS, getRules } from '../../engine';
 import type { PlannerResult, PrYear, ReliefCatalogItem, Residency } from '../../engine/types';
 import { centsPerDollar, dayAndMonth, dollars, monthName, pct } from '../format';
 import type { Depth, Order, PayMode, ReliefMode, UiState } from '../state';
-import { customRateOptions, monthlyWage, reliefItemAmount } from '../state';
+import { customRateOptions, exampleLeft, monthlyWage, oddPay, reliefItemAmount, switchPayMode, switchReliefMode } from '../state';
 import { DEPTH_LABEL, ORDER_LABEL, depthExplanation } from '../text';
 import { CheckField, NumberField, RadioList, SegmentedField, SelectField } from './Controls';
 
@@ -13,22 +13,39 @@ const MAX_AMOUNT_NOTE = `Enter an amount up to ${dollars(MAX_AMOUNT)}.`;
 
 interface InputsProps {
   ui: UiState;
+  /** The opening example, to tell which figures are still its own. */
+  example: UiState;
   result: PlannerResult;
   update: (patch: Partial<UiState>) => void;
 }
 
-export function Inputs({ ui, result, update }: InputsProps): JSX.Element {
+/** Shown beside a field that still holds the example's figure once the person has started on their own. */
+const EXAMPLE_FLAG = 'Example value';
+
+export function Inputs({ ui, example, result, update }: InputsProps): JSX.Element {
   const { rules, levers, cpf, baseline } = result;
   const year = rules.incomeYear;
   const foreigner = ui.residency === 'foreigner';
   const crossesCpfBand = rules.cpf.fullRates.some((band) => band.maxAge === ui.age);
   const warning = (code: string): string | null => result.warnings.find((w) => w.code === code)?.message ?? null;
+  const left = exampleLeft(ui, example);
+  const flag = (name: string): string | null => (left.includes(name) ? EXAMPLE_FLAG : null);
 
   const setPayMode = (mode: PayMode): void => {
     if (mode === ui.payMode) return;
-    // Keep the same pay: an annual figure is twelve months' pay.
-    update({ payMode: mode, salary: mode === 'annual' ? ui.salary * 12 : Math.floor(ui.salary / 12) });
+    // Keep the same pay, and bring back the figure that was typed in this mode if it has not been changed since.
+    update(switchPayMode(ui, mode));
   };
+
+  const annual = ui.payMode === 'annual';
+  const partYear = ui.monthsWorked < 12;
+  const odd = oddPay(ui);
+  const salaryHint = !annual
+    ? 'Basic pay and fixed allowances, before CPF.'
+    : partYear
+      ? `What twelve months would pay, before CPF. Only the ${ui.monthsWorked === 1 ? 'month' : `${ui.monthsWorked} months`} you worked ${ui.monthsWorked === 1 ? 'is' : 'are'} counted.`
+      : `Twelve months of basic pay and fixed allowances, before CPF. Treated as ${dollars(monthlyWage(ui))} a month` +
+        (odd > 0 ? `, with the odd ${dollars(odd)} counted as extra pay.` : '.');
 
   const setItem = (id: string, value: number): void => {
     update({ reliefItems: { ...ui.reliefItems, [id]: value } });
@@ -38,7 +55,7 @@ export function Inputs({ ui, result, update }: InputsProps): JSX.Element {
     .sort((a, b) => b - a)
     .map((y) => {
       const r = getRules(y);
-      return { value: y, label: `${y} (YA${r.ya})${r.status === 'projected' ? ', projected' : ''}` };
+      return { value: y, label: `${y} (YA${r.ya})${r.status === 'projected' ? ', projected rules' : ''}` };
     });
 
   return (
@@ -72,39 +89,26 @@ export function Inputs({ ui, result, update }: InputsProps): JSX.Element {
             options={[
               { value: 1, label: '1st year' },
               { value: 2, label: '2nd year' },
-              { value: 3, label: '3rd year on' },
+              { value: 3, label: '3rd year onwards' },
             ]}
+            // Each option as wide as its words, with the spare room shared out: all three fit on one line at 360px.
+            template="auto auto auto"
             onChange={(prYear) => update({ prYear })}
-            hint="PRs pay lower CPF rates in their first two years. If you opted for full rates, choose 3rd year on."
+            hint="PRs pay lower CPF rates in their first two years. If you opted for full rates, choose 3rd year onwards."
           />
         ) : null}
-        <div class="field-pair">
-          <NumberField
-            id="age"
-            label={`Age on 31 Dec ${year}`}
-            value={ui.age}
-            min={15}
-            max={100}
-            minNote="Enter an age from 15 to 100."
-            maxNote="Enter an age from 15 to 100."
-            suffix="years"
-            onChange={(age) => update({ age })}
-          />
-          {yearOptions.length > 1 ? (
-            <SelectField
-              id="incomeYear"
-              label="Income year"
-              value={ui.incomeYear}
-              options={yearOptions}
-              onChange={(v) => update({ incomeYear: Number(v) })}
-            />
-          ) : null}
-        </div>
-        {rules.status === 'projected' ? (
-          <p class="field-note">
-            Rules for {year} are projected from what has been announced so far. Treat the figures as provisional.
-          </p>
-        ) : null}
+        <NumberField
+          id="age"
+          label={`Age on 31 Dec ${year}`}
+          value={ui.age}
+          min={15}
+          max={100}
+          minNote="Enter an age from 15 to 100."
+          maxNote="Enter an age from 15 to 100."
+          suffix="years"
+          flag={flag('age')}
+          onChange={(age) => update({ age })}
+        />
         {crossesCpfBand && !foreigner ? (
           <SelectField
             id="birthMonth"
@@ -114,6 +118,21 @@ export function Inputs({ ui, result, update }: InputsProps): JSX.Element {
             onChange={(v) => update({ birthMonth: Number(v) })}
             hint={`You turn ${ui.age} this year, and your CPF rate changes from the month after your birthday.`}
           />
+        ) : null}
+        {yearOptions.length > 1 ? (
+          <SelectField
+            id="incomeYear"
+            label="Income year"
+            value={ui.incomeYear}
+            options={yearOptions}
+            onChange={(v) => update({ incomeYear: Number(v) })}
+            hint="The year you earn the income and make the contributions. It is assessed the year after."
+          />
+        ) : null}
+        {rules.status === 'projected' ? (
+          <p class="field-note">
+            Rules for {year} are projected from what has been announced so far. Treat the figures as provisional.
+          </p>
         ) : null}
       </section>
 
@@ -139,17 +158,14 @@ export function Inputs({ ui, result, update }: InputsProps): JSX.Element {
         <NumberField
           id="salary"
           testid="salary"
-          label={ui.payMode === 'annual' ? 'Annual salary' : 'Monthly salary'}
+          label={!annual ? 'Monthly salary' : partYear ? 'Full-year salary' : 'Annual salary'}
           prefix="S$"
           value={ui.salary}
           max={MAX_AMOUNT}
           maxNote={MAX_AMOUNT_NOTE}
-          onChange={(salary) => update({ salary })}
-          hint={
-            ui.payMode === 'annual'
-              ? `Twelve months of basic pay and fixed allowances, before CPF. Treated as ${dollars(monthlyWage(ui))} a month.`
-              : 'Basic pay and fixed allowances, before CPF.'
-          }
+          flag={flag('salary')}
+          onChange={(salary) => update({ salary, salaryOther: null })}
+          hint={salaryHint}
         />
         <NumberField
           id="bonus"
@@ -159,6 +175,7 @@ export function Inputs({ ui, result, update }: InputsProps): JSX.Element {
           value={ui.bonus}
           max={MAX_AMOUNT}
           maxNote={MAX_AMOUNT_NOTE}
+          flag={flag('bonus')}
           onChange={(bonus) => update({ bonus })}
           hint="13th month, performance bonus, commissions."
         />
@@ -173,12 +190,20 @@ export function Inputs({ ui, result, update }: InputsProps): JSX.Element {
           onChange={(v) => update({ monthsWorked: Number(v) })}
           hint={ui.monthsWorked < 12 ? 'Counted as the last months of the year.' : undefined}
         />
-        {!foreigner ? (
+        <div class="aside-figures">
           <p class="aside-figure">
-            <span>{cpf.source === 'override' ? 'Employee CPF used (your figure)' : 'Employee CPF for the year (estimated)'}</span>
-            <strong data-testid="cpf-employee">{dollars(cpf.employeeContribution)}</strong>
+            <span>Pay counted for {year}</span>
+            <strong data-testid="pay-counted">{dollars(baseline.employmentIncome)}</strong>
           </p>
-        ) : null}
+          {!foreigner ? (
+            <p class="aside-figure">
+              <span>
+                {cpf.source === 'override' ? 'Employee CPF used (your figure)' : 'Employee CPF for the year (estimated)'}
+              </span>
+              <strong data-testid="cpf-employee">{dollars(cpf.employeeContribution)}</strong>
+            </p>
+          ) : null}
+        </div>
         <details class="more">
           <summary>More options</summary>
           <div class="more-body">
@@ -219,7 +244,7 @@ export function Inputs({ ui, result, update }: InputsProps): JSX.Element {
                 checked={ui.cpfOverrideOn}
                 onChange={(on) =>
                   update(
-                    on && ui.cpfOverride === 0
+                    on && ui.cpfOverride === null
                       ? { cpfOverrideOn: true, cpfOverride: cpf.employeeContribution }
                       : { cpfOverrideOn: on },
                   )
@@ -228,14 +253,22 @@ export function Inputs({ ui, result, update }: InputsProps): JSX.Element {
               >
                 {ui.cpfOverrideOn ? (
                   <NumberField
+                    optional
                     id="cpfOverride"
                     label="Employee CPF for the year"
                     prefix="S$"
+                    placeholder="Use the estimate"
                     value={ui.cpfOverride}
                     max={MAX_AMOUNT}
                     maxNote={MAX_AMOUNT_NOTE}
                     onChange={(cpfOverride) => update({ cpfOverride })}
-                    caution={warning('CPF_OVERRIDE_ABOVE_MAX')}
+                    hint="Leave it empty to use the estimate."
+                    caution={
+                      warning('CPF_OVERRIDE_ABOVE_MAX') ??
+                      (ui.cpfOverride === 0
+                        ? 'S$0 means no CPF relief at all. Clear the field to use the estimate instead.'
+                        : null)
+                    }
                   />
                 ) : null}
               </CheckField>
@@ -301,7 +334,7 @@ export function Inputs({ ui, result, update }: InputsProps): JSX.Element {
               { value: 'total', label: 'One total' },
               { value: 'itemised', label: 'Itemise' },
             ]}
-            onChange={(reliefMode) => update({ reliefMode })}
+            onChange={(reliefMode) => update(switchReliefMode(ui, reliefMode, rules))}
           />
         </div>
         {ui.reliefMode === 'total' ? (
@@ -312,6 +345,7 @@ export function Inputs({ ui, result, update }: InputsProps): JSX.Element {
             value={ui.reliefTotal}
             max={rules.personalReliefCap}
             maxNote={`All personal reliefs together are capped at ${dollars(rules.personalReliefCap)}.`}
+            flag={flag('other reliefs')}
             onChange={(reliefTotal) => update({ reliefTotal })}
             hint="Spouse, child, parent, NSman and similar reliefs. Leave out CPF, SRS and Earned Income Relief: those are worked out for you."
           />
@@ -418,9 +452,10 @@ export function Inputs({ ui, result, update }: InputsProps): JSX.Element {
             value={String(ui.customRate)}
             options={customRateOptions(rules, baseline.marginalRate, ui.customRate).map((rate) => ({
               value: String(rate),
-              label: `${centsPerDollar(rate)} or more (the ${pct(rate)} bracket and above)`,
+              label: `${centsPerDollar(rate)} or more`,
             }))}
             onChange={(v) => update({ customRate: Number(v) })}
+            hint={`Dollars taxed in the ${pct(ui.customRate)} bracket and above go into the plan. The choices are the tax rates at or below your current one.`}
           />
         ) : null}
 
@@ -544,13 +579,16 @@ function ReliefItem(props: {
     );
   }
   if (item.input === 'select') {
+    // A list, not a drop-down: these options are whole phrases ("Key appointment holder, no activities"),
+    // and a closed drop-down would cut the chosen one short.
     const options = item.options ?? [];
     return (
-      <SelectField
-        id={id}
-        label={item.label}
-        value={Math.min(value, Math.max(0, options.length - 1))}
-        options={options.map((o, i) => ({ value: i, label: o.label }))}
+      <RadioList<string>
+        compact
+        name={id}
+        legend={item.label}
+        value={String(Math.min(value, Math.max(0, options.length - 1)))}
+        options={options.map((o, i) => ({ value: String(i), title: o.label }))}
         onChange={(v) => onChange(item.id, Number(v))}
         hint={item.help}
       />

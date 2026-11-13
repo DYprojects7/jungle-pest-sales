@@ -58,7 +58,7 @@ export const NF = {
   int: '#,##0',
   cents: '#,##0.00',
   pct: '0.0%',
-  /** A rate where 0 means "any saving". */
+  /** A rate where 0 means "any saving" (the Planner's own cell; the dropdown's source cells use plain `pct`). */
   minRate: '0.0%;-0.0%;"Any saving"',
   date: 'd mmm yyyy',
   month: 'mmm yyyy',
@@ -146,7 +146,7 @@ export const ST = {
     font: font({ color: { argb: C.inputInk }, bold: true }),
     fill: fill(C.inputFill),
     border: { top: thin(C.inputLine), bottom: thin(C.inputLine), left: thin(C.inputLine), right: thin(C.inputLine) },
-    alignment: { vertical: 'middle', horizontal, indent: horizontal === 'right' ? 0 : 1 },
+    alignment: { vertical: 'middle', horizontal, indent: horizontal === 'center' ? 0 : 1 },
     protection: { locked: false },
     ...(numFmt ? { numFmt } : {}),
   }),
@@ -188,6 +188,18 @@ export const ST = {
     alignment: { vertical: 'middle', horizontal, indent: horizontal === 'left' ? 1 : 0 },
     border: { bottom: thin(C.band) },
     ...(numFmt ? { numFmt } : {}),
+  }),
+  /** A table cell without a rule under it, for tables whose rows may be empty (the rule is added conditionally). */
+  tdBare: (numFmt?: string, horizontal: 'left' | 'right' | 'center' = 'right', over: Partial<ExcelJS.Font> = {}): Style => ({
+    font: font(over),
+    alignment: { vertical: 'middle', horizontal, indent: horizontal === 'left' ? 1 : 0 },
+    ...(numFmt ? { numFmt } : {}),
+  }),
+  /** Wrapped text in a table cell. */
+  tdWrap: (over: Partial<ExcelJS.Font> = {}): Style => ({
+    font: font(over),
+    alignment: { vertical: 'middle', horizontal: 'left', indent: 1, wrapText: true },
+    border: { bottom: thin(C.band) },
   }),
   total: (numFmt?: string, horizontal: 'left' | 'right' = 'right'): Style => ({
     font: font({ bold: true }),
@@ -261,12 +273,41 @@ export type Resolver = (key: string) => string;
 // Book
 // ---------------------------------------------------------------------------
 
+/** One line series of an XY chart: `x`, `y` and `name` are keys of registered ranges / cells. */
+export interface ChartSeriesPlan {
+  nameKey: string;
+  xKey: string;
+  yKey: string;
+  /** RGB, e.g. "1E6B45". */
+  color: string;
+  /** Line width in points. */
+  widthPt: number;
+}
+
+/** A chart the build adds after ExcelJS has written the file (ExcelJS cannot write charts). */
+export interface ChartPlan {
+  sheet: SheetName;
+  /** Cell box the chart covers: zero-based column / row of its top-left and bottom-right corners. */
+  from: { col: number; row: number };
+  to: { col: number; row: number };
+  title: string;
+  xTitle: string;
+  yTitle: string;
+  xNumFmt: string;
+  yNumFmt: string;
+  series: ChartSeriesPlan[];
+}
+
 export class Book {
   readonly wb: ExcelJS.Workbook;
   private readonly locations = new Map<string, CellLocation>();
   private readonly pending: Array<() => void> = [];
   /** Workbook-level defined names -> location. */
   readonly names = new Map<string, CellLocation>();
+  /** Charts to add to the written file (see `workbook/chart.ts`). */
+  readonly charts: ChartPlan[] = [];
+  /** Sizes of the fixed tables, for tools and tests. */
+  readonly sizes: Record<string, number> = {};
 
   constructor(readonly rules: YearRules) {
     this.wb = new ExcelJS.Workbook();
@@ -305,6 +346,12 @@ export class Book {
     const found = this.locations.get(key);
     if (!found) throw new Error(`Unknown workbook key: ${key}`);
     return found;
+  }
+
+  /** A registered key as a sheet-qualified absolute reference, e.g. `'Tax Working'!$C$12`. */
+  qualified(key: string): string {
+    const { sheet, ref } = this.location(key);
+    return `${quoteSheet(sheet)}!${ref}`;
   }
 
   /** A resolver for formulas that live on `ws`: same-sheet references are left unqualified. */
@@ -382,6 +429,8 @@ export interface PageOptions {
   lastCol: string;
   /** Last row to print. */
   lastRow: number;
+  /** Squeeze the whole print area onto a single page (default: one page wide, as many pages tall as needed). */
+  onePage?: boolean;
 }
 
 /** Print setup: A4, fit to one page wide, modest margins, a footer that keeps the disclaimer with the numbers. */
@@ -391,10 +440,12 @@ export function pageSetup(ws: ExcelJS.Worksheet, options: PageOptions): void {
     orientation: options.landscape ? 'landscape' : 'portrait',
     fitToPage: true,
     fitToWidth: 1,
-    fitToHeight: 0,
+    fitToHeight: options.onePage ? 1 : 0,
     horizontalCentered: true,
     margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.6, header: 0.25, footer: 0.3 },
-    printArea: `A1:${options.lastCol}${options.lastRow}`,
+    // ExcelJS prefixes each corner with "$"; writing the row with its own "$" yields a fully absolute
+    // $A$1:$L$27, which every spreadsheet application honours.
+    printArea: `A$1:${options.lastCol}$${options.lastRow}`,
     ...(options.titleRows ? { printTitlesRow: options.titleRows } : {}),
   };
   ws.headerFooter = {
@@ -437,9 +488,20 @@ export async function softProtect(ws: ExcelJS.Worksheet): Promise<void> {
 /** Largest money input the workbook accepts (the engine's MAX_MONEY, SPEC §6.0). */
 export const MAX_MONEY = 10_000_000_000;
 
+/**
+ * Whether a cell holds a number (SPEC §6.0: anything else is 0, or "not entered" for an optional cell).
+ *
+ * TRUE / FALSE: in Excel and Google Sheets a logical value is not a number, as in the engine. LibreOffice has no
+ * logical type: TRUE typed into one of the number-formatted input cells is stored, and shown, as 1, so there it
+ * counts as the 1 the user sees. (ISLOGICAL cannot tell either: it reads the cell's number format.)
+ */
+export function isNum(ref: string): string {
+  return `ISNUMBER(${ref})`;
+}
+
 /** SPEC §6.0 for a money input cell: blanks, text and negatives count as 0; cents are dropped. */
 export function moneyOf(ref: string): string {
-  return `IF(ISNUMBER(${ref}),MIN(${MAX_MONEY},MAX(0,INT(${ref}))),0)`;
+  return `IF(${isNum(ref)},MIN(${MAX_MONEY},MAX(0,INT(${ref}))),0)`;
 }
 
 /**
@@ -506,9 +568,7 @@ export function longDate($: Resolver, ref: string): string {
   return `DAY(${ref})&" "&INDEX(${$('l_months')},MONTH(${ref}))&" "&YEAR(${ref})`;
 }
 
-/** SPEC §6.6 usefulRoom(r): dollars chargeable income can fall before a relief dollar saves less than `rate`. */
-export function usefulRoom($: Resolver, ci: string, rate: string): string {
-  const from = $('r_from');
-  const rates = $('r_rate');
-  return `SUMPRODUCT(MAX((${rates}>0)*(${rates}>=${rate})*(${ci}>${from})*(${ci}-${from})))`;
+/** A rate as the engine writes it in messages: a percentage with up to two decimals, e.g. 0.115 -> "11.5%". */
+export function pctText(ref: string): string {
+  return `ROUND(${ref}*10000,0)/100&"%"`;
 }
