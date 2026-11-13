@@ -73,6 +73,12 @@ npx playwright install chromium   # once, for the browser test
 npm run test:e2e         # browser test of the built page
 ```
 
+Switches: `SGTO_E2E_FILE=release/sg-tax-optimiser.html npm run test:e2e` tests a given file instead of
+`dist/index.html`. The workbook stores its calculated results as at the build day, so the tracked `.xlsx` changes
+when rebuilt on another day; `SGTO_AS_AT=2026-11-13 npm run build:workbook` reproduces a file byte for byte.
+`VITE_BUY_URL=https://… npm run build` adds one link to the paid workbook on the page (the committed release file
+is built without it).
+
 The npm scripts use POSIX shell syntax (macOS, Linux, WSL). `npm install` may report audit warnings; they are in
 development tooling only, and nothing in `release/` contains those packages.
 
@@ -101,9 +107,12 @@ result.warnings;           // cautions to show beside the recommendation
 | Official vectors | The engine reproduces IRAS's published sample tax calculations and the CPF Board's contribution figures. |
 | Property tests | Invariants hold for arbitrary inputs: the plan never exceeds a cap, room or budget; no recommended dollar saves less than the chosen minimum; no feasible allocation saves more. |
 | Differential test | The TypeScript engine and the independent Python reference agree, field by field, on thousands of random inputs. |
-| Workbook parity | The spreadsheet's formulas, recalculated by LibreOffice, equal the engine's results on more than 200 profiles. |
+| Workbook parity | The spreadsheet's formulas, recalculated by LibreOffice, equal the engine's results on more than 300 sets of entries, and its warning lines match the engine's word for word. |
 | Browser test | The built page shows the engine's numbers, reacts to input, follows the calendar, and does not overflow on a phone. |
 | Rule audit | A tax-practitioner review of the model and a claim-by-claim check of every user-facing statement (`docs/RESEARCH.md`). |
+
+At version 1.0.0: `npm run test:release` runs 1,593 tests with none skipped, the Python reference has 163 tests of
+its own, and the browser test makes 117 checks.
 
 ## Before you sell or publish it
 
