@@ -17,9 +17,9 @@ python3 -m unittest discover -s reference -p 'test_*.py'
 ```
 
 `--warning-order=table` prints each result's warnings in the order of the SPEC 6.11 table, which is what `plan()`
-returns and what `tests/differential.test.ts` compares with the engine. Without it (or with `--warning-order=code`)
-the command line sorts them by code, as it always has, for callers that compare the warnings as a set
-(`tests/review/finalVerifier.test.ts`).
+returns and what `tests/differential.test.ts` and `tests/review/finalVerifier.test.ts` compare with the engine.
+Without it (or with `--warning-order=code`) the command line sorts them by code, as it always has, for callers
+that compare the warnings as a set.
 
 `-` instead of a file name reads the array from stdin. An element with an unsupported `incomeYear` becomes
 `{"error": "unsupported incomeYear"}`. Nothing else is an error: SPEC 6.0 gives every other field a value (an
@@ -78,6 +78,6 @@ Where SPEC.md leaves room for interpretation this file takes the most literal re
 | 6.7 | For contributions beyond the relief-cap room, `N` is evaluated at the cap room (those dollars add no allowed relief). |
 | 6.8 | `stepRate` divides by the actual step `c_i - c_(i-1)`, which is shorter for the last row. |
 | 6.9 | Scenarios are listed in table order; `recommended` uses the same `wastedContribution` formula. |
-| 6.11 | Warnings come in table order, one per code. `TAX_RESIDENCY_CHECK` uses the sanitised `monthsWorked` (missing is 12, so no caution). `SRS_NON_RESIDENT_WITHDRAWAL` needs only the SRS lever to be on and eligible (18 or over), not money in the plan. `CPF_SELF_ROOM_UNCONFIRMED` and `AGE_55_PLUS_TOPUP` share "55 or over, `cpfSelf` on and eligible" and differ only in whether the room was provided, so they never appear together. `FAMILY_TOPUP_CHECKS` looks at the sanitised existing family top-up (not the part within the cap) and at the plan's family amount; the lever need not be on for an existing top-up to count, and a foreigner never gets it. |
 | 6.10 | `fullYearMonthly` is always computed from the plan, also when the deadline has passed. Before the income year the schedule runs January to December of the income year. Only the date part of `today` is used. |
+| 6.11 | Warnings come in table order, one per code. `TAX_RESIDENCY_CHECK` uses the sanitised `monthsWorked` (missing is 12, so no caution). `SRS_NON_RESIDENT_WITHDRAWAL` needs only the SRS lever to be on and eligible (18 or over), not money in the plan. `CPF_SELF_ROOM_UNCONFIRMED` and `AGE_55_PLUS_TOPUP` share "55 or over, `cpfSelf` on and eligible" and differ only in whether the room was provided, so they never appear together. `FAMILY_TOPUP_CHECKS` looks at the sanitised existing family top-up (not the part within the cap) and at the plan's family amount; the lever need not be on for an existing top-up to count, and a foreigner never gets it. |
 | 7 | `gross_tax` and `marginal_rate` sanitise their argument (not finite or negative is 0, then floored) and clamp it to S$140,000,000,000. `default_income_year` of an unparseable date is the latest supported year whose rules are final (2026). |

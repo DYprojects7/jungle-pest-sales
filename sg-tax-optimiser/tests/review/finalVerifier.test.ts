@@ -353,6 +353,8 @@ const PRIORITIES: readonly (readonly LeverId[])[] = [
 
 function generate(count: number, seed: number): Bag[] {
   const rnd = sfc32(seed);
+  // A second stream for the fields the rule audit added, so that every other field of every input is what it was.
+  const extra = sfc32(seed ^ 0x0055_aa55);
   const int = (lo: number, hi: number): number => lo + Math.floor(rnd() * (hi - lo + 1));
   const pick = <T>(items: readonly T[]): T => items[Math.floor(rnd() * items.length)] as T;
   const chance = (p: number): boolean => rnd() < p;
@@ -383,6 +385,11 @@ function generate(count: number, seed: number): Bag[] {
     };
     if (chance(0.3)) (input.preferences as Bag).cashBudget = int(0, 40_000);
     if (chance(0.3)) ((input.levers as Bag).cpfFamily as Bag).maxAmount = int(0, 9_000);
+    // The Parenthood Tax Rebate tick-box: true only for the boolean true (SPEC §6.0), so 1 and "true" are not a
+    // tick. And a CPF top-up room that is a real figure: from 55 a blank room means "not confirmed" (SPEC §6.5).
+    const [tick, room, amount] = [extra(), extra(), extra()];
+    if (tick < 0.6) (input.profile as Bag).hasUnusedParenthoodTaxRebate = [true, true, false, 1, 'true', null][Math.floor(tick * 10)];
+    if (room < 0.35) ((input.levers as Bag).cpfSelf as Bag).roomToLimit = Math.floor(amount * 9_001);
     // Every third input has money at the clamp; then one to three numeric fields become NaN or ±Infinity.
     const set = (field: readonly [readonly string[], string], value: number): void => {
       let node = input;
@@ -414,7 +421,9 @@ function engineResult(input: unknown): Json {
   const shaped = {
     ...rest,
     cpf: cpfRest,
-    warnings: warnings.map(({ code, severity }) => ({ code, severity })).sort((a, b) => (a.code < b.code ? -1 : a.code > b.code ? 1 : 0)),
+    // In the order the engine emits them: SPEC §6.11 fixes it ("in the order of the table"), and the reference is
+    // run with --warning-order=table, so codes, severities and order are all compared on these inputs too.
+    warnings: warnings.map(({ code, severity }) => ({ code, severity })),
   };
   return JSON.parse(JSON.stringify(shaped)) as Json;
 }
@@ -453,7 +462,8 @@ describe.skipIf(!HAVE_PYTHON)('final verification: engine vs reference on NaN, �
     writeFileSync(inputFile, `[${inputs.map(serialise).join(',\n')}]`);
     const stdout = openSync(outputFile, 'w');
     try {
-      execFileSync('python3', [REFERENCE, inputFile], { maxBuffer: 1024 * 1024 * 1024, stdio: ['ignore', stdout, 'inherit'] });
+      // --warning-order=table: the warnings in the order of the SPEC §6.11 table (the default sorts them by code).
+      execFileSync('python3', [REFERENCE, '--warning-order=table', inputFile], { maxBuffer: 1024 * 1024 * 1024, stdio: ['ignore', stdout, 'inherit'] });
     } finally {
       closeSync(stdout);
     }
@@ -475,6 +485,15 @@ describe.skipIf(!HAVE_PYTHON)('final verification: engine vs reference on NaN, �
     // And the plans are not all trivial.
     const results = inputs.map((input) => plan(input as unknown as PlannerInput));
     expect(results.filter((result) => result.plan.totalContribution > 0).length).toBeGreaterThan(COUNT / 5);
+    // The rule audit's additions are exercised on both sides of each rule.
+    const raw = inputs as unknown as { profile: { hasUnusedParenthoodTaxRebate?: unknown } }[];
+    expect(raw.filter((input) => input.profile.hasUnusedParenthoodTaxRebate === true).length).toBeGreaterThan(COUNT / 10);
+    expect(raw.filter((input) => input.profile.hasUnusedParenthoodTaxRebate === 1 || input.profile.hasUnusedParenthoodTaxRebate === 'true').length).toBeGreaterThan(COUNT / 10);
+    expect(sanitised.filter((input) => input.profile.hasUnusedParenthoodTaxRebate === true).length).toBe(raw.filter((input) => input.profile.hasUnusedParenthoodTaxRebate === true).length);
+    const codes = (code: string): number => results.filter((result) => result.warnings.some((warning) => warning.code === code)).length;
+    for (const code of ['CPF_SELF_ROOM_UNCONFIRMED', 'AGE_55_PLUS_TOPUP', 'FAMILY_TOPUP_CHECKS', 'PARENTHOOD_TAX_REBATE', 'SRS_NON_RESIDENT_WITHDRAWAL', 'TAX_RESIDENCY_CHECK']) {
+      expect(codes(code), code).toBeGreaterThan(20);
+    }
   });
 
   it(`engine and reference agree on every field for ${COUNT} such inputs`, () => {

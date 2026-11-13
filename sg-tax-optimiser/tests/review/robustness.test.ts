@@ -488,8 +488,15 @@ describe('floating-point exposure in the money path', () => {
 
 describe('export surface (SPEC §7)', () => {
   it('exactly the documented runtime exports', () => {
+    // SPEC §7: the nine functions and SUPPORTED_INCOME_YEARS, plus the shared facts of src/engine/facts.ts
+    // (lockUpFacts, transferCautions, lockUpHorizon, NOT_MODELLED, DISCLAIMER). NON_RESIDENT_SRS_COST, the two
+    // figures of SPEC §5.4 that the facts and the SRS warning both quote, is exported alongside them although
+    // the §7 listing does not name it.
     expect(Object.keys(engine).sort()).toEqual(
-      ['SUPPORTED_INCOME_YEARS', 'computeCpf', 'defaultIncomeYear', 'defaultInput', 'evaluate', 'getRules', 'grossTax', 'marginalRate', 'plan', 'sanitiseInput'].sort(),
+      [
+        'SUPPORTED_INCOME_YEARS', 'computeCpf', 'defaultIncomeYear', 'defaultInput', 'evaluate', 'getRules', 'grossTax', 'marginalRate', 'plan', 'sanitiseInput',
+        'lockUpFacts', 'transferCautions', 'lockUpHorizon', 'NOT_MODELLED', 'DISCLAIMER', 'NON_RESIDENT_SRS_COST',
+      ].sort(),
     );
   });
 
@@ -504,6 +511,12 @@ describe('export surface (SPEC §7)', () => {
     expect(defaultIncomeYear.length).toBe(1);
     expect(defaultInput.length).toBe(1);
     expect(Array.isArray(SUPPORTED_INCOME_YEARS)).toBe(true);
+    // facts.ts: (rules, profile), (rules, profile[, options]) and (rules, ageAtYearEnd).
+    expect(engine.lockUpFacts.length).toBe(2);
+    expect(engine.transferCautions.length).toBe(2);
+    expect(engine.lockUpHorizon.length).toBe(2);
+    expect(Array.isArray(engine.NOT_MODELLED)).toBe(true);
+    expect(typeof engine.DISCLAIMER).toBe('string');
   });
 
   it('PlannerResult has exactly the documented top-level fields', () => {

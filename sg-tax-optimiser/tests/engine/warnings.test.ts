@@ -375,6 +375,12 @@ describe('CPF_OVERRIDE_ABOVE_MAX', () => {
     // The sentence before it still says what was entered and what is used instead.
     expect(w.message.slice(0, -ending.length)).toMatch(/S\$25,000.*S\$20,400.*S\$20,400 is used\. $/);
     expect(w.message).not.toContain('Voluntary contributions do not earn CPF relief');
+    // The whole message for this case: the first sentence is unchanged, the ending is the SPEC's.
+    expect(w.message).toBe(
+      'The employee CPF you entered (S$25,000) is more than the largest compulsory contribution possible in a year ' +
+        '(S$20,400), so S$20,400 is used. Voluntary contributions to your three CPF accounts earn no relief; a cash ' +
+        "top-up to your MediSave, Special or Retirement Account does — enter it under 'Already contributed'.",
+    );
   });
 
   it('does not fire at the maximum, without an override, or for a foreigner', () => {

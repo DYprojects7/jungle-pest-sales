@@ -222,7 +222,8 @@ export interface PlannerInput {
       enabled: boolean;
       /**
        * Remaining amount the member may still top up to own SA/RA + MediSave before hitting the FRS / BHS limits.
-       * null/undefined = not provided; assume the limits do not bind.
+       * null/undefined = not provided: below 55 the limits are assumed not to bind; from 55 the room is
+       * unconfirmed and treated as 0 until a figure is entered (SPEC §6.5).
        */
       roomToLimit?: number | null;
     };
@@ -441,10 +442,10 @@ export type WarningCode =
   | 'AGE_55_PLUS_TOPUP'
   | 'FAMILY_TOPUP_CHECKS'
   | 'PARENTHOOD_TAX_REBATE'
+  | 'SRS_UNDER_18'
   | 'DEADLINE_PASSED'
   | 'DEADLINE_SOON'
   | 'PROJECTED_RULES'
-  | 'SRS_UNDER_18'
   | 'PIT_REBATE_APPLIED';
 
 export interface PlannerWarning {

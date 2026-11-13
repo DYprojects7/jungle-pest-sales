@@ -578,6 +578,13 @@ accounts earn no relief; a cash top-up to your MediSave, Special or Retirement A
 the last day, some as early as 7pm, and a CPF top-up counts on the day the CPF Board receives it, so transfer as
 soon as you can."
 
+`DEADLINE_SOON` mentions only the cut-off of a scheme that is in the plan: with no CPF top-up in the plan the
+ending is the bank clause alone (`Banks stop … as early as 7pm, so transfer as soon as you can.`), and with no SRS
+in the plan it is `A CPF top-up counts on the day the CPF Board receives it, so transfer as soon as you can.`
+When `LEVER_LIMITS_PLAN` fires with no room at all and the person's own CPF is switched on but waiting for its
+room (§6.5), its first sentence is `Nothing can be contributed yet: your own CPF is left out until you enter its
+room, and no other scheme you switched on has room left.` rather than a statement that the schemes are full.
+
 ---
 
 ## 7. Engine API
@@ -601,6 +608,7 @@ export function transferCautions(rules: YearRules, profile: FactsProfile): strin
 export function lockUpHorizon(rules: YearRules, ageAtYearEnd: number): LockUpHorizon;
 export const NOT_MODELLED: string[];
 export const DISCLAIMER: string;
+export const NON_RESIDENT_SRS_COST: { atRetirementOrTenYears: number; early: number };  // 0.075 and 0.2 (§5.4)
 ```
 
 Requirements: no runtime dependencies; no I/O; no `Date.now()`; runs unchanged in the browser and in Node;

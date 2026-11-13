@@ -1830,7 +1830,18 @@ function assertCautionWording(r: PlannerResult, s: FullInput): void {
   const override = find('CPF_OVERRIDE_ABOVE_MAX');
   if (override) expect(override.message.endsWith(CAUTION_TEXT.CPF_OVERRIDE_ABOVE_MAX_ENDING), override.message).toBe(true);
   const soon = find('DEADLINE_SOON');
-  if (soon) expect(soon.message.endsWith(CAUTION_TEXT.DEADLINE_SOON_ENDING), soon.message).toBe(true);
+  if (soon) {
+    // §6.11: only the cut-off of a scheme that is in the plan is mentioned.
+    const { srs: srsPlanned, cpfSelf, cpfFamily } = r.plan.contributions;
+    const banks = 'Banks stop taking same-day SRS contributions before midnight on the last day, some as early as 7pm';
+    const ending =
+      srsPlanned > 0 && cpfSelf + cpfFamily > 0
+        ? CAUTION_TEXT.DEADLINE_SOON_ENDING
+        : srsPlanned > 0
+          ? `${banks}, so transfer as soon as you can.`
+          : 'A CPF top-up counts on the day the CPF Board receives it, so transfer as soon as you can.';
+    expect(soon.message.endsWith(` ${ending}`), soon.message).toBe(true);
+  }
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -2167,6 +2178,332 @@ describe('ladder, simulator, scenarios, monthly plan and warnings (SPEC §6.7–
 });
 
 // ---------------------------------------------------------------------------------------------------------------
+// SPEC §6.5 — the room for a top-up to one's own CPF must be confirmed from age 55
+// ---------------------------------------------------------------------------------------------------------------
+
+describe('own-CPF room must be confirmed from age 55 (SPEC §6.5, §6.9, §6.11)', () => {
+  const ageFrom55 = fc.oneof(fc.constantFrom(55, 55, 56, 59, 60, 65, 70), fc.integer({ min: 55, max: 120 }));
+  const ageBelow55 = fc.oneof(fc.constantFrom(54, 54, 53, 18, 17), fc.integer({ min: 0, max: 54 }));
+  /** Ways of NOT providing a room (§6.0): leaving the field out (undefined), null, and anything that is not a number. */
+  const blankRoom = fc.constantFrom<unknown>(undefined, undefined, null, null, '8000', '', true, false, [], [8_000], {});
+  /** Numbers given as a room. §6.0 sanitises them like money: fractions floored; negatives, NaN and ±Infinity are 0. */
+  const enteredRoom = fc.oneof(
+    fc.integer({ min: 0, max: 9_000 }),
+    fc.constantFrom(0, 1, 7_999, 8_000, 8_001, 20_000, 50_000, 1e10, 2e10, 2_499.99, 0.5, -1, -0.5, Number.NaN, Infinity, -Infinity),
+  );
+  const switchArb = fc.constantFrom<boolean | undefined>(undefined, true, true, false);
+  const residencyArb = fc.constantFrom<'keep' | 'citizen' | 'pr' | 'foreigner'>('keep', 'keep', 'citizen', 'pr', 'foreigner');
+  /** §6.0 for a room that is a number. */
+  const sanitisedRoom = (room: number): number => (Number.isFinite(room) && room > 0 ? Math.min(Math.floor(room), SPEC_MAX_MONEY) : 0);
+
+  /** A valid input with the age and the own-CPF room replaced (room `undefined` = field left out), optionally the switch and residency too. */
+  function person(base: PlannerInput, age: number, room: unknown, enabled?: boolean, residency: 'keep' | 'citizen' | 'pr' | 'foreigner' = 'keep'): PlannerInput {
+    const cpfSelf: Record<string, unknown> = { enabled: enabled ?? base.levers.cpfSelf.enabled };
+    if (room !== undefined) cpfSelf.roomToLimit = room;
+    return {
+      ...base,
+      profile: { ...base.profile, ageAtYearEnd: age, ...(residency === 'keep' ? {} : { residency }) },
+      levers: { ...base.levers, cpfSelf: cpfSelf as unknown as PlannerInput['levers']['cpfSelf'] },
+    };
+  }
+  /** What is left under the S$8,000 cap of the person's own CPF after what was already topped up (0 for a foreigner). */
+  const leftUnderCap = (s: FullInput): number =>
+    s.profile.residency === 'foreigner' ? 0 : Math.max(0, SPEC_TOPUP_CAP - Math.min(s.existing.cpfTopUpSelf, SPEC_TOPUP_CAP));
+  const codesOf = (r: PlannerResult): string[] => r.warnings.map((warning) => warning.code);
+  /** Everything a plan recommends or shows about money (not the warnings, not the echo of the input). */
+  const money = (r: PlannerResult) => ({
+    baseline: r.baseline,
+    optimised: r.optimised,
+    plan: r.plan,
+    ladder: r.ladder,
+    simulator: r.simulator,
+    scenarios: r.scenarios,
+    monthlyPlan: r.monthlyPlan,
+    reliefCapRoom: r.reliefCapRoom,
+  });
+
+  prop(
+    'aged 55 or over with no room entered: levers.cpfSelf.room is 0 and not a dollar goes into own CPF — plan, ladder, simulator, scenarios, schedule',
+    fc.tuple(plannerInputArb, ageFrom55, blankRoom, switchArb, residencyArb),
+    ([base, age, room, enabled, residency]) => {
+      const input = person(base, age, room, enabled, residency);
+      const r = plan(input);
+      const s = specSanitise(input);
+      expect(s.profile.ageAtYearEnd).toBe(age);
+      expect(s.levers.cpfSelf.roomToLimit).toBeNull();
+      expect(r.input).toEqual(s);
+
+      expect(r.levers.cpfSelf.room).toBe(0);
+      expect(r.plan.contributions.cpfSelf).toBe(0);
+      for (const row of r.simulator) expect(row.split.cpfSelf).toBe(0);
+      for (const scenario of r.scenarios) expect(scenario.contributions.cpfSelf, scenario.id).toBe(0);
+      for (const row of r.monthlyPlan.schedule) expect(row.amounts.cpfSelf).toBe(0);
+      expect(r.monthlyPlan.fullYearMonthly.cpfSelf).toBe(0);
+      // What was already topped up keeps its relief; nothing is added to it.
+      expect(r.baseline.reliefs.cpfTopUpSelf).toBe(s.profile.residency === 'foreigner' ? 0 : Math.min(s.existing.cpfTopUpSelf, SPEC_TOPUP_CAP));
+      expect(r.optimised.reliefs.cpfTopUpSelf).toBe(r.baseline.reliefs.cpfTopUpSelf);
+      // L is the room of the other two schemes: the ladder and the simulator end there.
+      const L = r.levers.srs.room + r.levers.cpfFamily.room;
+      expect(r.ladder.length === 0 ? 0 : r.ladder[r.ladder.length - 1]?.toContribution).toBe(L);
+      expect(r.simulator[r.simulator.length - 1]?.contribution).toBe(L);
+      expect(r.plan.totalContribution).toBeLessThanOrEqual(L);
+      expect(r.plan.contributions).toEqual(specPlan(s).contributions);
+
+      // The person is asked for the figure exactly when the scheme is on and open to them.
+      const asked = s.levers.cpfSelf.enabled && s.profile.residency !== 'foreigner';
+      expect(codesOf(r).includes('CPF_SELF_ROOM_UNCONFIRMED')).toBe(asked);
+      expect(codesOf(r)).not.toContain('AGE_55_PLUS_TOPUP');
+
+      // To the cent the same plan as with the scheme switched off, and as with a room of S$0 entered.
+      const off = plan(person(base, age, room, false, residency));
+      const zero = plan(person(base, age, 0, enabled, residency));
+      expect(money(off)).toEqual(money(r));
+      expect(money(zero)).toEqual(money(r));
+      expect(zero.levers).toEqual(r.levers);
+      expect(codesOf(zero).includes('AGE_55_PLUS_TOPUP')).toBe(asked);
+      expect(codesOf(zero)).not.toContain('CPF_SELF_ROOM_UNCONFIRMED');
+    },
+  );
+
+  prop(
+    'entering a room r: own CPF gets at most min(r, cap − existing), the lever room is exactly that, and any number confirms',
+    fc.tuple(plannerInputArb, fc.oneof(ageFrom55, ageFrom55, ageBelow55), enteredRoom, switchArb, residencyArb),
+    ([base, age, room, enabled, residency]) => {
+      const input = person(base, age, room, enabled, residency);
+      const r = plan(input);
+      const s = specSanitise(input);
+      const entered = sanitisedRoom(room);
+      expect(s.levers.cpfSelf.roomToLimit).toBe(entered);
+      expect(r.input.levers.cpfSelf.roomToLimit).toBe(entered);
+
+      const open = s.profile.residency !== 'foreigner';
+      const most = Math.min(entered, leftUnderCap(s));
+      expect(r.plan.contributions.cpfSelf).toBeLessThanOrEqual(most);
+      expect(r.levers.cpfSelf.room).toBe(open && s.levers.cpfSelf.enabled ? most : 0);
+      for (const row of r.simulator) expect(row.split.cpfSelf).toBeLessThanOrEqual(most);
+      for (const row of r.monthlyPlan.schedule) expect(row.amounts.cpfSelf).toBeLessThanOrEqual(most);
+      // The scenarios use the room whether or not the scheme is switched on (§6.9).
+      const scenario = (id: string) => r.scenarios.find((candidate) => candidate.id === id);
+      expect(scenario('cpfSelfOnly')?.contributions).toEqual({ srs: 0, cpfSelf: most, cpfFamily: 0 });
+      expect(scenario('srsPlusCpfSelf')?.contributions.cpfSelf).toBe(most);
+      expect(scenario('maxAll')?.contributions.cpfSelf).toBe(most);
+      expect(r.optimised.reliefs.cpfTopUpSelf - r.baseline.reliefs.cpfTopUpSelf).toBe(r.plan.contributions.cpfSelf);
+      expect(r.plan.contributions).toEqual(specPlan(s).contributions);
+
+      // From 55 the plan says which room it used; below 55 neither age-55 message appears.
+      const applies = age >= 55 && s.levers.cpfSelf.enabled && open;
+      expect(codesOf(r).includes('AGE_55_PLUS_TOPUP')).toBe(applies);
+      expect(codesOf(r)).not.toContain('CPF_SELF_ROOM_UNCONFIRMED');
+
+      // "Entering any number — including one at or above S$8,000 — confirms it": once the room covers what is left
+      // under the cap, a larger room changes nothing.
+      if (entered >= leftUnderCap(s)) {
+        const atCap = plan(person(base, age, 8_000, enabled, residency));
+        expect(money(atCap)).toEqual(money(r));
+        expect(atCap.levers).toEqual(r.levers);
+        // …and below 55 that is also the plan with the room left blank.
+        if (age < 55) {
+          const blank = plan(person(base, age, undefined, enabled, residency));
+          expect(money(blank)).toEqual(money(r));
+          expect(blank.levers).toEqual(r.levers);
+        }
+      }
+    },
+  );
+
+  prop(
+    'the same person at 54 and at 55: a blank room binds only from 55; an entered room binds the same on both sides',
+    fc.tuple(plannerInputArb, fc.integer({ min: 0, max: 9_000 }), fc.constantFrom<'keep' | 'citizen' | 'pr' | 'foreigner'>('keep', 'citizen', 'pr')),
+    ([base, room, residency]) => {
+      const blank54 = plan(person(base, 54, undefined, true, residency));
+      const blank55 = plan(person(base, 55, undefined, true, residency));
+      const given54 = plan(person(base, 54, room, true, residency));
+      const given55 = plan(person(base, 55, room, true, residency));
+      const s = specSanitise(person(base, 54, undefined, true, residency));
+      const open = s.profile.residency !== 'foreigner';
+      const left = leftUnderCap(s);
+
+      expect(blank54.levers.cpfSelf.room).toBe(left);
+      expect(blank55.levers.cpfSelf.room).toBe(0);
+      expect(blank55.plan.contributions.cpfSelf).toBe(0);
+      expect(given54.levers.cpfSelf.room).toBe(Math.min(room, left));
+      expect(given55.levers.cpfSelf.room).toBe(Math.min(room, left));
+
+      expect(codesOf(blank54)).not.toContain('CPF_SELF_ROOM_UNCONFIRMED');
+      expect(codesOf(blank54)).not.toContain('AGE_55_PLUS_TOPUP');
+      expect(codesOf(given54)).not.toContain('CPF_SELF_ROOM_UNCONFIRMED');
+      expect(codesOf(given54)).not.toContain('AGE_55_PLUS_TOPUP');
+      expect(codesOf(blank55).includes('CPF_SELF_ROOM_UNCONFIRMED')).toBe(open);
+      expect(codesOf(blank55)).not.toContain('AGE_55_PLUS_TOPUP');
+      expect(codesOf(given55).includes('AGE_55_PLUS_TOPUP')).toBe(open);
+      expect(codesOf(given55)).not.toContain('CPF_SELF_ROOM_UNCONFIRMED');
+
+      // At 55, entering a room never saves less than leaving it blank, and never more than a room of S$8,000.
+      const full55 = plan(person(base, 55, 8_000, true, residency));
+      expect(cents(blank55.plan.taxSaved)).toBeLessThanOrEqual(cents(given55.plan.taxSaved));
+      expect(cents(given55.plan.taxSaved)).toBeLessThanOrEqual(cents(full55.plan.taxSaved));
+      expect(blank55.plan.totalContribution).toBeLessThanOrEqual(given55.plan.totalContribution);
+    },
+  );
+
+  prop(
+    'whatever else is wrong with the input: from 55 own CPF gets money only when a number was given as the room',
+    fc.tuple(messyInputArb, ageFrom55, fc.oneof(blankRoom, enteredRoom)),
+    ([messy, age, room]) => {
+      // The messy inputs are plain JSON objects with every section present; only leaves were replaced.
+      const raw = clone(messy) as { profile: Record<string, unknown>; levers: { cpfSelf: Record<string, unknown> } };
+      raw.profile.ageAtYearEnd = age;
+      if (room === undefined) delete raw.levers.cpfSelf.roomToLimit;
+      else raw.levers.cpfSelf.roomToLimit = room;
+      const r = plan(raw as unknown as PlannerInput);
+      const s = specSanitise(raw);
+      expect(r.input).toEqual(s);
+      expect(s.profile.ageAtYearEnd).toBe(age);
+      const provided = typeof room === 'number';
+      expect(s.levers.cpfSelf.roomToLimit).toBe(provided ? sanitisedRoom(room) : null);
+      const most = provided ? Math.min(sanitisedRoom(room), leftUnderCap(s)) : 0;
+      expect(r.levers.cpfSelf.room).toBe(s.levers.cpfSelf.enabled && s.profile.residency !== 'foreigner' ? most : 0);
+      expect(r.plan.contributions.cpfSelf).toBeLessThanOrEqual(most);
+      for (const scenario of r.scenarios) expect(scenario.contributions.cpfSelf, scenario.id).toBeLessThanOrEqual(most);
+      for (const row of r.simulator) expect(row.split.cpfSelf).toBeLessThanOrEqual(most);
+      assertCautions(r, s);
+      assertCautionWording(r, s);
+      expect(r.plan.contributions).toEqual(specPlan(s).contributions);
+    },
+  );
+
+  prop(
+    'AGE_55_PLUS_TOPUP and CPF_SELF_ROOM_UNCONFIRMED never appear together, whatever the input',
+    fc.oneof(
+      plannerInputArb,
+      fc.tuple(plannerInputArb, fc.oneof(ageFrom55, ageBelow55), fc.oneof(blankRoom, enteredRoom), switchArb, residencyArb).map(
+        ([base, age, room, enabled, residency]): unknown => person(base, age, room, enabled, residency),
+      ),
+      messyInputArb,
+      garbageInputArb,
+    ),
+    (raw) => {
+      const r = plan(raw as PlannerInput);
+      const codes = codesOf(r);
+      const unconfirmed = codes.includes('CPF_SELF_ROOM_UNCONFIRMED');
+      const confirmed = codes.includes('AGE_55_PLUS_TOPUP');
+      expect(unconfirmed && confirmed).toBe(false);
+      // One of the two appears exactly when a person of 55 or more has their own CPF switched on and open to them…
+      const s = specSanitise(raw);
+      const applies = s.profile.ageAtYearEnd >= 55 && s.levers.cpfSelf.enabled && s.profile.residency !== 'foreigner';
+      expect(unconfirmed || confirmed).toBe(applies);
+      // …and which one says whether the plan may use that scheme at all.
+      if (unconfirmed) expect(r.levers.cpfSelf.room).toBe(0);
+      if (confirmed) expect(r.levers.cpfSelf.room).toBe(Math.min(s.levers.cpfSelf.roomToLimit ?? -1, leftUnderCap(s)));
+    },
+  );
+
+  it('hand-worked: the A.1 person at 54 and 55, room blank, S$0, S$3,000, S$8,000 and S$50,000', () => {
+    // Birth month 12, so CPF is 20% all year at both ages (20,400). At 54 EIR is 1,000: CI 108,600, tax 6,639.
+    // At 55 EIR is 6,000: reliefs 31,400, CI 103,600, tax 3,350 + 11.5% × 23,600 = 6,064; U(7%) 63,600, C 48,600.
+    const at = (age: number, roomToLimit: number | null) => plan(example({ profile: { ageAtYearEnd: age }, otherReliefs: 5_000, cpfSelf: { roomToLimit } }));
+    const row = (r: PlannerResult) => [r.levers.cpfSelf.room, r.plan.contributions.srs, r.plan.contributions.cpfSelf, r.plan.taxBefore, r.plan.taxAfter, r.plan.taxSaved, codesOf(r).join(' ')];
+    expect(row(at(54, null))).toEqual([8_000, 15_300, 8_000, 6_639, 3_959.5, 2_679.5, 'LEVER_LIMITS_PLAN']);
+    expect(row(at(54, 3_000))).toEqual([3_000, 15_300, 3_000, 6_639, 4_534.5, 2_104.5, 'LEVER_LIMITS_PLAN']);
+    expect(row(at(55, null))).toEqual([0, 15_300, 0, 6_064, 4_304.5, 1_759.5, 'LEVER_LIMITS_PLAN CPF_SELF_ROOM_UNCONFIRMED']);
+    expect(row(at(55, 0))).toEqual([0, 15_300, 0, 6_064, 4_304.5, 1_759.5, 'LEVER_LIMITS_PLAN AGE_55_PLUS_TOPUP']);
+    expect(row(at(55, 3_000))).toEqual([3_000, 15_300, 3_000, 6_064, 3_959.5, 2_104.5, 'LEVER_LIMITS_PLAN AGE_55_PLUS_TOPUP']);
+    expect(row(at(55, 8_000))).toEqual([8_000, 15_300, 8_000, 6_064, 3_384.5, 2_679.5, 'LEVER_LIMITS_PLAN AGE_55_PLUS_TOPUP']);
+    expect(row(at(55, 50_000))).toEqual([8_000, 15_300, 8_000, 6_064, 3_384.5, 2_679.5, 'LEVER_LIMITS_PLAN AGE_55_PLUS_TOPUP']);
+    // S$6,000 already topped up: 2,000 left under the cap. Reliefs 37,400, CI 97,600, tax 3,350 + 11.5% × 17,600 = 5,374.
+    const topped = (roomToLimit: number | null) =>
+      plan(example({ profile: { ageAtYearEnd: 55 }, otherReliefs: 5_000, existing: { cpfTopUpSelf: 6_000 }, cpfSelf: { roomToLimit } }));
+    // blank: SRS only -> CI 82,300 -> 3,350 + 11.5% × 2,300 = 3,614.50
+    expect(row(topped(null))).toEqual([0, 15_300, 0, 5_374, 3_614.5, 1_759.5, 'LEVER_LIMITS_PLAN CPF_SELF_ROOM_UNCONFIRMED']);
+    // room 5,000: 2,000 more -> CI 80,300 -> 3,384.50
+    expect(row(topped(5_000))).toEqual([2_000, 15_300, 2_000, 5_374, 3_384.5, 1_989.5, 'LEVER_LIMITS_PLAN AGE_55_PLUS_TOPUP']);
+    // room 1,500: CI 80,800 -> 3,350 + 11.5% × 800 = 3,442
+    expect(row(topped(1_500))).toEqual([1_500, 15_300, 1_500, 5_374, 3_442, 1_932, 'LEVER_LIMITS_PLAN AGE_55_PLUS_TOPUP']);
+    expect(topped(null).baseline.reliefs.cpfTopUpSelf).toBe(6_000);
+  });
+
+  it('hand-worked: values that are not numbers do not confirm a room; NaN, ±Infinity and negative numbers are a room of S$0', () => {
+    const at55 = (roomToLimit: unknown) =>
+      plan({ ...example({ profile: { ageAtYearEnd: 55 }, otherReliefs: 5_000 }), levers: { srs: { enabled: true }, cpfSelf: { enabled: true, roomToLimit }, cpfFamily: { enabled: false } } } as unknown as PlannerInput);
+    for (const junk of ['8000', '', true, false, [], [8_000], { amount: 8_000 }, null, undefined]) {
+      const r = at55(junk);
+      expect([r.levers.cpfSelf.room, r.plan.contributions.cpfSelf, r.plan.taxSaved, codesOf(r).join(' ')], String(junk)).toEqual([0, 0, 1_759.5, 'LEVER_LIMITS_PLAN CPF_SELF_ROOM_UNCONFIRMED']);
+    }
+    for (const number of [Number.NaN, Infinity, -Infinity, -1, -0.5, 0.9]) {
+      const r = at55(number);
+      expect([r.levers.cpfSelf.room, r.plan.contributions.cpfSelf, r.plan.taxSaved, codesOf(r).join(' ')], String(number)).toEqual([0, 0, 1_759.5, 'LEVER_LIMITS_PLAN AGE_55_PLUS_TOPUP']);
+      expect(r.input.levers.cpfSelf.roomToLimit).toBe(0);
+    }
+  });
+
+  it('hand-worked: each new caution on both sides of its condition', () => {
+    const codes = (input: FullInput): string => codesOf(plan(input)).join(' ');
+    // Foreigner on S$15,000 a month: 6 months -> CI 89,000 (tax 4,385), 7 months -> CI 104,000; SRS 35,700 either way.
+    const foreigner = (monthsWorked: number, srs = true, age = 40) =>
+      example({ profile: { residency: 'foreigner', ageAtYearEnd: age }, income: { monthlyOrdinaryWage: 15_000, additionalWages: 0, monthsWorked }, srs });
+    expect(codes(foreigner(6))).toBe('LEVER_LIMITS_PLAN FOREIGNER_NO_CPF TAX_RESIDENCY_CHECK SRS_NON_RESIDENT_WITHDRAWAL');
+    expect(codes(foreigner(7))).toBe('LEVER_LIMITS_PLAN FOREIGNER_NO_CPF SRS_NON_RESIDENT_WITHDRAWAL');
+    expect(codes(foreigner(6, false))).toBe('LEVER_LIMITS_PLAN FOREIGNER_NO_CPF TAX_RESIDENCY_CHECK');
+    expect(codes(foreigner(12, true, 17))).toBe('LEVER_LIMITS_PLAN FOREIGNER_NO_CPF SRS_UNDER_18');
+    expect(codes(foreigner(12, true, 18))).toBe('LEVER_LIMITS_PLAN FOREIGNER_NO_CPF SRS_NON_RESIDENT_WITHDRAWAL');
+    expect(plan(foreigner(6)).baseline.taxPayable).toBe(4_385);
+    // A citizen or PR who worked 3 months is not asked about residency.
+    expect(codes(example({ income: { monthsWorked: 3 }, otherReliefs: 5_000 }))).not.toContain('TAX_RESIDENCY_CHECK');
+    expect(codes(example({ profile: { residency: 'pr' }, income: { monthsWorked: 3 }, otherReliefs: 5_000 }))).not.toContain('TAX_RESIDENCY_CHECK');
+
+    // Family: A.1 with the family scheme on (8,000 planned); budget 10,000 (nothing reaches the family);
+    // budget 23,301 (S$1 does); S$1 already given with the scheme off; a foreigner's S$9,000.
+    const a1 = (over: Parameters<typeof example>[0]) => example({ otherReliefs: 5_000, ...over });
+    expect(codes(a1({ cpfFamily: { enabled: true } }))).toBe('LEVER_LIMITS_PLAN FAMILY_TOPUP_CHECKS');
+    expect(codes(a1({ cpfFamily: { enabled: true }, preferences: { cashBudget: 10_000 } }))).toBe('BUDGET_LIMITS_PLAN');
+    expect(codes(a1({ cpfFamily: { enabled: true }, preferences: { cashBudget: 23_301 } }))).toBe('BUDGET_LIMITS_PLAN FAMILY_TOPUP_CHECKS');
+    expect(codes(a1({ cpfFamily: { enabled: true, maxAmount: 0 } }))).toBe('LEVER_LIMITS_PLAN');
+    expect(codes(a1({ existing: { cpfTopUpFamily: 1 } }))).toBe('LEVER_LIMITS_PLAN FAMILY_TOPUP_CHECKS');
+    expect(codes(a1({ profile: { residency: 'foreigner' }, existing: { cpfTopUpFamily: 9_000 }, cpfFamily: { enabled: true } }))).toBe(
+      'LEVER_LIMITS_PLAN FOREIGNER_NO_CPF SRS_NON_RESIDENT_WITHDRAWAL',
+    );
+
+    // Parenthood Tax Rebate: the tick adds the caution and changes no figure.
+    const plain = plan(a1({}));
+    const ticked = plan(a1({ profile: { hasUnusedParenthoodTaxRebate: true } }));
+    expect(codesOf(ticked).join(' ')).toBe('LEVER_LIMITS_PLAN PARENTHOOD_TAX_REBATE');
+    expect(codesOf(plain).join(' ')).toBe('LEVER_LIMITS_PLAN');
+    expect(ticked.plan).toEqual(plain.plan);
+    expect(ticked.baseline).toEqual(plain.baseline);
+    expect([ticked.ladder, ticked.simulator, ticked.scenarios, ticked.monthlyPlan]).toEqual([plain.ladder, plain.simulator, plain.scenarios, plain.monthlyPlan]);
+    for (const value of [false, 1, 0, 'true', 'yes', '', null, [true], {}]) {
+      const r = plan({ ...a1({}), profile: { ...a1({}).profile, hasUnusedParenthoodTaxRebate: value } } as unknown as PlannerInput);
+      expect(codesOf(r).join(' '), String(value)).toBe('LEVER_LIMITS_PLAN');
+      expect(r.input.profile.hasUnusedParenthoodTaxRebate, String(value)).toBe(false);
+    }
+  });
+
+  it('hand-worked: lowValueAmount — the part of a foreigner\'s plan that saves less than 7.5 cents per dollar', () => {
+    // Foreigner, 40, S$7,000 × 12: CI 83,000 (tax 3,350 + 11.5% × 3,000 = 3,695). SRS room 35,700.
+    const foreigner = (minSavingRate: number, cashBudget: number | null = null) =>
+      plan(example({ profile: { residency: 'foreigner', ageAtYearEnd: 40 }, income: { monthlyOrdinaryWage: 7_000, additionalWages: 0 }, preferences: { minSavingRate, cashBudget } }));
+    const low = (r: PlannerResult) => r.warnings.find((warning) => warning.code === 'SRS_NON_RESIDENT_WITHDRAWAL')?.params?.lowValueAmount;
+    const text = (r: PlannerResult) => r.warnings.find((warning) => warning.code === 'SRS_NON_RESIDENT_WITHDRAWAL')?.message ?? '';
+    // 7% and up: the plan takes 35,700 — 3,000 at 11.5%, then 32,700 at 7%.
+    const deep = foreigner(0.07);
+    expect(deep.plan.totalContribution).toBe(35_700);
+    expect(deep.ladder.map((tier) => [tier.toContribution, tier.rate, tier.usedByPlan])).toEqual([[3_000, 0.115, 3_000], [35_700, 0.07, 32_700]]);
+    expect(low(deep)).toBe(32_700);
+    expect(text(deep).endsWith(' S$32,700 of this plan saves less than 7.5 cents per dollar today.')).toBe(true);
+    // 11.5% and up (the foreigner's default, §8.3): the plan stops at 80,000 — nothing below 7.5 cents.
+    const shallow = foreigner(0.115);
+    expect(shallow.plan.totalContribution).toBe(3_000);
+    expect(low(shallow)).toBe(0);
+    expect(text(shallow)).toBe(CAUTION_TEXT.SRS_NON_RESIDENT_WITHDRAWAL);
+    // A budget that ends S$1 into the 7% band, and one that ends exactly on the boundary.
+    expect(low(foreigner(0, 3_001))).toBe(1);
+    expect(low(foreigner(0, 3_000))).toBe(0);
+    // Every tax dollar: 63,000 of useful room, lever room 35,700 -> still 32,700 below 7.5 cents.
+    expect(low(foreigner(0))).toBe(32_700);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------
 // Idempotence, purity, determinism
 // ---------------------------------------------------------------------------------------------------------------
 
@@ -2293,6 +2630,27 @@ describe('generator coverage and engine speed', () => {
       if (r.monthlyPlan.schedule.length > 0) bump('schedule');
       if (r.monthlyPlan.monthsRemaining === 12 && input.today.slice(0, 4) !== String(input.incomeYear)) bump('today before the year');
       if (r.simulator.length > 100) bump('simulator > 100 rows');
+      // The cases of the rule audit (SPEC §6.5, §6.11), from the input as sanitised by the test and the result.
+      const age = s.profile.ageAtYearEnd;
+      const ownCpfOpen = s.profile.residency !== 'foreigner' && s.levers.cpfSelf.enabled;
+      const room = specRoomProvided(s) ? 'room entered' : 'room blank';
+      if (ownCpfOpen) bump(`own CPF on, age ${age < 54 ? 'under 54' : age === 54 ? '54' : age === 55 ? '55' : 'over 55'}, ${room}`);
+      if (ownCpfOpen && age >= 55 && r.plan.contributions.cpfSelf > 0) bump('own CPF planned from 55 (room entered)');
+      if (ownCpfOpen && age === 54 && !specRoomProvided(s) && r.plan.contributions.cpfSelf > 0) bump('own CPF planned at 54 with the room blank');
+      if (ownCpfOpen && age >= 55 && !specRoomProvided(s) && r.plan.bindingConstraint === 'leverLimits') bump('blank room from 55 and the schemes are the limit');
+      if (s.profile.residency === 'foreigner') {
+        bump(`foreigner worked ${s.income.monthsWorked === 6 ? 'exactly 6' : s.income.monthsWorked === 7 ? 'exactly 7' : s.income.monthsWorked < 6 ? 'under 6' : 'over 7'} months`);
+        const low = r.warnings.find((warning) => warning.code === 'SRS_NON_RESIDENT_WITHDRAWAL')?.params?.lowValueAmount;
+        if (typeof low === 'number' && low > 0) bump('foreigner: part of the plan saves under 7.5 cents');
+        if (low === 0 && r.plan.contributions.srs > 0) bump('foreigner: all of the plan saves 7.5 cents or more');
+      } else {
+        if (r.plan.contributions.cpfFamily > 0) bump('family top-up planned');
+        if (s.existing.cpfTopUpFamily > 0) bump('family top-up existing');
+        if (r.plan.contributions.cpfFamily > 0 && s.existing.cpfTopUpFamily > 0) bump('family top-up existing and planned');
+        if (s.existing.cpfTopUpFamily > 0 && !s.levers.cpfFamily.enabled) bump('family top-up existing, scheme off');
+      }
+      const flag = input.profile.hasUnusedParenthoodTaxRebate;
+      bump(`PTR flag ${flag === undefined ? 'missing' : String(flag)}`);
     }
     const required: [string, number][] = [
       ['year:2025', 800], ['year:2026', 800], ['year:2027', 800],
@@ -2304,6 +2662,49 @@ describe('generator coverage and engine speed', () => {
       ['reliefs over the cap', 100], ['0 < C < L', 100], ['cpf override', 300], ['age band changes mid-year', 80], ['AW cut by the ceiling', 300],
       ['wage in phase-in range', 100], ['tie between constraints', 100], ['budget ties with lever room', 20], ['schedule', 800],
       ['today before the year', 200], ['simulator > 100 rows', 100],
+      // SPEC §6.5: 54, 55 and older, with and without a room for the person's own CPF
+      ['own CPF on, age 54, room blank', 60], ['own CPF on, age 54, room entered', 40],
+      ['own CPF on, age 55, room blank', 60], ['own CPF on, age 55, room entered', 40],
+      ['own CPF on, age over 55, room blank', 250], ['own CPF on, age over 55, room entered', 150],
+      ['own CPF on, age under 54, room blank', 250], ['own CPF on, age under 54, room entered', 150],
+      ['own CPF planned from 55 (room entered)', 50], ['own CPF planned at 54 with the room blank', 20],
+      ['blank room from 55 and the schemes are the limit', 100],
+      // SPEC §6.11: foreigners on both sides of six months; family top-ups existing and planned; the PTR tick
+      ['foreigner worked exactly 6 months', 25], ['foreigner worked exactly 7 months', 25],
+      ['foreigner worked under 6 months', 60], ['foreigner worked over 7 months', 300],
+      ['foreigner: part of the plan saves under 7.5 cents', 20], ['foreigner: all of the plan saves 7.5 cents or more', 40],
+      ['family top-up planned', 200], ['family top-up existing', 500], ['family top-up existing and planned', 50],
+      ['family top-up existing, scheme off', 200],
+      ['PTR flag true', 600], ['PTR flag false', 600], ['PTR flag missing', 1_000],
+    ];
+    if (process.env.PROP_SHOW_COVERAGE) console.log([...count.entries()].sort().map(([key, n]) => `${key}: ${n}`).join('\n'));
+    const missing = required.filter(([key, minimum]) => (count.get(key) ?? 0) < minimum).map(([key, minimum]) => `${key}: ${count.get(key) ?? 0} < ${minimum}`);
+    expect(missing).toEqual([]);
+  });
+
+  it('the messy generator gives the Parenthood Tax Rebate flag and the own-CPF room in every form, on both sides of 55', () => {
+    const count = new Map<string, number>();
+    const bump = (key: string): void => void count.set(key, (count.get(key) ?? 0) + 1);
+    for (const raw of seededMessyInputs(6_000, 20_261_114)) {
+      const s = specSanitise(raw);
+      const shaped = raw as { profile: Record<string, unknown>; levers: { cpfSelf: Record<string, unknown> } };
+      const flag = shaped.profile.hasUnusedParenthoodTaxRebate;
+      const flagKind = !('hasUnusedParenthoodTaxRebate' in shaped.profile) ? 'missing' : typeof flag === 'boolean' ? String(flag) : 'not a boolean';
+      bump(`flag ${flagKind}`);
+      // §6.0: true only for the boolean true
+      expect(s.profile.hasUnusedParenthoodTaxRebate).toBe(flag === true);
+      const room = shaped.levers.cpfSelf.roomToLimit;
+      const roomKind = !('roomToLimit' in shaped.levers.cpfSelf) ? 'missing' : room === null ? 'null' : typeof room === 'number' ? 'a number' : 'not a number';
+      bump(`room ${roomKind}, ${s.profile.ageAtYearEnd >= 55 ? '55 or over' : 'under 55'}`);
+      expect(s.levers.cpfSelf.roomToLimit === null).toBe(typeof room !== 'number');
+      if (s.profile.residency === 'foreigner') bump(`foreigner, ${s.income.monthsWorked <= 6 ? 'six months or fewer' : 'more than six months'}`);
+    }
+    const required: [string, number][] = [
+      ['flag true', 500], ['flag false', 500], ['flag missing', 1_000], ['flag not a boolean', 100],
+      ...['55 or over', 'under 55'].flatMap((side): [string, number][] => [
+        [`room missing, ${side}`, 300], [`room null, ${side}`, 150], [`room a number, ${side}`, 300], [`room not a number, ${side}`, 15],
+      ]),
+      ['foreigner, six months or fewer', 150], ['foreigner, more than six months', 500],
     ];
     if (process.env.PROP_SHOW_COVERAGE) console.log([...count.entries()].sort().map(([key, n]) => `${key}: ${n}`).join('\n'));
     const missing = required.filter(([key, minimum]) => (count.get(key) ?? 0) < minimum).map(([key, minimum]) => `${key}: ${count.get(key) ?? 0} < ${minimum}`);

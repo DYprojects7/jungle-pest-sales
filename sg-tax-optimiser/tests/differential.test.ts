@@ -9,7 +9,13 @@
  *
  * The comparison is strict: integers exactly, other numbers within 1e-9, every key on both sides. The only
  * normalisation is the one the reference's README prescribes: `rules` and `input` dropped, warnings reduced to
- * sorted {code, severity}, `cpf.employerContribution` dropped on both sides, undefined keys dropped.
+ * {code, severity} IN THE ORDER EMITTED (the reference is run with `--warning-order=table`, so the codes, their
+ * severities and their order — SPEC §6.11: "in the order of the table" — are all compared; message text and
+ * params are not), `cpf.employerContribution` dropped on both sides, undefined keys dropped.
+ *
+ * Both sets carry the inputs of the rule audit: `profile.hasUnusedParenthoodTaxRebate` (true, false, missing and,
+ * in the messy set, values that are not booleans), people aged 54, 55 and older with and without a room for their
+ * own CPF (SPEC §6.5), foreigners on both sides of six months worked, and family top-ups existing and planned.
  *
  * Environment overrides:  DIFF_COUNT=50000 DIFF_SEED=7 npx vitest run tests/differential.test.ts
  */
@@ -21,6 +27,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { plan } from '../src/engine';
 import type { PlannerInput } from '../src/engine';
 import { seededInputs, seededMessyInputs } from './support/generators';
+import { specPlan, specSanitise } from './support/specModel';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const WORK_DIR = join(ROOT, '.tmp', 'differential');
@@ -72,9 +79,8 @@ function normaliseEngine(input: unknown): Json {
   const normalised = {
     ...rest,
     cpf: cpfRest,
-    warnings: warnings
-      .map(({ code, severity }) => ({ code, severity }))
-      .sort((a, b) => (a.code < b.code ? -1 : a.code > b.code ? 1 : 0)),
+    // In the order the engine emits them: SPEC §6.11 fixes it, and the reference prints the table order.
+    warnings: warnings.map(({ code, severity }) => ({ code, severity })),
   };
   // A JSON round trip drops undefined keys (e.g. zeroReason on a tier that saves tax) exactly as printing would.
   return JSON.parse(JSON.stringify(normalised)) as Json;
@@ -134,12 +140,46 @@ interface Mismatch {
   differences: Difference[];
 }
 
+/** "CODE/severity" for each warning of a normalised result, in order; null when the result has no warnings list. */
+function warningTags(result: Json | undefined): string[] | null {
+  if (!isObject(result) || !Array.isArray(result.warnings)) return null;
+  return result.warnings.map((warning) => (isObject(warning) ? `${String(warning.code)}/${String(warning.severity)}` : JSON.stringify(warning)));
+}
+
+/**
+ * The warnings of the two sides, compared as SPEC §6.11 states them: first which codes are present with which
+ * severity (`$.warnings{codes}` lists what only one side has), then — when those agree — their order
+ * (`$.warnings{order}`). Returns false when either side has no warnings list (the generic comparison reports it).
+ */
+function compareWarnings(engine: Json | undefined, reference: Json | undefined, out: Difference[]): boolean {
+  const mine = warningTags(engine);
+  const theirs = warningTags(reference);
+  if (mine === null || theirs === null) return false;
+  const onlyEngine = mine.filter((tag) => !theirs.includes(tag));
+  const onlyReference = theirs.filter((tag) => !mine.includes(tag));
+  if (onlyEngine.length > 0 || onlyReference.length > 0 || mine.length !== theirs.length) {
+    out.push({ path: '$.warnings{codes}', engine: { onlyHere: onlyEngine, all: mine }, reference: { onlyHere: onlyReference, all: theirs } });
+  } else if (mine.some((tag, index) => tag !== theirs[index])) {
+    out.push({ path: '$.warnings{order}', engine: mine, reference: theirs });
+  }
+  return true;
+}
+
+function withoutWarnings(result: Json | undefined): Json | undefined {
+  if (!isObject(result)) return result;
+  const { warnings: _warnings, ...rest } = result;
+  return rest;
+}
+
 /** Compare one set; returns the mismatching cases in input order. */
 function compareSet(inputs: readonly unknown[], reference: readonly Json[], offset: number): Mismatch[] {
   const mismatches: Mismatch[] = [];
   inputs.forEach((input, i) => {
     const differences: Difference[] = [];
-    compare(normaliseEngine(input), normaliseReference(reference[offset + i] ?? null), '$', differences);
+    const engine = normaliseEngine(input);
+    const expected = normaliseReference(reference[offset + i] ?? null);
+    if (compareWarnings(engine, expected, differences)) compare(withoutWarnings(engine), withoutWarnings(expected), '$', differences);
+    else compare(engine, expected, '$', differences);
     if (differences.length > 0) mismatches.push({ index: offset + i, input, differences });
   });
   return mismatches;
@@ -184,7 +224,8 @@ describe.skipIf(!HAVE_PYTHON)('differential: TypeScript engine vs independent Py
     // reading that much through a synchronous pipe takes Node three times as long as the reference itself.
     const stdout = openSync(OUTPUT_FILE, 'w');
     try {
-      execFileSync('python3', [REFERENCE, INPUTS_FILE], { maxBuffer: 1024 * 1024 * 1024, stdio: ['ignore', stdout, 'inherit'] });
+      // --warning-order=table: the warnings in the order of the SPEC §6.11 table (the default sorts them by code).
+      execFileSync('python3', [REFERENCE, '--warning-order=table', INPUTS_FILE], { maxBuffer: 1024 * 1024 * 1024, stdio: ['ignore', stdout, 'inherit'] });
     } finally {
       closeSync(stdout);
     }
@@ -224,6 +265,70 @@ describe.skipIf(!HAVE_PYTHON)('differential: TypeScript engine vs independent Py
       ];
       expect(Math.max(...money)).toBeLessThanOrEqual(5_000_000);
     }
+  });
+
+  it('both sets carry the inputs of the rule audit: the PTR flag, 54/55 with and without a room, foreigners around six months, family top-ups', () => {
+    const count = (items: readonly unknown[], test: (input: PlannerInput) => boolean): number => items.filter((item) => test(item as PlannerInput)).length;
+    const hasRoom = (input: PlannerInput): boolean => typeof input.levers.cpfSelf.roomToLimit === 'number';
+    const months = (input: PlannerInput): number => input.income.monthsWorked ?? 12;
+
+    // The Parenthood Tax Rebate tick: true, false and left out.
+    expect(count(clean, (input) => input.profile.hasUnusedParenthoodTaxRebate === true)).toBeGreaterThan(1_200);
+    expect(count(clean, (input) => input.profile.hasUnusedParenthoodTaxRebate === false)).toBeGreaterThan(1_200);
+    expect(count(clean, (input) => !('hasUnusedParenthoodTaxRebate' in input.profile))).toBeGreaterThan(2_000);
+
+    // SPEC §6.5: the age-55 boundary and older, each with a room entered, with null and with the field left out.
+    for (const [label, inBand, minimum] of [
+      ['54', (age: number) => age === 54, 60],
+      ['55', (age: number) => age === 55, 60],
+      ['over 55', (age: number) => age > 55, 300],
+    ] as const) {
+      const band = clean.filter((input) => inBand(input.profile.ageAtYearEnd));
+      expect(count(band, hasRoom), `${label}, room entered`).toBeGreaterThan(minimum);
+      expect(count(band, (input) => input.levers.cpfSelf.roomToLimit === null), `${label}, room null`).toBeGreaterThan(minimum / 2);
+      expect(count(band, (input) => !('roomToLimit' in input.levers.cpfSelf)), `${label}, room left out`).toBeGreaterThan(minimum);
+      // …with the person's own CPF switched on for a citizen or PR, so that the room decides the plan.
+      const decisive = band.filter((input) => input.levers.cpfSelf.enabled && input.profile.residency !== 'foreigner');
+      expect(count(decisive, hasRoom), `${label}, own CPF on, room entered`).toBeGreaterThan(minimum / 2);
+      expect(count(decisive, (input) => !hasRoom(input)), `${label}, own CPF on, room blank`).toBeGreaterThan(minimum / 2);
+    }
+    // A room at or above the S$8,000 cap from 55 ("entering any number confirms it"), and a room of S$0.
+    const from55 = clean.filter((input) => input.profile.ageAtYearEnd >= 55);
+    expect(count(from55, (input) => (input.levers.cpfSelf.roomToLimit ?? -1) >= 8_000)).toBeGreaterThan(40);
+    expect(count(from55, (input) => input.levers.cpfSelf.roomToLimit === 0)).toBeGreaterThan(40);
+
+    // SPEC §6.11: foreigners who worked six months or fewer, exactly six, exactly seven, and longer.
+    const foreigners = clean.filter((input) => input.profile.residency === 'foreigner');
+    expect(count(foreigners, (input) => months(input) < 6)).toBeGreaterThan(150);
+    expect(count(foreigners, (input) => months(input) === 6)).toBeGreaterThan(40);
+    expect(count(foreigners, (input) => months(input) === 7)).toBeGreaterThan(40);
+    expect(count(foreigners, (input) => months(input) > 7)).toBeGreaterThan(600);
+    expect(count(foreigners, (input) => input.levers.srs.enabled && input.profile.ageAtYearEnd >= 18)).toBeGreaterThan(700);
+    expect(count(foreigners, (input) => !input.levers.srs.enabled)).toBeGreaterThan(200);
+
+    // Family top-ups: already made (scheme on and off) and planned (by the test's own model of SPEC §6.6, not the engine).
+    const givers = clean.filter((input) => input.profile.residency !== 'foreigner');
+    const planned = (input: PlannerInput): number => specPlan(specSanitise(input)).contributions.cpfFamily;
+    expect(count(givers, (input) => input.existing.cpfTopUpFamily > 0 && input.levers.cpfFamily.enabled)).toBeGreaterThan(500);
+    expect(count(givers, (input) => input.existing.cpfTopUpFamily > 0 && !input.levers.cpfFamily.enabled)).toBeGreaterThan(500);
+    expect(count(givers, (input) => planned(input) > 0)).toBeGreaterThan(400);
+    expect(count(givers, (input) => planned(input) > 0 && input.existing.cpfTopUpFamily > 0)).toBeGreaterThan(100);
+    // …and people from 55 whose own CPF gets money because a room was entered.
+    expect(count(from55, (input) => specPlan(specSanitise(input)).contributions.cpfSelf > 0)).toBeGreaterThan(100);
+    expect(count(foreigners, (input) => input.existing.cpfTopUpFamily > 0)).toBeGreaterThan(300);
+
+    // The messy set: the flag and the room as something that is not a boolean / not a number, and odd ages and months.
+    const shaped = messy as { profile: Record<string, unknown>; income: Record<string, unknown>; levers: { cpfSelf: Record<string, unknown> } }[];
+    const flags = shaped.filter((input) => 'hasUnusedParenthoodTaxRebate' in input.profile).map((input) => input.profile.hasUnusedParenthoodTaxRebate);
+    expect(flags.filter((flag) => flag === true).length).toBeGreaterThan(150);
+    expect(flags.filter((flag) => flag === false).length).toBeGreaterThan(150);
+    expect(flags.filter((flag) => typeof flag !== 'boolean').length).toBeGreaterThan(15);
+    expect(shaped.filter((input) => !('hasUnusedParenthoodTaxRebate' in input.profile)).length).toBeGreaterThan(300);
+    const rooms = shaped.filter((input) => 'roomToLimit' in input.levers.cpfSelf).map((input) => input.levers.cpfSelf.roomToLimit);
+    expect(rooms.filter((room) => room !== null && typeof room !== 'number').length).toBeGreaterThan(10);
+    expect(rooms.filter((room) => typeof room === 'number' && (room < 0 || !Number.isInteger(room))).length).toBeGreaterThan(5);
+    expect(shaped.filter((input) => typeof input.profile.ageAtYearEnd === 'number' && !Number.isInteger(input.profile.ageAtYearEnd)).length).toBeGreaterThan(10);
+    expect(shaped.filter((input) => typeof input.income.monthsWorked === 'number' && !Number.isInteger(input.income.monthsWorked)).length).toBeGreaterThan(10);
   });
 
   it(`engine and reference agree on every field for ${CLEAN_COUNT} valid inputs`, () => {

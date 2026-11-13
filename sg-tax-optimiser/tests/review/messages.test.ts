@@ -5,7 +5,7 @@
  * that every dollar figure and every claim in them is true for that user.
  */
 import { describe, expect, it } from 'vitest';
-import { defaultInput, plan } from '../../src/engine';
+import { defaultInput, getRules, grossTax, plan } from '../../src/engine';
 import type { PlannerInput, PlannerResult, WarningCode } from '../../src/engine';
 import { seededInputs } from '../support/generators';
 
@@ -31,6 +31,7 @@ const dollarFigures = (text: string): number[] =>
 describe('BUDGET_LIMITS_PLAN', () => {
   it('quotes the cash limit and, when the relief cap is next in line, exactly what more cash would save (Appendix A.2)', () => {
     // A.2: budget 20,000; C = 20,640 < L = 26,300. With no cash limit X = 20,640 and the saving rises by 96.00.
+    // (At 57 the CPF top-up room must be entered, SPEC §6.5: A.2 gives 50,000, so the S$8,000 cap is the limit.)
     const a2 = (budget: number | null): PlannerInput =>
       opening((i) => {
         i.profile = { residency: 'pr', prYear: 3, ageAtYearEnd: 57, birthMonth: 6 };
@@ -38,6 +39,7 @@ describe('BUDGET_LIMITS_PLAN', () => {
         i.income.additionalWages = 40_000;
         i.otherReliefs = 30_000;
         i.existing.srs = 5_000;
+        i.levers.cpfSelf = { enabled: true, roomToLimit: 50_000 };
         i.levers.cpfFamily = { enabled: true, maxAmount: 8_000 };
         i.preferences = { cashBudget: budget, minSavingRate: 0, priority: ['cpfSelf', 'srs', 'cpfFamily'], simulatorStep: 1_000 };
       });
@@ -285,7 +287,10 @@ describe('what-stops-the-plan messages on 4,000 seeded inputs (SPEC §6.11)', ()
       if (room > 0) expect(w.message).toMatch(/^The plan uses all S\$[\d,]+ of room left in the schemes you switched on\./);
       else if (on.length === 0) expect(w.message).toMatch(/^No scheme is switched on, so nothing can be contributed\./);
       else if (on.every((lever) => !r.levers[lever].eligible)) expect(w.message).toMatch(/^None of the schemes you switched on is open to you, so nothing can be contributed\./);
-      else expect(w.message).toMatch(/^The schemes you switched on have no room left this year, so nothing more can be contributed\./);
+      else if (r.levers.cpfSelf.enabled && r.levers.cpfSelf.eligible && r.input.profile.ageAtYearEnd >= 55 && (r.input.levers.cpfSelf.roomToLimit ?? null) === null) {
+        // §6.5: from 55 a blank room is "not confirmed", so the sentence says the figure is awaited, not that the scheme is full.
+        expect(w.message).toMatch(/^Nothing can be contributed yet: your own CPF is left out until you enter its room, and no other scheme you switched on has room left\./);
+      } else expect(w.message).toMatch(/^The schemes you switched on have no room left this year, so nothing more can be contributed\./);
     }
     expect(fired).toBeGreaterThan(300);
     expect(belowUnrealised).toBeGreaterThan(100);
@@ -324,7 +329,14 @@ describe('every dollar figure in every message is one of the result\'s own numbe
     ['relief cap binds', opening((i) => (i.otherReliefs = 40_000))],
     ['existing over the caps', opening((i) => (i.existing = { srs: 20_000, cpfTopUpSelf: 9_500, cpfTopUpFamily: 8_001 }))],
     ['override above the maximum', opening((i) => (i.income.employeeCpfOverride = 25_000))],
-    ['55 plus', opening((i) => (i.profile.ageAtYearEnd = 60))],
+    ['55 plus, CPF room left blank', opening((i) => (i.profile.ageAtYearEnd = 60))],
+    ['55 plus, CPF room entered', opening((i) => { i.profile.ageAtYearEnd = 60; i.levers.cpfSelf = { enabled: true, roomToLimit: 6_500 }; })],
+    ['55 plus, CPF room entered above the cap', opening((i) => { i.profile.ageAtYearEnd = 57; i.levers.cpfSelf = { enabled: true, roomToLimit: 50_000 }; })],
+    ['family top-up in the plan', opening((i) => (i.levers.cpfFamily = { enabled: true, maxAmount: null }))],
+    ['family top-up already made, 2025', opening((i) => { i.incomeYear = 2025; i.today = '2025-10-05'; i.existing.cpfTopUpFamily = 3_000; })],
+    ['foreigner whose plan reaches the 7% rung', opening((i) => { i.profile = { residency: 'foreigner', ageAtYearEnd: 35 }; i.income.monthlyOrdinaryWage = 7_000; i.income.additionalWages = 7_000; i.otherReliefs = 0; })],
+    ['foreigner who worked six months', opening((i) => { i.profile = { residency: 'foreigner', ageAtYearEnd: 35 }; i.income.monthsWorked = 6; })],
+    ['unused Parenthood Tax Rebate', opening((i) => (i.profile.hasUnusedParenthoodTaxRebate = true))],
     ['after the deadline', opening((i) => (i.today = '2027-01-10'))],
     ['deadline tomorrow', opening((i) => (i.today = '2026-12-30'))],
   ];
@@ -352,6 +364,13 @@ describe('every dollar figure in every message is one of the result\'s own numbe
       cents(r.baseline.reliefs.totalBeforeCap),
       cents(r.baseline.reliefs.lostToCap),
       cents(r.rules.cpfTopUp.fullRetirementSum),
+      cents(r.rules.cpfTopUp.enhancedRetirementSum),
+      cents(r.rules.cpfTopUp.matchedTopUps.retirementAnnualCap),
+      cents(r.rules.cpfTopUp.matchedTopUps.mediSaveAnnualCap ?? 0),
+      // The CPF top-up room as the person entered it (AGE_55_PLUS_TOPUP quotes it, even above the S$8,000 cap).
+      cents(r.input.levers.cpfSelf.roomToLimit ?? 0),
+      // The plan's dollars on ladder rungs below 7.5 cents per dollar (SRS_NON_RESIDENT_WITHDRAWAL).
+      cents(r.ladder.filter((tier) => tier.rate < 0.075).reduce((total, tier) => total + tier.usedByPlan, 0)),
       cents(r.rules.srs.capForeigner),
       cents(r.levers.srs.room + r.levers.cpfSelf.room + r.levers.cpfFamily.room),
       cents(r.input.preferences.cashBudget ?? 0),
@@ -429,5 +448,153 @@ describe('every dollar figure in every message is one of the result\'s own numbe
     expect(r.plan.unrealisedSaving).toBe(0.07);
     expect(message(r, 'BUDGET_LIMITS_PLAN')).toContain('S$0.07');
     expect(dollarFigures(message(r, 'BUDGET_LIMITS_PLAN')).sort((a, b) => a - b)).toEqual([7, 480_000]);
+  });
+});
+
+describe('SRS_NON_RESIDENT_WITHDRAWAL: the amount called out is exactly the plan dollars that save less than 7.5 cents', () => {
+  const rules = getRules(2026);
+  const BASE =
+    "If you have left Singapore when you withdraw, SRS is taxed as a non-resident's: at least 7.5 cents per dollar " +
+    'withdrawn at retirement age or under the 10-year rule for foreigners, and at least 20 cents if earlier.';
+  const dollars = (amount: number): string => `S$${amount.toLocaleString('en-US')}`;
+
+  it('on a grid of foreigners, counted dollar by dollar from the tax table', () => {
+    let checked = 0;
+    let withAmount = 0;
+    for (const wage of [2_500, 4_000, 6_000, 7_000, 9_000, 14_000, 30_000]) {
+      for (const minRate of [0, 0.02, 0.07, 0.075, 0.115]) {
+        for (const budget of [null, 3_000, 12_000]) {
+          const input = opening((i) => {
+            i.profile = { residency: 'foreigner', ageAtYearEnd: 40 };
+            i.income.monthlyOrdinaryWage = wage;
+            i.income.additionalWages = wage;
+            i.otherReliefs = 0;
+            i.preferences = { cashBudget: budget, minSavingRate: minRate, priority: ['srs', 'cpfSelf', 'cpfFamily'], simulatorStep: 1_000 };
+          });
+          const r = plan(input);
+          const w = r.warnings.find((x) => x.code === 'SRS_NON_RESIDENT_WITHDRAWAL');
+          if (!w) throw new Error('a foreigner with SRS on must get the caution');
+          // Plan dollar d takes chargeable income from CI0 - d + 1 to CI0 - d. What it saves is the tax on that one
+          // dollar of income (the plan never passes the relief cap, so every plan dollar is a dollar of relief).
+          const ci0 = r.baseline.chargeableIncome;
+          let low = 0;
+          for (let d = 1; d <= r.plan.totalContribution; d++) {
+            const saved = cents(grossTax(ci0 - d + 1, rules)) - cents(grossTax(ci0 - d, rules));
+            if (saved < 7.5) low += 1;
+          }
+          checked += 1;
+          if (low > 0) withAmount += 1;
+          expect({ wage, minRate, budget, lowValueAmount: w.params?.lowValueAmount }).toEqual({ wage, minRate, budget, lowValueAmount: low });
+          expect(w.message).toBe(low > 0 ? `${BASE} ${dollars(low)} of this plan saves less than 7.5 cents per dollar today.` : BASE);
+          // Never more than the plan itself.
+          expect(low).toBeLessThanOrEqual(r.plan.totalContribution);
+        }
+      }
+    }
+    expect(checked).toBe(105);
+    // By hand (chargeable income = 13 x wage - 1,000 of Earned Income Relief; only minimums 0, 2% and 7% can
+    // reach a rung below 7.5 cents):
+    //   2,500 -> CI 31,500 (3.5% and 2% rungs): every plan at 0 and 2% is low (3 budgets each), none at 7%   = 6
+    //   4,000 -> CI 51,000 and 6,000 -> CI 77,000 (7% rung and below): every plan is low, 3 rates x 3 budgets = 9 + 9
+    //   7,000 -> CI 90,000 (10,000 at 11.5%, then 7%): low unless the cash limit is 3,000, 3 rates x 2        = 6
+    //   9,000, 14,000 and 30,000: the first 35,700 dollars are all at 11.5% or more                            = 0
+    expect(withAmount).toBe(30);
+  });
+
+  it('a minimum of 7.5% or more never leaves an amount to call out', () => {
+    for (const input of seededInputs(1_500, 75_075, { maxMoney: 400_000 })) {
+      const r = plan(input);
+      const w = r.warnings.find((x) => x.code === 'SRS_NON_RESIDENT_WITHDRAWAL');
+      if (!w || r.input.preferences.minSavingRate < 0.075) continue;
+      expect(w.params?.lowValueAmount).toBe(0);
+      expect(w.message).toBe(BASE);
+    }
+  });
+});
+
+describe('the cautions about what the tool cannot see say only true things about this person (SPEC §6.11)', () => {
+  const inputs = seededInputs(4_000, 60_611, { maxMoney: 400_000 });
+
+  it('CPF_SELF_ROOM_UNCONFIRMED: own CPF really is left out, and entering the full room would bring it back', () => {
+    let fired = 0;
+    let broughtBack = 0;
+    for (const input of inputs) {
+      const r = plan(input);
+      const w = r.warnings.find((x) => x.code === 'CPF_SELF_ROOM_UNCONFIRMED');
+      if (!w) continue;
+      fired += 1;
+      // "Your own CPF is left out": nothing is planned for it, and no scenario uses it either.
+      expect(r.plan.contributions.cpfSelf).toBe(0);
+      expect(r.levers.cpfSelf.room).toBe(0);
+      expect(r.scenarios.every((scenario) => scenario.contributions.cpfSelf === 0)).toBe(true);
+      expect(r.simulator.every((row) => row.split.cpfSelf === 0)).toBe(true);
+      // "until you enter how much you can still top up": with a figure the caution is replaced by the note.
+      const confirmed = plan({ ...input, levers: { ...input.levers, cpfSelf: { enabled: true, roomToLimit: 8_000 } } });
+      expect(confirmed.warnings.map((x) => x.code)).not.toContain('CPF_SELF_ROOM_UNCONFIRMED');
+      expect(confirmed.warnings.map((x) => x.code)).toContain('AGE_55_PLUS_TOPUP');
+      expect(confirmed.levers.cpfSelf.room).toBe(r.levers.cpfSelf.statutoryCap - r.levers.cpfSelf.used);
+      if (confirmed.plan.contributions.cpfSelf > 0) broughtBack += 1;
+      // The sums quoted are the year's.
+      expect(w.message).toContain(`S$${r.rules.cpfTopUp.enhancedRetirementSum.toLocaleString('en-US')}`);
+      expect(w.message).toContain(`S$${r.rules.cpfTopUp.fullRetirementSum.toLocaleString('en-US')}`);
+    }
+    expect(fired).toBeGreaterThan(100);
+    expect(broughtBack).toBeGreaterThan(20);
+  });
+
+  it('AGE_55_PLUS_TOPUP: "the plan uses the room you entered" — never more than that room', () => {
+    let fired = 0;
+    for (const input of inputs) {
+      const r = plan(input);
+      const w = r.warnings.find((x) => x.code === 'AGE_55_PLUS_TOPUP');
+      if (!w) continue;
+      fired += 1;
+      const room = r.input.levers.cpfSelf.roomToLimit;
+      expect(room).not.toBeNull();
+      expect(r.plan.contributions.cpfSelf).toBeLessThanOrEqual(room ?? 0);
+      expect(w.message).toContain(`The plan uses the room you entered (S$${(room ?? 0).toLocaleString('en-US')});`);
+    }
+    expect(fired).toBeGreaterThan(30);
+  });
+
+  it('FAMILY_TOPUP_CHECKS: shown exactly when there is a family top-up that can earn this person relief', () => {
+    let fired = 0;
+    let silent = 0;
+    for (const input of inputs) {
+      const r = plan(input);
+      const shown = r.warnings.some((x) => x.code === 'FAMILY_TOPUP_CHECKS');
+      const hasTopUp = r.plan.contributions.cpfFamily > 0 || r.input.existing.cpfTopUpFamily > 0;
+      const canEarnRelief = r.input.profile.residency !== 'foreigner';
+      expect({ input, shown }).toEqual({ input, shown: hasTopUp && canEarnRelief });
+      if (shown) fired += 1;
+      else silent += 1;
+    }
+    expect(fired).toBeGreaterThan(300);
+    expect(silent).toBeGreaterThan(300);
+  });
+
+  it('TAX_RESIDENCY_CHECK and PARENTHOOD_TAX_REBATE change no figure: the same plan with and without them', () => {
+    let residency = 0;
+    let rebate = 0;
+    for (const input of inputs.slice(0, 1_500)) {
+      const r = plan(input);
+      const codes = r.warnings.map((x) => x.code);
+      if (codes.includes('TAX_RESIDENCY_CHECK')) {
+        residency += 1;
+        expect(r.input.profile.residency).toBe('foreigner');
+        expect(r.input.income.monthsWorked).toBeLessThanOrEqual(6);
+      }
+      // Ticking the box on the same input adds the caution and nothing else.
+      const ticked = plan({ ...input, profile: { ...input.profile, hasUnusedParenthoodTaxRebate: true } });
+      const unticked = plan({ ...input, profile: { ...input.profile, hasUnusedParenthoodTaxRebate: false } });
+      expect(ticked.plan).toEqual(unticked.plan);
+      expect(ticked.baseline).toEqual(unticked.baseline);
+      expect(ticked.warnings.filter((x) => x.code !== 'PARENTHOOD_TAX_REBATE')).toEqual(unticked.warnings);
+      expect(ticked.warnings.map((x) => x.code)).toContain('PARENTHOOD_TAX_REBATE');
+      expect(unticked.warnings.map((x) => x.code)).not.toContain('PARENTHOOD_TAX_REBATE');
+      rebate += 1;
+    }
+    expect(residency).toBeGreaterThan(10);
+    expect(rebate).toBe(1_500);
   });
 });

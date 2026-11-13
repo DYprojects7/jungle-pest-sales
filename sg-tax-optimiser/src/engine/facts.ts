@@ -11,6 +11,7 @@
  */
 import { formatLongDate, parseIsoDate } from './dates';
 import { formatDollars, formatPercent } from './format';
+import { RETIREMENT_ACCOUNT_AGE } from './levers';
 import type { LeverId, Residency, YearRules } from './types';
 
 /** The two things about a person that change the wording. */
@@ -49,9 +50,6 @@ export interface LockUpHorizon {
   /** Whole years from the person's age to `cpfPayoutAge` (0 if already there). */
   cpfYears: number;
 }
-
-/** From this age a member has a Retirement Account, and the CPF Board accepts top-ups that earn no relief. */
-const RETIREMENT_ACCOUNT_AGE = 55;
 
 /** Income a spouse or sibling may have earned, in the year before the top-up, to count as a family member. */
 const FAMILY_INCOME_LIMIT = 8_000;

@@ -89,6 +89,8 @@ interface Clean {
   prYear: 1 | 2 | 3;
   age: number;
   birthMonth: number;
+  /** The "I have unused Parenthood Tax Rebate" tick-box. */
+  ptr: boolean;
   ow: number;
   months: number;
   aw: number;
@@ -111,7 +113,7 @@ function toInput(c: Clean): PlannerInput {
   return {
     incomeYear: c.incomeYear,
     today: c.today,
-    profile: { residency: c.residency, prYear: c.prYear, ageAtYearEnd: c.age, birthMonth: c.birthMonth },
+    profile: { residency: c.residency, prYear: c.prYear, ageAtYearEnd: c.age, birthMonth: c.birthMonth, hasUnusedParenthoodTaxRebate: c.ptr },
     income: {
       monthlyOrdinaryWage: c.ow,
       monthsWorked: c.months,
@@ -233,6 +235,8 @@ function oracleLevers(c: Clean): Caps {
     used[lever] = Math.min(existing[lever], cap[lever]);
     let left = cap[lever] - used[lever];
     if (lever === 'cpfSelf' && c.roomToLimit !== null) left = Math.min(left, c.roomToLimit);
+    // SPEC §6.5 "Room must be confirmed from age 55": a blank room is then no room at all.
+    if (lever === 'cpfSelf' && c.roomToLimit === null && c.age >= 55) left = 0;
     if (lever === 'cpfFamily' && c.maxAmount !== null) left = Math.min(left, c.maxAmount);
     roomIfEnabled[lever] = left;
     room[lever] = eligible[lever] && on[lever] ? left : 0;
@@ -329,8 +333,13 @@ const SEVERITY: Record<string, string> = {
   EXISTING_EXCEEDS_CAP: 'caution',
   CPF_OVERRIDE_ABOVE_MAX: 'caution',
   FOREIGNER_NO_CPF: 'info',
+  TAX_RESIDENCY_CHECK: 'caution',
+  SRS_NON_RESIDENT_WITHDRAWAL: 'caution',
   PR_GRADUATED_RATES: 'info',
+  CPF_SELF_ROOM_UNCONFIRMED: 'caution',
   AGE_55_PLUS_TOPUP: 'info',
+  FAMILY_TOPUP_CHECKS: 'caution',
+  PARENTHOOD_TAX_REBATE: 'caution',
   SRS_UNDER_18: 'caution',
   DEADLINE_PASSED: 'blocker',
   DEADLINE_SOON: 'caution',
@@ -488,8 +497,20 @@ function oracle(c: Clean) {
   }
   if (c.residency !== 'foreigner' && c.override !== null && c.override > 20_400) warnings.push('CPF_OVERRIDE_ABOVE_MAX');
   if (c.residency === 'foreigner') warnings.push('FOREIGNER_NO_CPF');
+  if (c.residency === 'foreigner' && c.months <= 6) warnings.push('TAX_RESIDENCY_CHECK');
+  // §6.11 lowValueAmount, dollar by dollar: the plan's dollars that each save less than 7.5 cents (75 per mille).
+  let lowValue: number | null = null;
+  if (c.residency === 'foreigner' && c.on.srs && c.age >= 18) {
+    warnings.push('SRS_NON_RESIDENT_WITHDRAWAL');
+    lowValue = 0;
+    for (let d = 1; d <= X; d++) if (perMilleOfContributionDollar(d) < 75) lowValue++;
+  }
   if (c.residency === 'pr' && c.prYear < 3) warnings.push('PR_GRADUATED_RATES');
-  if (c.age >= 55 && c.on.self && c.residency !== 'foreigner') warnings.push('AGE_55_PLUS_TOPUP');
+  const ownTopUpFrom55 = c.age >= 55 && c.on.self && c.residency !== 'foreigner';
+  if (ownTopUpFrom55 && c.roomToLimit === null) warnings.push('CPF_SELF_ROOM_UNCONFIRMED');
+  if (ownTopUpFrom55 && c.roomToLimit !== null) warnings.push('AGE_55_PLUS_TOPUP');
+  if (c.residency !== 'foreigner' && (contributions.cpfFamily > 0 || c.existing.family > 0)) warnings.push('FAMILY_TOPUP_CHECKS');
+  if (c.ptr) warnings.push('PARENTHOOD_TAX_REBATE');
   if (c.age < 18) warnings.push('SRS_UNDER_18');
   if (days < 0) warnings.push('DEADLINE_PASSED');
   if (days >= 0 && days <= 14 && X > 0) warnings.push('DEADLINE_SOON');
@@ -501,6 +522,7 @@ function oracle(c: Clean) {
     ladder, simulator, scenarios,
     monthly: { deadline, days, monthsRemaining, schedule, fullYear: { ...fullYear, total: sum(fullYear) } },
     warnings,
+    lowValue,
   };
 }
 
@@ -570,6 +592,7 @@ function view(r: PlannerResult, o: ReturnType<typeof oracle>) {
       fullYear: r.monthlyPlan.fullYearMonthly,
     },
     warnings: r.warnings.map((w) => w.code),
+    lowValue: r.warnings.find((w) => w.code === 'SRS_NON_RESIDENT_WITHDRAWAL')?.params?.lowValueAmount ?? null,
   };
 }
 
@@ -593,6 +616,7 @@ function expected(o: ReturnType<typeof oracle>) {
     scenarios: o.scenarios,
     monthly: o.monthly,
     warnings: o.warnings,
+    lowValue: o.lowValue,
   };
 }
 
@@ -611,6 +635,9 @@ function mulberry32(seed: number): () => number {
 
 function generator(seed: number) {
   const random = mulberry32(seed);
+  // The tick-box comes from a stream of its own, so every other field of every profile is what it was before the
+  // tick-box existed.
+  const tickBox = mulberry32(seed ^ 0x51ed_270b);
   const int = (lo: number, hi: number): number => lo + Math.floor(random() * (hi - lo + 1));
   const pick = <T>(items: readonly T[]): T => items[int(0, items.length - 1)]!;
   const chance = (p: number): boolean => random() < p;
@@ -632,6 +659,7 @@ function generator(seed: number) {
       prYear: pick([1, 2, 3, 3]),
       age: edgeOr([16, 17, 18, 19, 30, 54, 55, 56, 59, 60, 61, 64, 65, 66, 69, 70, 71, 85], 16, 80, 0.7),
       birthMonth: int(1, 12),
+      ptr: tickBox() < 0.2,
       ow: chance(0.25)
         ? pick([0, 1, 499, 500, 501, 502, 503, 600, 749, 750, 751, 752, 1_000])
         : edgeOr([3_000, 5_555, 7_399, 7_400, 7_401, 7_999, 8_000, 8_001, 12_000, 20_000, 60_000], 2_000, 30_000, 0.4),
@@ -710,7 +738,7 @@ describe('oracle self-checks (so that a wrong oracle cannot hide behind a wrong 
 
   it('reproduces Appendix A.1, A.2 and A.3', () => {
     const a1: Clean = {
-      incomeYear: 2026, today: '2026-11-13', residency: 'citizen', prYear: 3, age: 35, birthMonth: 12,
+      incomeYear: 2026, today: '2026-11-13', residency: 'citizen', prYear: 3, age: 35, birthMonth: 12, ptr: false,
       ow: 10_000, months: 12, aw: 15_000, otherIncome: 0, expenses: 0, donations: 0, override: null,
       existing: { srs: 0, self: 0, family: 0 }, otherReliefs: 5_000, on: { srs: true, self: true, family: false },
       roomToLimit: null, maxAmount: null, budget: null, minRate: 0.07, priority: ['srs', 'cpfSelf', 'cpfFamily'], step: 1_000,
@@ -720,9 +748,12 @@ describe('oracle self-checks (so that a wrong oracle cannot hide behind a wrong 
     expect([o1.U, o1.C, o1.L, o1.X, o1.binding]).toEqual([68_600, 53_600, 23_300, 23_300, 'leverLimits']);
     expect([o1.after.taxCents, o1.unrealisedCents]).toEqual([395_950, 235_950]);
 
+    expect(o1.warnings).toEqual(['LEVER_LIMITS_PLAN']);
+
+    // A.2: the CPF self room is entered (50,000) — at 57 it must be (§6.5).
     const a2: Clean = {
       ...a1, residency: 'pr', age: 57, birthMonth: 6, ow: 14_000, aw: 40_000, otherReliefs: 30_000,
-      existing: { srs: 5_000, self: 0, family: 0 }, on: { srs: true, self: true, family: true }, maxAmount: 8_000,
+      existing: { srs: 5_000, self: 0, family: 0 }, on: { srs: true, self: true, family: true }, roomToLimit: 50_000, maxAmount: 8_000,
       budget: 20_000, minRate: 0, priority: ['cpfSelf', 'srs', 'cpfFamily'],
     };
     const o2 = oracle(a2);
@@ -734,6 +765,15 @@ describe('oracle self-checks (so that a wrong oracle cannot hide behind a wrong 
       [0, 20_640, 0.15, undefined, 309_600],
       [20_640, 26_300, 0, 'reliefCap', 0],
     ]);
+    expect(o2.warnings).toEqual(['BUDGET_LIMITS_PLAN', 'AGE_55_PLUS_TOPUP', 'FAMILY_TOPUP_CHECKS']);
+
+    // A.2b: the same person with the room left blank — CPF self room 0, L = 18,300, X = 18,300 (leverLimits).
+    const o2b = oracle({ ...a2, roomToLimit: null });
+    expect(o2b.caps.room).toEqual({ srs: 10_300, cpfSelf: 0, cpfFamily: 8_000 });
+    expect([o2b.U, o2b.C, o2b.L, o2b.X, o2b.binding]).toEqual([128_640, 20_640, 18_300, 18_300, 'leverLimits']);
+    expect(o2b.contributions).toEqual({ srs: 10_300, cpfSelf: 0, cpfFamily: 8_000 });
+    expect([o2b.after.chargeableIncome, o2b.after.taxCents, o2b.base.taxCents - o2b.after.taxCents]).toEqual([130_340, 950_100, 274_500]);
+    expect(o2b.warnings).toEqual(['LEVER_LIMITS_PLAN', 'CPF_SELF_ROOM_UNCONFIRMED', 'FAMILY_TOPUP_CHECKS']);
 
     const a3: Clean = { ...a1, age: 28, ow: 3_500, aw: 3_500, otherReliefs: 0 };
     const o3 = oracle(a3);
@@ -784,8 +824,14 @@ describe('engine vs brute-force oracle', () => {
     let multiTier = 0;
     let twoLevers = 0;
     let scheduled = 0;
+    let lowValuePlans = 0;
+    let roomHeldBack = 0;
     for (let i = 0; i < 1_200; i++) {
-      const o = compare(next());
+      const c = next();
+      const o = compare(c);
+      if ((o.lowValue ?? 0) > 0) lowValuePlans++;
+      // People of 55 or over whose blank room is what keeps their own CPF out of the plan (§6.5).
+      if (c.age >= 55 && c.roomToLimit === null && c.on.self && o.caps.cap.cpfSelf > o.caps.used.cpfSelf && o.caps.room.cpfSelf === 0) roomHeldBack++;
       o.warnings.forEach((w) => warnings.add(w));
       bindings.add(o.binding);
       o.ladder.forEach((t) => t.zero && zeroReasons.add(t.zero));
@@ -806,6 +852,9 @@ describe('engine vs brute-force oracle', () => {
       twoLevers: true,
       scheduled: true,
     });
+    // The rule audit's additions are really exercised: foreigners whose plan reaches the rungs below 7.5 cents,
+    // and people from 55 whose own CPF is left out because the room is blank.
+    expect({ lowValuePlans, roomHeldBack, enough: lowValuePlans >= 10 && roomHeldBack >= 100 }).toEqual({ lowValuePlans, roomHeldBack, enough: true });
   });
 
   it('400 low-bracket profiles whose ladders cross the 7% / 3.5% / 2% / 0% bands', () => {
@@ -814,6 +863,7 @@ describe('engine vs brute-force oracle', () => {
     const int = (lo: number, hi: number): number => lo + Math.floor(random() * (hi - lo + 1));
     let threeTiers = 0;
     let fourTiers = 0;
+    let lowValuePlans = 0;
     for (let i = 0; i < 400; i++) {
       const c = next();
       c.residency = random() < 0.8 ? 'citizen' : 'foreigner';
@@ -833,8 +883,12 @@ describe('engine vs brute-force oracle', () => {
       const o = compare(c);
       if (o.ladder.length >= 3) threeTiers++;
       if (o.ladder.length >= 4) fourTiers++;
+      if ((o.lowValue ?? 0) > 0) lowValuePlans++;
     }
     expect({ threeTiers: threeTiers > 150, fourTiers: fourTiers > 40 }).toEqual({ threeTiers: true, fourTiers: true });
+    // About one profile in five is a foreigner, most of them planning down to rungs that save less than 7.5 cents
+    // per dollar: SRS_NON_RESIDENT_WITHDRAWAL's lowValueAmount is compared on plenty of non-zero cases.
+    expect({ lowValuePlans, enough: lowValuePlans >= 30 }).toEqual({ lowValuePlans, enough: true });
   });
 
   it('700 profiles engineered so that U, C, L and B coincide or differ by one dollar', () => {
@@ -856,7 +910,7 @@ describe('engine vs brute-force oracle', () => {
         if (residency === 'pr' && incomeYear !== 2026) continue; // graduated tables are the same in every year
         for (const age of [30, 58, 62, 67, 75]) {
           const base: Clean = {
-            incomeYear, today: `${incomeYear}-06-15`, residency, prYear, age, birthMonth: 12,
+            incomeYear, today: `${incomeYear}-06-15`, residency, prYear, age, birthMonth: 12, ptr: false,
             ow: 0, months: 12, aw: 0, otherIncome: 0, expenses: 0, donations: 0, override: null,
             existing: { srs: 0, self: 0, family: 0 }, otherReliefs: 0, on: { srs: false, self: false, family: false },
             roomToLimit: null, maxAmount: null, budget: null, minRate: 0, priority: ['srs', 'cpfSelf', 'cpfFamily'], step: 1_000,
@@ -894,7 +948,7 @@ describe('engine vs brute-force oracle', () => {
   it('end to end: plan() lands on the same chargeable income and tax around every bracket boundary', () => {
     // A foreigner with other income only has no reliefs at all, so chargeable income = other income.
     const base: Clean = {
-      incomeYear: 2026, today: '2026-06-15', residency: 'foreigner', prYear: 3, age: 40, birthMonth: 12,
+      incomeYear: 2026, today: '2026-06-15', residency: 'foreigner', prYear: 3, age: 40, birthMonth: 12, ptr: false,
       ow: 0, months: 12, aw: 0, otherIncome: 0, expenses: 0, donations: 0, override: null,
       existing: { srs: 0, self: 0, family: 0 }, otherReliefs: 0, on: { srs: false, self: false, family: false },
       roomToLimit: null, maxAmount: null, budget: null, minRate: 0, priority: ['srs', 'cpfSelf', 'cpfFamily'], step: 1_000,

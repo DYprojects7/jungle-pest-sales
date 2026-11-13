@@ -79,6 +79,8 @@ function specSanitise(raw: unknown, incomeYear: number) {
       prYear: profile.prYear === 1 || profile.prYear === 2 ? profile.prYear : 3,
       ageAtYearEnd: specClamped(profile.ageAtYearEnd, 0, 120, 0),
       birthMonth: specClamped(profile.birthMonth, 1, 12, 12),
+      // "`profile.hasUnusedParenthoodTaxRebate` is likewise `true` only for the boolean `true`, otherwise `false`."
+      hasUnusedParenthoodTaxRebate: typeof profile.hasUnusedParenthoodTaxRebate === 'boolean' && profile.hasUnusedParenthoodTaxRebate,
     },
     income: {
       monthlyOrdinaryWage: specMoney(income.monthlyOrdinaryWage),
@@ -166,6 +168,7 @@ function hostileInput(random: () => number, incomeYear: number): unknown {
     field(o, 'prYear', pick(PR_YEARS));
     field(o, 'ageAtYearEnd', pick(HOSTILE));
     field(o, 'birthMonth', pick(HOSTILE));
+    field(o, 'hasUnusedParenthoodTaxRebate', pick(BOOLS));
     return o;
   });
   input.income = maybeSection(() => {
@@ -230,7 +233,7 @@ describe('SPEC §6.0 — sanitiseInput against an independent restatement of the
     for (const raw of [{ incomeYear: 2026 }, { incomeYear: 2026, profile: null, income: 5, existing: 'x', levers: [], preferences: true }]) {
       const s = sanitiseInput(raw as unknown as PlannerInput);
       expect(s).toEqual(specSanitise(raw, 2026));
-      expect(s.profile).toEqual({ residency: 'citizen', prYear: 3, ageAtYearEnd: 0, birthMonth: 12 });
+      expect(s.profile).toEqual({ residency: 'citizen', prYear: 3, ageAtYearEnd: 0, birthMonth: 12, hasUnusedParenthoodTaxRebate: false });
       expect(s.income).toEqual({
         monthlyOrdinaryWage: 0, monthsWorked: 12, additionalWages: 0, otherTaxableIncome: 0, employmentExpenses: 0, donations: 0, employeeCpfOverride: null,
       });
@@ -302,6 +305,14 @@ describe('SPEC §6.0 — sanitiseInput against an independent restatement of the
     // Residency: unknown -> citizen.
     const residency = (v: unknown) => s({ profile: { residency: v } }).profile.residency;
     expect(['citizen', 'pr', 'foreigner', 'PR', '', undefined, 1].map(residency)).toEqual(['citizen', 'pr', 'foreigner', 'citizen', 'citizen', 'citizen', 'citizen']);
+    // Flags: true only for the boolean true — a lever's `enabled` and the Parenthood Tax Rebate tick-box alike.
+    const tick = (v: unknown) => s({ profile: { hasUnusedParenthoodTaxRebate: v } }).profile.hasUnusedParenthoodTaxRebate;
+    const enabled = (v: unknown) => s({ levers: { srs: { enabled: v } } }).levers.srs.enabled;
+    for (const flag of [tick, enabled]) {
+      expect([true, false, undefined, null, 1, 0, 'true', 'yes', {}, [true], Number.NaN].map(flag)).toEqual(
+        [true, false, false, false, false, false, false, false, false, false, false],
+      );
+    }
   });
 
   it('sanitising has real consequences: each rule changes the plan in the direction the SPEC says', () => {
@@ -359,5 +370,28 @@ describe('SPEC §6.0 — sanitiseInput against an independent restatement of the
     const noAge = plan(patched((i) => (i.profile.ageAtYearEnd = Number.NaN)));
     expect(noAge.plan.contributions).toEqual({ srs: 0, cpfSelf: 8_000, cpfFamily: 0 });
     expect(noAge.warnings.map((w) => w.code)).toContain('SRS_UNDER_18');
+    // The tick-box is a tick only as the boolean true: "true" and 1 raise no PARENTHOOD_TAX_REBATE caution, and
+    // no value of it changes a figure.
+    const ticked = plan(patched((i) => (i.profile.hasUnusedParenthoodTaxRebate = true)));
+    expect(ticked.warnings.map((w) => w.code)).toEqual(['LEVER_LIMITS_PLAN', 'PARENTHOOD_TAX_REBATE']);
+    expect(ticked.plan).toEqual(plan(good).plan);
+    for (const notATick of ['true', 1]) {
+      const r = plan(patched((i) => ((i.profile as { hasUnusedParenthoodTaxRebate: unknown }).hasUnusedParenthoodTaxRebate = notATick)));
+      expect(r.input.profile.hasUnusedParenthoodTaxRebate).toBe(false);
+      expect(r.warnings.map((w) => w.code)).toEqual(['LEVER_LIMITS_PLAN']);
+    }
+    // From 55 a room that is not a number is "not confirmed" (SPEC §6.5): the string "8000" is no room at all, so
+    // own CPF drops out; the number 8,000 keeps it in. Age 55 with a December birthday: CPF 20,400, EIR 6,000,
+    // CI 103,600; plan 15,300 (SRS only) vs 23,300.
+    const at55 = (roomToLimit: unknown): PlannerInput =>
+      patched((i) => {
+        i.profile.ageAtYearEnd = 55;
+        (i.levers.cpfSelf as { roomToLimit: unknown }).roomToLimit = roomToLimit;
+      });
+    expect(plan(at55('8000')).input.levers.cpfSelf.roomToLimit).toBeNull();
+    expect(plan(at55('8000')).plan.contributions).toEqual({ srs: 15_300, cpfSelf: 0, cpfFamily: 0 });
+    expect(plan(at55(null)).plan.contributions).toEqual({ srs: 15_300, cpfSelf: 0, cpfFamily: 0 });
+    expect(plan(at55(8_000)).plan.contributions).toEqual({ srs: 15_300, cpfSelf: 8_000, cpfFamily: 0 });
+    expect(plan(at55(8_000.9)).plan.contributions).toEqual({ srs: 15_300, cpfSelf: 8_000, cpfFamily: 0 });
   });
 });

@@ -148,6 +148,15 @@ function leverLimitsReason(ctx: EngineContext): string {
   if (switchedOn.every((lever) => !ctx.levers[lever].eligible)) {
     return 'None of the schemes you switched on is open to you, so nothing can be contributed.';
   }
+  // From 55 a blank room for the person's own CPF is "not confirmed", not "used up" (§6.5): say so, rather than
+  // telling them a scheme is full when it is waiting for a figure. CPF_SELF_ROOM_UNCONFIRMED then explains why.
+  const { enabled, eligible } = ctx.levers.cpfSelf;
+  if (enabled && eligible && cpfSelfRoomUnconfirmed(ctx.input)) {
+    return (
+      'Nothing can be contributed yet: your own CPF is left out until you enter its room, and no other scheme ' +
+      'you switched on has room left.'
+    );
+  }
   return 'The schemes you switched on have no room left this year, so nothing more can be contributed.';
 }
 
@@ -397,6 +406,13 @@ function deadlineSoon(optimisation: Optimisation, monthlyPlan: MonthlyPlan): Pla
   if (daysToDeadline < 0 || daysToDeadline > DEADLINE_SOON_DAYS || optimisation.plan.totalContribution <= 0) {
     return null;
   }
+  // Only the cut-off of a scheme that is in the plan is mentioned (§6.11, §8.4): a foreigner, or anyone with an
+  // SRS-only plan, is not told about the CPF Board, and a CPF-only plan is not told about bank cut-offs.
+  const { srs, cpfSelf, cpfFamily } = optimisation.plan.contributions;
+  const banks = 'Banks stop taking same-day SRS contributions before midnight on the last day, some as early as 7pm';
+  const board = 'CPF top-up counts on the day the CPF Board receives it';
+  const cutOffs =
+    srs > 0 && cpfSelf + cpfFamily > 0 ? `${banks}, and a ${board}` : srs > 0 ? banks : `A ${board}`;
   return {
     code: 'DEADLINE_SOON',
     severity: 'caution',
@@ -404,8 +420,7 @@ function deadlineSoon(optimisation: Optimisation, monthlyPlan: MonthlyPlan): Pla
       (daysToDeadline === 0
         ? `Today, ${longDate(deadline)}, is the deadline.`
         : `Only ${days(daysToDeadline)} left until the ${longDate(deadline)} deadline.`) +
-      ' Banks stop taking same-day SRS contributions before midnight on the last day, some as early as 7pm, ' +
-      'and a CPF top-up counts on the day the CPF Board receives it, so transfer as soon as you can.',
+      ` ${cutOffs}, so transfer as soon as you can.`,
     params: { deadline, daysToDeadline },
   };
 }

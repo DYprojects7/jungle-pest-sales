@@ -159,6 +159,17 @@ describe('SPEC §5.4 — the three levers', () => {
     for (const y of YEARS) expect(getRules(y).cpfTopUp.enhancedRetirementSum).toBe(2 * getRules(y).cpfTopUp.fullRetirementSum);
   });
 
+  it('the part of a top-up the Government matches (no relief): retirement 2,000 every year; MediSave from 2026 only', () => {
+    // SPEC §5.4 "Limits": MRSS S$2,000 / S$2,000 / S$2,000; Matched MediSave Scheme not applicable / S$1,000 / S$1,000.
+    expect(YEARS.map((y) => getRules(y).cpfTopUp.matchedTopUps.retirementAnnualCap)).toEqual([2_000, 2_000, 2_000]);
+    expect(YEARS.map((y) => getRules(y).cpfTopUp.matchedTopUps.mediSaveAnnualCap)).toEqual([null, 1_000, 1_000]);
+    for (const y of YEARS) expect(Object.keys(getRules(y).cpfTopUp.matchedTopUps).sort()).toEqual(['mediSaveAnnualCap', 'retirementAnnualCap']);
+  });
+
+  it('CPF payout eligibility age 65 in every year', () => {
+    expect(YEARS.map((y) => getRules(y).cpfTopUp.payoutEligibilityAge)).toEqual([65, 65, 65]);
+  });
+
   it('deadline 31 December of the income year', () => {
     expect(YEARS.map((y) => getRules(y).contributionDeadline)).toEqual(['2025-12-31', '2026-12-31', '2027-12-31']);
   });
