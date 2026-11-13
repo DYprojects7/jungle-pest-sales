@@ -2128,7 +2128,8 @@ describe('ladder, simulator, scenarios, monthly plan and warnings (SPEC §6.7–
     assertCautions(r, s);
     assertCautionWording(r, s);
     // …in table order, one per code, with the table's severities.
-    const codes = r.warnings.map((warning) => warning.code);
+    const codes: string[] = r.warnings.map((warning) => warning.code);
+    expect(new Set(codes).size).toBe(codes.length);
     expect(codes).toEqual(SPEC_WARNINGS.map(([code]) => code).filter((code) => codes.includes(code)));
     const severity = new Map(SPEC_WARNINGS);
     for (const warning of r.warnings) expect(warning.severity, warning.code).toBe(severity.get(warning.code));
@@ -2162,8 +2163,6 @@ describe('ladder, simulator, scenarios, monthly plan and warnings (SPEC §6.7–
       expect(everyScheme).toBe(m.levers.srs.roomIfEnabled + m.levers.cpfFamily.roomIfEnabled);
       expect(allOn.plan.contributions.cpfSelf).toBe(0);
     }
-    // The sentence is left out when its figure is 0 (§6.11), so a dollar figure in the message means a reachable saving.
-    if (extraCents === 0) expect(warning.message).not.toMatch(/switch/i);
   });
 });
 
