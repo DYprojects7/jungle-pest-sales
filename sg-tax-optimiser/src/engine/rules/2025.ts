@@ -56,6 +56,9 @@ export const RULES_2025: YearRules = {
     basicHealthcareSum: 75_500,
     familyGiverResidency: ['citizen', 'pr'],
     interestRateSmra: 0.04,
+    // Matched Retirement Savings Scheme: first S$2,000 a year (from 2025). The Matched MediSave Scheme starts in 2026.
+    matchedTopUps: { retirementAnnualCap: 2_000, mediSaveAnnualCap: null },
+    payoutEligibilityAge: 65,
   },
 
   contributionDeadline: '2025-12-31',

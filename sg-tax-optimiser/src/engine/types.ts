@@ -118,6 +118,15 @@ export interface YearRules {
     familyGiverResidency: Residency[];
     /** Interest rate floor on SA/MA/RA for the year (informational; shown in the UI). */
     interestRateSmra: number;
+    /**
+     * The part of a cash top-up that the Government matches earns the giver NO relief (SPEC §5.4). The matched
+     * part per recipient per year: retirement top-ups under the Matched Retirement Savings Scheme, and MediSave
+     * top-ups under the Matched MediSave Scheme (`null` in a year the scheme does not apply). Display only: every
+     * top-up amount in the engine already means the part that is not matched (SPEC §6.3).
+     */
+    matchedTopUps: { retirementAnnualCap: number; mediSaveAnnualCap: number | null };
+    /** Age from which a top-up to the Special / Retirement Account comes back, as monthly payouts (display only). */
+    payoutEligibilityAge: number;
   };
 
   /** Last day contributions count for this income year, ISO date (YYYY-MM-DD). */
@@ -170,6 +179,11 @@ export interface PlannerInput {
     ageAtYearEnd: number;
     /** Birth month 1–12. Only matters when a CPF age band boundary is crossed during the year. Default 12. */
     birthMonth?: number;
+    /**
+     * The person has Parenthood Tax Rebate left over from earlier years. It does not change any figure (the balance
+     * is out of scope, SPEC §1); it raises the PARENTHOOD_TAX_REBATE caution. True only for the boolean `true`.
+     */
+    hasUnusedParenthoodTaxRebate?: boolean;
   };
 
   income: {
@@ -420,8 +434,13 @@ export type WarningCode =
   | 'EXISTING_EXCEEDS_CAP'
   | 'CPF_OVERRIDE_ABOVE_MAX'
   | 'FOREIGNER_NO_CPF'
+  | 'TAX_RESIDENCY_CHECK'
+  | 'SRS_NON_RESIDENT_WITHDRAWAL'
   | 'PR_GRADUATED_RATES'
+  | 'CPF_SELF_ROOM_UNCONFIRMED'
   | 'AGE_55_PLUS_TOPUP'
+  | 'FAMILY_TOPUP_CHECKS'
+  | 'PARENTHOOD_TAX_REBATE'
   | 'DEADLINE_PASSED'
   | 'DEADLINE_SOON'
   | 'PROJECTED_RULES'

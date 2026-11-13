@@ -62,6 +62,9 @@ export const RULES_2027: YearRules = {
     basicHealthcareSum: 79_000,
     familyGiverResidency: ['citizen', 'pr'],
     interestRateSmra: 0.04,
+    // Matched Retirement Savings Scheme: first S$2,000 a year. Matched MediSave Scheme (2026 to 2030): first S$1,000.
+    matchedTopUps: { retirementAnnualCap: 2_000, mediSaveAnnualCap: 1_000 },
+    payoutEligibilityAge: 65,
   },
 
   contributionDeadline: '2027-12-31',

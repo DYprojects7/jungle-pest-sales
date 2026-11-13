@@ -91,8 +91,9 @@ export const RELIEF_CATALOG: ReliefCatalogItem[] = [
     input: 'amount',
     max: 80_000,
     help:
-      'Working mothers only. Children born or adopted from 1 Jan 2024: S$8,000 (1st), S$10,000 (2nd), S$12,000 (3rd onwards). ' +
-      'Children born earlier: 15% / 20% / 25% of your earned income. Enter the total.',
+      'Working mothers only, for children who are Singapore Citizens. Children born or adopted from 1 Jan 2024: ' +
+      'S$8,000 (1st), S$10,000 (2nd), S$12,000 (3rd onwards). Children born earlier: 15% / 20% / 25% of your earned ' +
+      'income. With Qualifying Child Relief it cannot exceed S$50,000 for one child. Enter the total.',
   },
   {
     id: 'parentStayingWith',
@@ -101,7 +102,9 @@ export const RELIEF_CATALOG: ReliefCatalogItem[] = [
     amountPerUnit: 9_000,
     input: 'count',
     max: 2,
-    help: 'S$9,000 per dependent parent, grandparent or parent-in-law (55 or older, income up to S$8,000) living with you. Up to 2 dependants in total.',
+    help:
+      'S$9,000 per dependent parent, grandparent or parent-in-law (55 or older, income up to S$8,000) living with you. ' +
+      'Up to 2 dependants in total. The amount is per parent: if others claim for the same parent, you share it.',
   },
   {
     id: 'parentNotStayingWith',
@@ -110,7 +113,9 @@ export const RELIEF_CATALOG: ReliefCatalogItem[] = [
     amountPerUnit: 5_500,
     input: 'count',
     max: 2,
-    help: 'S$5,500 per dependant not living with you, if you gave at least S$2,000 in support. Up to 2 dependants in total.',
+    help:
+      'S$5,500 per dependant not living with you, if you gave at least S$2,000 in support. Up to 2 dependants in total. ' +
+      'The amount is per parent: if others claim for the same parent, you share it.',
   },
   {
     id: 'nsmanSelf',
@@ -141,7 +146,9 @@ export const RELIEF_CATALOG: ReliefCatalogItem[] = [
     label: 'Grandparent Caregiver Relief',
     amountPerUnit: 3_000,
     input: 'toggle',
-    help: 'S$3,000 for working mothers whose parent or grandparent looks after a child aged 12 or below.',
+    help:
+      'One claim of S$3,000 for working mothers whose parent, parent-in-law, grandparent or grandparent-in-law ' +
+      '(not working, or earning no more than S$8,000) looks after a child aged 12 or below.',
   },
   {
     id: 'spouseDisability',

@@ -27,8 +27,11 @@ This product is a **tax optimisation calculator**, not just a tax calculator. It
 1. **It recommends an allocation** across SRS, CPF (self) and CPF (family), instead of asking the user to guess.
 2. **It is bracket-aware.** Every extra dollar of relief saves tax at the user's marginal rate, and that rate steps
    down as chargeable income falls. The tool shows the *savings ladder* and stops at the rung the user chooses.
-3. **It never recommends a wasted dollar.** It respects the S$80,000 overall relief cap, each scheme's cap, the
-   point where chargeable income becomes tax-free, the user's CPF top-up room and the user's cash budget.
+3. **It never recommends a dollar it can see would be wasted.** It respects the S$80,000 overall relief cap, each
+   scheme's cap, the point where chargeable income becomes tax-free, the CPF top-up room the user enters and the
+   user's cash budget. It cannot see CPF balances, government matching grants or a family member's eligibility, so
+   it says so, asks for the room where a wrong guess would cost money (§6.5, age 55 and over) and raises a caution
+   wherever a recommended dollar depends on something only the user can check (§6.11).
 4. **It shows the price of the saving**: the cash locked away, for how long, and the return on it
    ("lock away S$23,300 → save S$2,680 → an immediate 11.5% return").
 5. **It turns the answer into a plan**: monthly set-aside amounts up to the 31 December deadline.
@@ -47,7 +50,10 @@ This product is a **tax optimisation calculator**, not just a tax calculator. It
 - **Non-residents** for tax purposes (no personal reliefs; different rates).
 - Modelling investment returns inside SRS/CPF, or projecting retirement balances.
 - Parenthood Tax Rebate balances (a credit carried forward; it changes *when* tax is paid, not the value of a relief
-  dollar — see §6.4).
+  dollar — see §6.4). The user can tick "I have unused Parenthood Tax Rebate" to be told this (§6.11).
+- The tax on SRS **withdrawals**, which depends on the person's income and tax residency decades from now. The
+  rules are stated (§5.4), and a foreigner — who is likely to withdraw as a non-resident — gets a caution and a
+  more conservative default (§6.11, §8.3).
 - Employer SRS contributions, NOR scheme, foreign-sourced income, rental-expense modelling.
 - Accounts, payments, licence keys or analytics. v1 runs entirely on the user's device.
 
@@ -170,19 +176,27 @@ Employee / employer rates for Singapore Citizens and SPRs from their third year,
 | | SRS | CPF cash top-up — self | CPF cash top-up — family |
 |---|---|---|---|
 | Relief cap (per calendar year) | S$15,300 (Citizen/PR); S$35,700 (foreigner) | S$8,000, shared across own SA/RA and own MediSave | S$8,000, across all family members |
-| Who | Age 18+, not an undischarged bankrupt; must be a tax resident for the YA to get relief | Citizens and PRs | Citizens and PRs topping up parents, parents-in-law, grandparents, grandparents-in-law; spouse or siblings only if they earned no more than S$8,000 in the previous year (or have a disability) |
-| Other limits | — | SA (below 55): up to the Full Retirement Sum. RA (55+): relief only up to the Full Retirement Sum. MediSave: up to the Basic Healthcare Sum | Same account limits apply to the recipient |
-| No relief for | Amounts over the cap (banks reject them) | CPF-to-CPF transfers; amounts that attract a matching grant (MRSS from 2025, Matched MediSave Scheme from 2026); amounts above the limits | Same |
+| Who | Age 18+, not an undischarged bankrupt; must be a tax resident for the YA to get relief; not after starting withdrawals at or after the retirement age (or on medical grounds). A foreigner gives the SRS bank a declaration each year to use the higher cap | Citizens and PRs | Citizens and PRs topping up parents, parents-in-law, grandparents, grandparents-in-law; spouse or siblings only if they earned no more than S$8,000 in the year before the top-up (or have a disability) |
+| Other limits | An employer's SRS contribution counts towards the same cap | SA (below 55): the CPF Board accepts top-ups only up to the Full Retirement Sum. RA (55+): the Board accepts top-ups up to the Enhanced Retirement Sum, but relief stops at the Full Retirement Sum — the rest is accepted, locked in and earns nothing. MediSave: up to the member's Basic Healthcare Sum (the year's figure for members aged 65 or under; older members keep the figure fixed in the year they turned 65). An employer's cash top-up counts towards the same S$8,000 | Same account limits apply to the recipient, whose balances the giver cannot see |
+| No relief for | Amounts over the cap (banks reject them) | **Voluntary contributions to all three CPF accounts** (a different transaction from a cash top-up; they earn an employee no relief); CPF-to-CPF transfers; amounts above the limits | Same, and **the part of a top-up that the Government matches**: the first S$2,000 a year topped up for a member on the Matched Retirement Savings Scheme (top-ups from 2025), and the first S$1,000 a year to MediSave for a member on the Matched MediSave Scheme (top-ups from 2026). Typical recipients — retired parents with low balances — are often on these schemes |
 | Deadline | 31 December, or the bank's earlier cut-off (e.g. 7pm on the last day) | Received by CPF Board by 31 December | Same |
-| Lock-up | Until the statutory retirement age prevailing at the first contribution (64 for first contributions from 1 July 2026; 63 from 1 July 2022 to 30 June 2026; 62 before that). Early withdrawal: fully taxable plus 5% penalty | Until payout eligibility; forms part of retirement payouts (CPF LIFE). MediSave: healthcare use only. **Irreversible** | A gift to the recipient. Irreversible |
-| What it earns | 0.05% a year unless invested | 4% a year floor (SA/MA/RA), extended to end-2027 | Same, in the recipient's account |
-| Later tax | Only 50% of each withdrawal is taxable, spread over up to 10 years (S$40,000 a year is tax-free with no other income) | None | None |
+| Lock-up | Until the statutory retirement age prevailing at the first contribution (64 for first contributions from 1 July 2026; 63 from 1 July 2022 to 30 June 2026; 62 before that). Early withdrawal: fully taxable plus 5% penalty | Paid out as monthly payouts from the payout eligibility age of 65 (CPF LIFE); it cannot be withdrawn at 55 or used for housing. MediSave: healthcare use only. **Irreversible** | A gift to the recipient. Irreversible |
+| What it earns | About 0.05% a year at the bank unless invested | At least 4% a year (SA/MA/RA) until the end of 2027, the date to which the floor has been extended | Same, in the recipient's account |
+| Later tax | Only 50% of each withdrawal at or after the retirement age is taxable, spread over up to 10 years. **For a Singapore tax resident** with no other income, S$40,000 a year comes out tax-free. **A non-resident** (anyone who has left Singapore, whatever their nationality) has no tax-free band: the taxable part is taxed at 15% or the resident rates, whichever is higher, and the bank withholds tax first — at least 7.5 cents per dollar withdrawn at retirement age or under the foreigners' 10-year rule (not a citizen or PR, account kept 10 years from the first contribution, one full withdrawal, half taxable, no penalty), and at least 20 cents per dollar if withdrawn earlier (15% on the whole amount plus the 5% penalty) | None | None |
 
 | Limits | 2025 | 2026 | 2027 |
 |---|---|---|---|
 | Full Retirement Sum | S$213,000 | S$220,400 | S$228,200 |
 | Enhanced Retirement Sum | S$426,000 | S$440,800 | S$456,400 |
-| Basic Healthcare Sum | S$75,500 | S$79,000 | not yet announced (2026 figure used) |
+| Basic Healthcare Sum (members aged 65 or under) | S$75,500 | S$79,000 | not yet announced (2026 figure used) |
+| Matched part of a top-up that earns no relief, per recipient per year — retirement (MRSS) | S$2,000 | S$2,000 | S$2,000 |
+| — MediSave (Matched MediSave Scheme) | not applicable | S$1,000 | S$1,000 |
+| CPF payout eligibility age | 65 | 65 | 65 |
+
+**Tax residency.** The tool is for tax residents. A foreigner is a tax resident for a Year of Assessment if they
+stayed or worked in Singapore for at least 183 days in the calendar year before it (IRAS also accepts a stay of 183
+days in a row across two years, and a work pass valid for at least a year). A non-resident gets no personal
+reliefs and no SRS relief, and pays 15% or the resident rates on employment income, whichever is higher.
 
 ### 5.5 Other reliefs (helper only)
 
@@ -202,7 +216,9 @@ neither is offered.
 - **Income year 2027:** all values projected (`status: 'projected'`), using announced CPF rates and retirement sums
   and carrying everything else forward.
 - **Per-user limits the tool cannot see:** the user's room below the Full Retirement Sum and Basic Healthcare Sum,
-  whether a top-up attracts a matching grant, and whether a family member qualifies. These are inputs/cautions.
+  whether a top-up attracts a matching grant, and whether a family member qualifies. These are inputs/cautions:
+  the room is required from age 55 (§6.5), and family top-up amounts in the tool always mean the part that is
+  **not** matched (§6.3).
 <!-- RULES-SECTION-END -->
 
 ---
@@ -240,6 +256,7 @@ Symbols in `code` refer to fields in `src/engine/types.ts`.
   missing field); as `employeeCpfOverride` they mean "not provided"; in `minSavingRate`, `NaN` is 0 and `±Infinity` is clamped like any other number (to 1 and 0).
 - A lever is enabled only when its `enabled` flag is exactly the boolean `true`; any other value (missing, `1`,
   `"true"`) means not enabled, so nothing is ever recommended for a scheme that was not explicitly switched on.
+  `profile.hasUnusedParenthoodTaxRebate` is likewise `true` only for the boolean `true`, otherwise `false`.
 - `today` is read as its leading `YYYY-MM-DD`. If it cannot be parsed, 1 January of the income year is used.
   It can be parsed only when it is a string that starts — with no leading whitespace — with exactly four digits,
   a hyphen, two digits, a hyphen and two digits (ASCII digits) which name a real date of the proleptic Gregorian
@@ -336,6 +353,13 @@ lostToCap      = totalBeforeCap − totalAllowed
 chargeableIncome = floor(max(0, assessableIncome − totalAllowed))
 ```
 
+**What a top-up amount means.** Every CPF top-up amount in the tool — entered as already made, or recommended — is
+the part that can earn relief: a **cash top-up** to a Special, Retirement or MediSave Account (not a voluntary
+contribution to all three accounts), to an account with room under its limit, and **excluding any part the
+Government matches** (§5.4). The model keeps "one dollar in = one dollar of relief" for every recommended dollar;
+whatever the giver adds to collect a matching grant for a parent is on top of the plan and outside it. The inputs,
+the plan and `FAMILY_TOPUP_CHECKS` (§6.11) say so.
+
 ### 6.4 Tax
 
 ```
@@ -369,9 +393,19 @@ warning. Then, per lever:
 used = min(existing, statutoryCap)
 roomIfEnabled = max(0, statutoryCap − used)
    cpfSelf:   roomIfEnabled = min(roomIfEnabled, levers.cpfSelf.roomToLimit)   when roomToLimit is a number
+              roomIfEnabled = 0                                                 when roomToLimit is not a number
+                                                                                and ageAtYearEnd ≥ 55
    cpfFamily: roomIfEnabled = min(roomIfEnabled, levers.cpfFamily.maxAmount)   when maxAmount is a number
 room = roomIfEnabled if (eligible and enabled) else 0
 ```
+
+**Room must be confirmed from age 55.** Below 55 the CPF Board does not accept a top-up above the Full Retirement
+Sum, so a wrong guess about the room costs nothing. From 55 it accepts cash up to the Enhanced Retirement Sum while
+relief stops at the Full Retirement Sum, and a top-up cannot be reversed; the people most likely to be given a
+S$8,000 recommendation are also the most likely to have already set the full sum aside. So from age 55
+(`ageAtYearEnd ≥ 55`, the age at which the Retirement Account exists) a blank `roomToLimit` means *not confirmed*,
+not *unlimited*: the lever's room is 0 and `CPF_SELF_ROOM_UNCONFIRMED` asks for the figure. Entering any number —
+including one at or above S$8,000 — confirms it.
 
 `EXISTING_EXCEEDS_CAP` is emitted (once, listing every lever concerned) when an existing contribution is larger than
 a non-zero statutory cap.
@@ -491,8 +525,13 @@ December of the income year. The plan itself does not change after the deadline;
 | `EXISTING_EXCEEDS_CAP` | caution | an existing contribution exceeds its statutory cap |
 | `CPF_OVERRIDE_ABOVE_MAX` | caution | override above the maximum compulsory contribution |
 | `FOREIGNER_NO_CPF` | info | `residency = 'foreigner'` |
+| `TAX_RESIDENCY_CHECK` | caution | `residency = 'foreigner'` and `monthsWorked ≤ 6` |
+| `SRS_NON_RESIDENT_WITHDRAWAL` | caution | `residency = 'foreigner'` and `srs` enabled and eligible |
 | `PR_GRADUATED_RATES` | info | `residency = 'pr'` and `prYear < 3` |
-| `AGE_55_PLUS_TOPUP` | info | `ageAtYearEnd ≥ 55` and `cpfSelf` enabled and eligible |
+| `CPF_SELF_ROOM_UNCONFIRMED` | caution | `ageAtYearEnd ≥ 55` and `cpfSelf` enabled and eligible and `roomToLimit` not provided |
+| `AGE_55_PLUS_TOPUP` | info | `ageAtYearEnd ≥ 55` and `cpfSelf` enabled and eligible and `roomToLimit` provided |
+| `FAMILY_TOPUP_CHECKS` | caution | `cpfFamily` eligible and (`plan.contributions.cpfFamily > 0` or `existing.cpfTopUpFamily > 0`) |
+| `PARENTHOOD_TAX_REBATE` | caution | `profile.hasUnusedParenthoodTaxRebate` is `true` |
 | `SRS_UNDER_18` | caution | `ageAtYearEnd < 18` |
 | `DEADLINE_PASSED` | blocker | `daysToDeadline < 0` |
 | `DEADLINE_SOON` | caution | `0 ≤ daysToDeadline ≤ 14` and `X > 0` |
@@ -508,6 +547,36 @@ A message may quote a further saving only when the person can actually reach it,
 `N(X) − N(min(U, C, B, Σ roomIfEnabled over the three levers))`, the extra saving with every scheme the person left
 off switched on (§6.5: `roomIfEnabled` is 0 for an ineligible lever and respects the person's own limits). Each
 sentence is omitted when its figure is 0. `FOREIGNER_NO_CPF` mentions the SRS cap only when `srs` is eligible.
+
+The cautions that cover what the tool cannot see (messages are normative; `{…}` are figures from the rules):
+
+- `TAX_RESIDENCY_CHECK` — "You worked here for half the year or less. You are a tax resident only if you were in
+  Singapore for at least 183 days (IRAS has further rules for stays that span two years). Non-residents get no
+  reliefs, so this plan would not apply."
+- `SRS_NON_RESIDENT_WITHDRAWAL` — "If you have left Singapore when you withdraw, SRS is taxed as a non-resident's:
+  at least 7.5 cents per dollar withdrawn at retirement age or under the 10-year rule for foreigners, and at least
+  20 cents if earlier." When `lowValueAmount > 0` it adds " {lowValueAmount} of this plan saves less than 7.5
+  cents per dollar today." `lowValueAmount` (in `params`) is the part of the plan's contribution that lies in
+  ladder tiers (§6.7) whose rate is below 0.075.
+- `CPF_SELF_ROOM_UNCONFIRMED` — "From age 55 the CPF Board accepts top-ups up to the Enhanced Retirement Sum
+  ({ERS}), but only the part up to the Full Retirement Sum ({FRS}) earns relief, and a top-up cannot be reversed.
+  Your own CPF is left out until you enter how much you can still top up with relief (S$0 if you have set aside
+  the Full Retirement Sum)."
+- `AGE_55_PLUS_TOPUP` — "From age 55, cash top-ups go to your Retirement Account and earn relief only up to the
+  Full Retirement Sum ({FRS} in {year}). The plan uses the room you entered ({roomToLimit}); check it against your
+  CPF Retirement dashboard."
+- `FAMILY_TOPUP_CHECKS` — "Family top-ups: the part the Government matches earns you no relief — the first
+  {matchedRetirement} a year for a member on the Matched Retirement Savings Scheme" + (when the year has a MediSave
+  figure) ", {matchedMediSave} for MediSave" + ". The amounts here are top-ups beyond that, to a family member who
+  qualifies."
+- `PARENTHOOD_TAX_REBATE` — "With unused Parenthood Tax Rebate your tax bill this year may already be S$0. This
+  plan would then save no cash now: it makes the rebate last longer, so the benefit arrives in a later year."
+
+Other wording fixed by the rule audit: `CPF_OVERRIDE_ABOVE_MAX` ends "Voluntary contributions to your three CPF
+accounts earn no relief; a cash top-up to your MediSave, Special or Retirement Account does — enter it under
+'Already contributed'." and `DEADLINE_SOON` ends "Banks stop taking same-day SRS contributions before midnight on
+the last day, some as early as 7pm, and a CPF top-up counts on the day the CPF Board receives it, so transfer as
+soon as you can."
 
 ---
 
@@ -526,6 +595,12 @@ export function defaultIncomeYear(today: string): number;                       
 export function defaultInput(today: string): PlannerInput;                      // the worked example used as the UI's opening state
 export const SUPPORTED_INCOME_YEARS: number[];
 export * from './types';
+// src/engine/facts.ts — the words of §5.4 with the year's figures filled in, shared by the page and the workbook
+export function lockUpFacts(rules: YearRules, profile: FactsProfile): LockUpFactRow[];
+export function transferCautions(rules: YearRules, profile: FactsProfile): string[];
+export function lockUpHorizon(rules: YearRules, ageAtYearEnd: number): LockUpHorizon;
+export const NOT_MODELLED: string[];
+export const DISCLAIMER: string;
 ```
 
 Requirements: no runtime dependencies; no I/O; no `Date.now()`; runs unchanged in the browser and in Node;
@@ -576,21 +651,30 @@ deadline-passed state (past tense, no instruction to transfer, an offer to plan 
 
 ### 8.3 Inputs
 
-1. **About you** — residency (Citizen / PR / Foreigner tax resident); PR year (1st / 2nd / 3rd+) when PR; age at
-   31 Dec of the income year; birth month (only shown when the age is 55, 60, 65 or 70); income year selector
-   (shown only when more than one year is supported; projected years are flagged).
-2. **Income** — pay entry as monthly or annual salary (toggle); bonus and other additional wages for the year;
+1. **About you** — residency (Citizen / PR / Foreigner tax resident), with one line for every choice saying what a
+   tax resident is (at least 183 days in Singapore in the income year; §5.4); PR year (1st / 2nd / 3rd+) when PR;
+   age at 31 Dec of the income year; birth month (only shown when the age is 55, 60, 65 or 70); income year
+   selector (shown only when more than one year is supported; projected years are flagged).
+2. **Income** — pay entry as monthly or annual salary (toggle); bonus and other additional wages for the year
+   (commissions and incentives paid less often than monthly; those paid every month belong in the salary);
    months worked (default 12). *More options* (collapsed): other taxable income, employment expenses, donations,
    "Use my actual employee CPF for the year" (override).
-3. **Already contributed this year** — SRS, CPF top-up to self, CPF top-up to family.
+3. **Already contributed this year** — SRS, CPF top-up to self, CPF top-up to family. Hints: include anything an
+   employer paid into the person's SRS or topped up to their CPF in cash; for family, leave out any part the
+   Government matched (§6.3).
 4. **Other reliefs** — one total field, or *itemise* with the relief helper built from `rules.reliefCatalog`
    (spouse, children, parents, NSman, life insurance, other). The helper only sums amounts; it does not check
-   eligibility and says so.
+   eligibility and says so. A tick-box "I have unused Parenthood Tax Rebate" (`hasUnusedParenthoodTaxRebate`).
 5. **Your preferences**
-   - *Schemes to use*: SRS ✓, CPF top-up (self) ✓, CPF top-up (family) ☐. Per-scheme optional limits:
-     "room left before the Full Retirement Sum / Basic Healthcare Sum" for self; "most I would give" for family.
-   - *How far down the ladder?* A segmented control built from the bracket rates at or below the user's current
-     marginal rate: **Worth it (7%+)** *(default)*, **Top bracket only**, **Every tax dollar**, or a custom minimum.
+   - *Schemes to use*: SRS ✓, CPF top-up (self) ✓, CPF top-up (family) ☐. Per-scheme limits:
+     "top-up that can still earn relief" for self — optional below 55, and **asked for from age 55** (§6.5): until
+     it is filled in, the field is marked as needed, the plan leaves the person's own CPF out and says why;
+     "most I would give" for family, with the matching-grant amounts in its hint.
+   - *How far down the ladder?* A segmented control: a default preset named by its figure — **7 cents or more**
+     per dollar for citizens and PRs, **11.5 cents or more** for foreigners (a foreigner who leaves pays at least
+     7.5 cents per dollar to take SRS out, §5.4, so the 7% rung is a loss for them; the control says so and the
+     person can still go deeper) — then **Top bracket only**, **Every tax dollar**, or a custom minimum. The
+     labels state a figure, not a judgement ("worth it").
    - *Cash limit*: optional maximum to lock away this year.
    - *Which first?* **Flexibility first** (SRS → CPF self → family) *(default)*, **Guaranteed interest first**
      (CPF self → SRS → family), **Family first** (family → SRS → CPF self). One-line explanation of each.
@@ -609,6 +693,12 @@ tagged "Example value", and the panel names which example figures are still in u
    (e.g. "Beyond this, each extra dollar would save 3.5 cents or less." / "You have used every scheme's limit;
    S$12,400 of your income is still taxed at 11.5%." / "You have reached the S$80,000 overall relief cap.").
    When the recommendation is S$0, the card explains why and offers the *Every tax dollar* view.
+   The card also says **how long** the cash is locked, from `lockUpHorizon` (§7): "SRS: locked until 64, about 29
+   years. CPF: paid out monthly from 65, about 30 years" for a 35-year-old. A CPF amount in the plan is always
+   worded as a **cash top-up** (to the Special or Retirement Account, or MediSave), never just "into CPF".
+   Cautions that decide whether a recommended dollar earns relief (`CPF_SELF_ROOM_UNCONFIRMED`,
+   `SRS_NON_RESIDENT_WITHDRAWAL`, `FAMILY_TOPUP_CHECKS`, `TAX_RESIDENCY_CHECK`, `PARENTHOOD_TAX_REBATE`) are shown
+   with the recommendation, not only further down the page.
    Any "you could save more" figure on the card is one the user can actually reach: the page re-runs the engine
    with the switched-off scheme on, or the cash limit lifted, and quotes that plan's own saving (never
    `unrealisedSaving`, which assumes room no setting can create).
@@ -625,7 +715,9 @@ tagged "Example value", and the panel names which example figures are still in u
    "Where you are now", "In your plan" and "Beyond your plan" (from `withinPlan`).
 6. **How your tax is worked out.** Income → deductions → each relief → chargeable income → bracket-by-bracket tax,
    before and after the plan, side by side.
-7. **Before you transfer.** The lock-up facts for each scheme (see §5), eligibility cautions, engine warnings.
+7. **Before you transfer.** The lock-up facts for each scheme and the cautions only the person can check, both
+   taken from `lockUpFacts` and `transferCautions` (§7) so that the page and the workbook say the same thing;
+   engine warnings.
 8. **Sources and assumptions.** Rule values with links; what the tool does not model; the disclaimer.
 
 A **Copy summary** button copies a plain-text summary of the plan (clipboard write inside the click handler, with
@@ -671,7 +763,7 @@ Generated by `npm run build:workbook` (`workbook/build.ts`, ExcelJS) from the sa
   allowlist test. All arithmetic is in whole numbers (tax in mills, CPF rates in millionths) so results do not depend
   on an application's floating-point behaviour. **Verified by recalculation in LibreOffice only**; opening the file in
   Excel and Google Sheets is a manual release step with a checklist in `workbook/README.md`.
-- **Sheets**
+- **Sheets** (the Planner header and banner say "PROJECTED RULES" when the year's status is `projected`)
   1. `Start` — what it is, three-step instructions, disclaimer, version and YA.
   2. `Planner` — inputs (clearly styled input cells with data validation and dropdowns) on the left; the
      recommendation, tax before/after, saving, binding-constraint sentence and warnings on the right.
@@ -683,7 +775,10 @@ Generated by `npm run build:workbook` (`workbook/build.ts`, ExcelJS) from the sa
   6. `Monthly Plan` — instalment schedule to December from an "as at" date (default `=TODAY()`; a cleared or
      non-date cell also means today, where the engine would fall back to 1 January).
   7. `Tax Working` — the full computation, baseline and optimised side by side.
-  8. `Rules` — the rate table, CPF rates and ceilings, caps, deadline, sources. Editable so a buyer can update it for a
+  8. `Before You Transfer` — the same lock-up facts and cautions as the web page, from `lockUpFacts` and
+     `transferCautions` (§7), following the residency chosen on the Planner. The paid workbook must not say less
+     than the free page.
+  9. `Rules` — the rate table, CPF rates and ceilings, caps, deadline, sources. Editable so a buyer can update it for a
      new year: tax brackets can be inserted or removed (the helper formulas locate their neighbours by position), the
      deadline follows the income year, and a check line — repeated at the top of the Planner — flags a tax table that
      is out of order or incomplete. A personal income tax rebate rate and cap (0 by default) are editable cells.
@@ -788,8 +883,8 @@ SRS and CPF (self) enabled, family off, no budget, `minSavingRate = 0.07`, prior
 ### A.2 Older PR with a budget and the relief cap in play
 
 PR (3rd year onwards), age 57 at year end, birth month 6, S$14,000 a month, S$40,000 bonus, S$30,000 other reliefs,
-S$5,000 already in SRS. All three levers enabled (family max 8,000), budget S$20,000, `minSavingRate = 0`,
-priority `cpfSelf → srs → cpfFamily`.
+S$5,000 already in SRS. All three levers enabled (CPF self `roomToLimit` 50,000 — at 57 the room must be entered,
+§6.5 — and family max 8,000), budget S$20,000, `minSavingRate = 0`, priority `cpfSelf → srs → cpfFamily`.
 
 | Step | Value |
 |---|---|
@@ -805,6 +900,13 @@ priority `cpfSelf → srs → cpfFamily`.
 | Unrealised saving | 9,246.00 − tax(128,000) = 9,246.00 − 9,150.00 = **96.00** |
 | Ladder | [0, 20,640) at 15% saves 3,096.00 (plan uses 20,000); [20,640, 26,300) at 0% — `reliefCap` |
 | Scenario `maxAll` | contributes 26,300, saves 3,096.00, wasted 5,660 |
+| Warnings (in order) | `BUDGET_LIMITS_PLAN`, `AGE_55_PLUS_TOPUP`, `FAMILY_TOPUP_CHECKS` |
+
+**A.2b — the same person with the CPF room left blank.** `roomToLimit` not provided: CPF self room **0**, so
+L = 10,300 + 0 + 8,000 = 18,300 and X = min(128,640, 20,640, 18,300, 20,000) = **18,300**, binding `leverLimits`.
+Plan: SRS **10,300**, family **8,000**, CPF self **0**. Chargeable income after 130,340 → tax
+7,950 + 15% × 10,340 = **9,501.00**; saved **2,745.00**. Warnings (in order): `LEVER_LIMITS_PLAN`,
+`CPF_SELF_ROOM_UNCONFIRMED`, `FAMILY_TOPUP_CHECKS`.
 
 ### A.3 Lower income: recommending nothing
 

@@ -20,6 +20,8 @@ export * from './types';
 export { SUPPORTED_INCOME_YEARS, defaultIncomeYear, getRules } from './rules';
 export { defaultInput } from './defaults';
 export { grossTax, marginalRate } from './tax';
+export { DISCLAIMER, NON_RESIDENT_SRS_COST, NOT_MODELLED, lockUpFacts, lockUpHorizon, transferCautions } from './facts';
+export type { FactsProfile, LockUpFactId, LockUpFactRow, LockUpHorizon } from './facts';
 
 /**
  * Everything in one call: CPF, baseline tax, the recommended plan, ladder, simulator, scenarios, monthly plan
