@@ -1,0 +1,425 @@
+{
+ "facts": [
+  {
+   "id": "relief-cap-self",
+   "claim": "CPF Cash Top-up Relief for cash top-ups to your own CPF accounts is capped at S$8,000 per Year of Assessment.",
+   "value": "S$8,000 per YA (i.e. per calendar year of top-up)",
+   "applies_to": "Top-ups made from 1 Jan 2022; IRAS page currently framed for 2025 top-ups (YA2026); CPF/MOH 2026 material confirms it continues for 2026 top-ups (YA2027)",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/central-provident-fund-(cpf)-cash-top-up-relief",
+   "source_quote": "The maximum CPF Cash Top-up Relief per YA is $16,000 (maximum $8,000 for self, and maximum $8,000 for family members).",
+   "confidence": "high"
+  },
+  {
+   "id": "relief-cap-family",
+   "claim": "A separate, additional relief cap of S$8,000 per YA applies to cash top-ups to family members' (loved ones') SA/RA/MA.",
+   "value": "S$8,000 per YA, in addition to the S$8,000 self cap",
+   "applies_to": "YA2026 (2025 top-ups) and YA2027 (2026 top-ups)",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/central-provident-fund-(cpf)-cash-top-up-relief",
+   "source_quote": "The maximum CPF Cash Top-up Relief per YA is $16,000 (maximum $8,000 for self, and maximum $8,000 for family members). CPF: the second $8,000 applies when you top up your loved ones' SA or RA.",
+   "confidence": "high"
+  },
+  {
+   "id": "relief-cap-combined",
+   "claim": "The maximum total CPF Cash Top-up Relief (self plus family) is S$16,000 per YA.",
+   "value": "S$16,000 per YA",
+   "applies_to": "YA2026 and YA2027",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/central-provident-fund-(cpf)-cash-top-up-relief",
+   "source_quote": "The maximum CPF Cash Top-up Relief per YA is $16,000 (maximum $8,000 for self, and maximum $8,000 for family members).",
+   "confidence": "high"
+  },
+  {
+   "id": "self-cap-shared-sa-ra-ma",
+   "claim": "Cash top-ups to your own SA (below 55) or RA (55 and above) and to your own MediSave Account share one S$8,000 self cap; they are not separate caps.",
+   "value": "One shared S$8,000 cap across own SA/RA + own MA",
+   "applies_to": "Top-ups from 1 Jan 2022 onward, including 2026 (YA2027)",
+   "source_url": "https://www.cpf.gov.sg/service/article/what-are-the-conditions-for-me-to-enjoy-tax-relief-to-special-account-or-retirement-account",
+   "source_quote": "Search-result summary of CPF page: the $8,000 cap on your own SA/RA is shared with cash top-ups to your MediSave Account (MA). CPF top-up page table: 'Yourself - Up to $8,000 for both - Only up to current year's FRS'.",
+   "confidence": "high"
+  },
+  {
+   "id": "caps-continue-for-2026-topups",
+   "claim": "Official 2026 material states the S$8,000 self / S$8,000 loved-ones relief continues for 2026 top-ups that do not attract MMSS or MRSS matching grants.",
+   "value": "S$8,000 (own SA/RA/MA) + S$8,000 (loved ones' SA/RA/MA) per year, excluding amounts that attract MMSS/MRSS matching",
+   "applies_to": "Top-ups made in 2026 (YA2027)",
+   "source_url": "https://www.cpf.gov.sg/member/infohub/news/news-releases/cpf-related-changes-taking-place-in-2026-what-you-need-to-know",
+   "source_quote": "Members may continue to enjoy tax relief of up to $8,000 per year for eligible cash top-ups to their own Special Account, Retirement Account or MA, and another $8,000 per year for cash top-ups to such accounts of their loved ones, that do not attract the matching grant for MMSS or the Matched Retirement Saving Scheme (MRSS). (Quote surfaced in search results across CPF/MOH MMSS pages; same wording likely in MOH press release https://www.moh.gov.sg/newsroom/more-singaporeans-eligible-for-matching-government-grants-for-cash-top-ups-to-boost-retirement-and-healthcare-savings/)",
+   "confidence": "medium"
+  },
+  {
+   "id": "loved-ones-definition",
+   "claim": "Eligible loved ones/family members for the family cap are spouse, siblings, parents, parents-in-law, grandparents and grandparents-in-law.",
+   "value": "Parents, parents-in-law, grandparents, grandparents-in-law (no income condition); spouse and siblings (income/disability condition applies)",
+   "applies_to": "YA2026 and YA2027",
+   "source_url": "https://www.cpf.gov.sg/member/growing-your-savings/saving-more-with-cpf/top-up-to-enjoy-higher-retirement-payouts/top-ups-for-loved-ones-employees-and-others",
+   "source_quote": "Search-result summary: a CPF article names spouse, parents, parents-in-law, grandparents, grandparents-in-law, and siblings. The IRAS summary listed 'parents, parents-in-law, grandparents, and disabled spouses or siblings have no income condition' (grandparents-in-law not shown in that summary; the search tool flagged that the lists differ between pages).",
+   "confidence": "medium"
+  },
+  {
+   "id": "spouse-sibling-income-condition",
+   "claim": "Relief for top-ups to a spouse or sibling requires that the recipient's annual income did not exceed S$8,000 in the preceding year, or that the recipient is a person with disability; the threshold was S$4,000 for YA2024 and earlier.",
+   "value": "Income threshold S$8,000 (YA2025 onward); S$4,000 (YA2024 and before); waived if spouse/sibling has a disability",
+   "applies_to": "YA2025 onward (so applies to YA2026 and YA2027); recipient income measured in the year preceding the top-up year",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/central-provident-fund-(cpf)-cash-top-up-relief",
+   "source_quote": "IRAS (summary): a spouse or sibling without a disability must have had annual income of $8,000 or less in the preceding year; threshold was $4,000 for YA 2024 and before and rose to $8,000 for YA 2025 onwards. IRAS wording elsewhere: 'must not have an annual income exceeding $8,000 in the preceding year, or be a person with disability'. One CPF page is summarised as 'less than $8,000' / 'annual income <= $8k in previous year or is handicapped' - IRAS 'not exceeding' is the official tax wording.",
+   "confidence": "high"
+  },
+  {
+   "id": "giver-citizen-or-pr",
+   "claim": "To qualify for the relief the person making the top-up must be a Singapore Citizen or Permanent Resident and have made the cash top-up under the Retirement Sum Topping-Up (RSTU) scheme in the preceding calendar year.",
+   "value": "Giver must be SC or PR; top-up made in calendar year N qualifies for YA N+1",
+   "applies_to": "IRAS page text for YA2026 (2025 top-ups); same structure for YA2027",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/central-provident-fund-(cpf)-cash-top-up-relief",
+   "source_quote": "Search-result summary of IRAS page: You must also be a Singapore Citizen or Permanent Resident and have made the cash top-ups in 2025 under the RSTU scheme for YA 2026.",
+   "confidence": "medium"
+  },
+  {
+   "id": "topup-limit-sa-under-55",
+   "claim": "For recipients below 55, the maximum cash top-up to the Special Account is the current Full Retirement Sum minus SA savings minus net SA savings withdrawn under the CPF Investment Scheme for investments not yet completely disposed of.",
+   "value": "Top-up room (under 55) = current FRS - SA savings - net SA amount withdrawn under CPFIS for investments not completely disposed of",
+   "applies_to": "Current rule (2025-2026); uses the FRS of the calendar year of the top-up",
+   "source_url": "https://www.cpf.gov.sg/service/article/what-is-the-maximum-amount-of-top-ups-i-can-receive",
+   "source_quote": "Current Full Retirement Sum - Special Account (SA) savings - Amount withdrawn from SA for investments. Footnote: Net SA savings withdrawn under CPF Investment Scheme for investments that have not been completely disposed of.",
+   "confidence": "high"
+  },
+  {
+   "id": "topup-limit-ra-55-plus",
+   "claim": "For recipients aged 55 and above, the maximum cash top-up to the Retirement Account is the current Enhanced Retirement Sum minus RA savings.",
+   "value": "Top-up room (55+) = current ERS - RA savings (RA savings measured excluding interest, government grants; see open question on exact definition)",
+   "applies_to": "Current rule (2025-2026)",
+   "source_url": "https://www.cpf.gov.sg/service/article/what-is-the-maximum-amount-of-top-ups-i-can-receive",
+   "source_quote": "Current Enhanced Retirement Sum - Retirement Account (RA) savings. CPF loved-ones page (summary): maximum top-up is the current ERS minus the RA savings, excluding interest, government grants and retirement withdrawals.",
+   "confidence": "high"
+  },
+  {
+   "id": "topup-limit-ma",
+   "claim": "Cash top-ups to a MediSave Account are capped at the Basic Healthcare Sum less the MediSave balance before the top-up, and relief on MA top-ups is limited accordingly.",
+   "value": "MA top-up room = current BHS - MA balance",
+   "applies_to": "Current rule (2025-2026)",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/central-provident-fund-(cpf)-cash-top-up-relief",
+   "source_quote": "Search-result summary of IRAS page: the MediSave top-up is capped by the Basic Healthcare Sum less the existing balance / the top-up to a MediSave account is capped at the BHS, less the MediSave balance before the top-up.",
+   "confidence": "high"
+  },
+  {
+   "id": "relief-only-up-to-current-frs",
+   "claim": "Tax relief is granted only for cash top-ups up to the current year's Full Retirement Sum; top-ups to an RA between the FRS and the ERS are allowed but attract no tax relief.",
+   "value": "Relief-eligible room = current-year FRS minus existing SA (under 55) or RA (55+) savings; S$0 relief for the portion above FRS",
+   "applies_to": "All cash top-ups to SA/RA, self or loved ones; 2025 and 2026 top-ups",
+   "source_url": "https://www.cpf.gov.sg/member/growing-your-savings/saving-more-with-cpf/top-up-to-enjoy-higher-retirement-payouts",
+   "source_quote": "CPF: 'Tax relief will not be granted for top-ups beyond the current year's Full Retirement Sum (FRS)'; table: 'Only up to current year's FRS'. IRAS (summary): for members 55 and above, the Retirement Account cap [for relief] works against the Full Retirement Sum.",
+   "confidence": "high"
+  },
+  {
+   "id": "relief-limit-under-55-equals-topup-limit",
+   "claim": "For recipients below 55, the amount of cash top-up qualifying for relief is the same as the amount of top-up allowed (both bounded by the current FRS), subject to the S$8,000 caps.",
+   "value": "Under 55: relief-eligible amount = min(cash top-up, FRS-based top-up room, S$8,000 cap)",
+   "applies_to": "YA2026 and YA2027",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/central-provident-fund-(cpf)-cash-top-up-relief",
+   "source_quote": "The limit on the amount of cash top-up that qualifies for tax relief is the same as the amount of top-up allowed to be made. (Search summary: for members under 55 the SA top-up is capped by the FRS less existing savings.)",
+   "confidence": "medium"
+  },
+  {
+   "id": "recipient-at-frs-no-relief",
+   "claim": "No relief is given for a cash top-up to a recipient whose SA/RA savings have already reached the current Full Retirement Sum.",
+   "value": "S$0 relief once recipient's relevant savings >= current FRS",
+   "applies_to": "YA2026 and YA2027",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/central-provident-fund-(cpf)-cash-top-up-relief",
+   "source_quote": "Search-result summary of IRAS page: Top-ups to a recipient whose savings already reach the Full Retirement Sum get no relief.",
+   "confidence": "high"
+  },
+  {
+   "id": "frs-2026",
+   "claim": "The Full Retirement Sum for 2026 is S$220,400.",
+   "value": "S$220,400",
+   "applies_to": "Calendar year 2026 (cohort turning 55 in 2026; also the 'current FRS' for 2026 top-up/relief limits)",
+   "source_url": "https://www.cpf.gov.sg/member/infohub/educational-resources/what-is-the-cpf-retirement-sum",
+   "source_quote": "Search-result summary of CPF pages: Full Retirement Sum for 2026 is $220,400 (estimated payout about $1,780 a month from 65).",
+   "confidence": "high"
+  },
+  {
+   "id": "frs-2027",
+   "claim": "The Full Retirement Sum for 2027 has been announced as S$228,200.",
+   "value": "S$228,200",
+   "applies_to": "Calendar year 2027 (YA2028 top-ups)",
+   "source_url": "https://www.cpf.gov.sg/member/infohub/educational-resources/what-is-the-cpf-retirement-sum",
+   "source_quote": "Search-result summary of CPF pages: The FRS for 2027 is $228,200.",
+   "confidence": "high"
+  },
+  {
+   "id": "brs-2026-2027",
+   "claim": "The Basic Retirement Sum is S$110,200 for members turning 55 in 2026 and S$114,100 for those turning 55 in 2027.",
+   "value": "BRS 2026: S$110,200; BRS 2027: S$114,100",
+   "applies_to": "Cohorts turning 55 in 2026 and 2027",
+   "source_url": "https://www.cpf.gov.sg/service/article/how-much-is-my-basic-retirement-sum",
+   "source_quote": "Search-result summary of CPF pages: Basic Retirement Sum for members turning 55 in 2026 is $110,200 (about $950 a month from 65); for those turning 55 in 2027 it rises to $114,100.",
+   "confidence": "high"
+  },
+  {
+   "id": "ers-2026",
+   "claim": "The Enhanced Retirement Sum for 2026 is S$440,800.",
+   "value": "S$440,800",
+   "applies_to": "Calendar year 2026 (RA top-up ceiling for all members 55+)",
+   "source_url": "https://www.cpf.gov.sg/service/article/what-is-the-current-enhanced-retirement-sum",
+   "source_quote": "Search-result summary of CPF pages: ERS is $440,800 in 2026 and rises to $456,400 in 2027.",
+   "confidence": "high"
+  },
+  {
+   "id": "ers-2027",
+   "claim": "The Enhanced Retirement Sum for 2027 is S$456,400.",
+   "value": "S$456,400",
+   "applies_to": "Calendar year 2027",
+   "source_url": "https://www.cpf.gov.sg/service/article/what-is-the-current-enhanced-retirement-sum",
+   "source_quote": "Search-result summary of CPF pages: The 2027 ERS is $456,400.",
+   "confidence": "high"
+  },
+  {
+   "id": "ers-2025",
+   "claim": "The Enhanced Retirement Sum in 2025 was S$426,000.",
+   "value": "S$426,000",
+   "applies_to": "Calendar year 2025 (YA2026 back-testing)",
+   "source_url": "https://www.cpf.gov.sg/member/growing-your-savings/saving-more-with-cpf/top-up-to-enjoy-higher-retirement-payouts",
+   "source_quote": "Search-result summary: one CPF page lists the ERS as $440,800; another lists $426,000 in 2025 (older figure).",
+   "confidence": "medium"
+  },
+  {
+   "id": "ers-definition-from-2026",
+   "claim": "From 1 January 2026 the ERS is defined as two times the current year's FRS and does not depend on the member's age or the year they turned 55.",
+   "value": "ERS = 2 x current-year FRS (2026: 2 x 220,400 = 440,800; 2027: 2 x 228,200 = 456,400)",
+   "applies_to": "From 1 Jan 2026",
+   "source_url": "https://www.cpf.gov.sg/service/article/what-is-the-change-to-the-enhanced-retirement-sum-in-2026",
+   "source_quote": "Search-result summary of CPF page: From 1 January 2026, the ERS equals double the current year's Full Retirement Sum. The ERS does not depend on a member's age or the year they turn 55.",
+   "confidence": "medium"
+  },
+  {
+   "id": "bhs-2026",
+   "claim": "The Basic Healthcare Sum for 2026 (members below 65) is S$79,000, effective 1 January 2026.",
+   "value": "S$79,000",
+   "applies_to": "1 Jan 2026 to 31 Dec 2026, members aged below 65 in 2026; cohort turning 65 in 2026 has BHS fixed at S$79,000 for life",
+   "source_url": "https://www.cpf.gov.sg/member/infohub/news/news-releases/cpf-interest-rates-from-1-january-to-31-march-2026-and-basic-healthcare-sum-for-2026",
+   "source_quote": "Search-result summary of CPF pages: The prevailing BHS for members below 65 in 2026 is $79,000 and will be adjusted yearly. For members who turn 65 in 2026, the BHS is fixed at $79,000. IRAS page: BHS is $79,000 effective 1 January 2026, up from $75,500 in 2025.",
+   "confidence": "high"
+  },
+  {
+   "id": "bhs-2025",
+   "claim": "The Basic Healthcare Sum for 2025 was S$75,500.",
+   "value": "S$75,500",
+   "applies_to": "Calendar year 2025 (YA2026 back-testing), members below 65",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/compulsory-and-voluntary-medisave-contributions",
+   "source_quote": "Search-result summary of IRAS page: The BHS is $79,000 effective 1 January 2026, up from $75,500 in 2025.",
+   "confidence": "high"
+  },
+  {
+   "id": "bhs-fixed-at-65",
+   "claim": "The BHS is adjusted yearly for members below 65, but once a member reaches 65 their cohort BHS is fixed for life.",
+   "value": "BHS fixed at age 65; yearly adjustment below 65",
+   "applies_to": "General rule",
+   "source_url": "https://www.cpf.gov.sg/service/article/what-is-the-basic-healthcare-sum",
+   "source_quote": "Once members reach age 65, their BHS is fixed and does not change.",
+   "confidence": "high"
+  },
+  {
+   "id": "interest-smra-2026",
+   "claim": "The Special, MediSave and Retirement Account interest rate was 4% p.a. in every quarter of 2026, including 1 October to 31 December 2026, because the pegged rate was below the 4% floor.",
+   "value": "4% per annum (SA, MA, RA), all four quarters of 2026",
+   "applies_to": "1 Jan 2026 - 31 Dec 2026",
+   "source_url": "https://www.cpf.gov.sg/service/article/what-are-the-cpf-interest-rates",
+   "source_quote": "Search-result summary: CPF's rate page lists for 1 October to 31 December 2026 Ordinary Account at 2.5% and Special, MediSave and Retirement Account at 4%; the SMRA rate has stayed at the floor in each 2026 quarter.",
+   "confidence": "high"
+  },
+  {
+   "id": "interest-oa-2026",
+   "claim": "The Ordinary Account interest rate is 2.5% p.a. in 2026.",
+   "value": "2.5% per annum",
+   "applies_to": "Confirmed for 1 Oct - 31 Dec 2026; quarterly releases for Q1-Q3 2026 exist on cpf.gov.sg",
+   "source_url": "https://www.cpf.gov.sg/service/article/what-are-the-cpf-interest-rates",
+   "source_quote": "Search-result summary: 1 October to 31 December 2026 - Ordinary Account at 2.5% and Special, MediSave and Retirement Account at 4%.",
+   "confidence": "high"
+  },
+  {
+   "id": "interest-4pct-floor-expiry",
+   "claim": "The Government extended the 4% p.a. interest-rate floor on Special, MediSave and Retirement Account monies by one year, to 31 December 2027; the previous extension ran to 31 December 2026.",
+   "value": "4% floor in force until 31 December 2027 (extension covers 1 Jan - 31 Dec 2027; announced 22 Sep 2026)",
+   "applies_to": "SA, MA, RA monies; 2026 and 2027",
+   "source_url": "https://www.cpf.gov.sg/member/infohub/news/news-releases/government-extends-4-per-cent-interest-rate-floor-on-special-medisave-and-retirement-account-monies-until-31-december-2027",
+   "source_quote": "Release title: 'Government extends 4 per cent interest rate floor on Special, MediSave and Retirement Account monies until 31 December 2027' (CPF news listing dated 22 September 2026; HDB carries the same release). Earlier release: '...until 31 December 2026'.",
+   "confidence": "high"
+  },
+  {
+   "id": "interest-smra-peg",
+   "claim": "The SMRA interest rate is pegged to the 12-month average yield of 10-year Singapore Government Securities plus 1%, subject to the 4% floor.",
+   "value": "12-month average yield of 10-year SGS + 1%, floor 4% p.a.",
+   "applies_to": "2026-2027",
+   "source_url": "https://www.cpf.gov.sg/member/infohub/news/news-releases/cpf-interest-rates-from-1-july-to-30-september-2026",
+   "source_quote": "Search-result summary: The SMRA rate is pegged to the 12-month average yield of 10-year Singapore Government Securities plus 1%, and it has stayed at the floor in each 2026 quarter.",
+   "confidence": "medium"
+  },
+  {
+   "id": "exclusion-mrss-matched-topups",
+   "claim": "Cash top-ups that attract the Matched Retirement Savings Scheme (MRSS) matching grant do not qualify for tax relief, for top-ups made from 1 January 2025 (i.e. from YA2026).",
+   "value": "No relief on MRSS-matched amounts from 1 Jan 2025 / YA2026",
+   "applies_to": "Top-ups from 1 Jan 2025 (YA2026 onward)",
+   "source_url": "https://www.cpf.gov.sg/member/growing-your-savings/saving-more-with-cpf/top-up-to-enjoy-higher-retirement-payouts",
+   "source_quote": "CPF: top-ups that qualify for the MRSS matching grant (up to $2,000/year) will no longer enjoy tax relief from 1 January 2025. IRAS (summary): the MRSS matching grant also excluded such top-ups from YA 2026.",
+   "confidence": "high"
+  },
+  {
+   "id": "mrss-grant-amounts",
+   "claim": "The MRSS matching grant is up to S$2,000 per year on voluntary cash top-ups to SA/RA, with a lifetime limit of S$20,000.",
+   "value": "Up to S$2,000 per year; S$20,000 lifetime cap",
+   "applies_to": "From 1 Jan 2025",
+   "source_url": "https://www.cpf.gov.sg/service/article/what-are-the-conditions-for-me-to-enjoy-tax-relief-to-special-account-or-retirement-account",
+   "source_quote": "Search-result summary of CPF guidance: matching grant of up to $2,000 a year on voluntary cash top-ups made to SA or RA, with a lifetime limit of $20,000.",
+   "confidence": "medium"
+  },
+  {
+   "id": "exclusion-mmss-matched-topups",
+   "claim": "Cash top-ups to eligible members' MediSave Accounts that attract the Matched MediSave Scheme (MMSS) matching grant do not qualify for CPF Cash Top-up Relief from YA2027, for top-ups made from 1 January 2026.",
+   "value": "No relief on MMSS-matched amounts from 1 Jan 2026 / YA2027; MMSS matches up to S$1,000 per year, for Singaporeans aged 55 to 70 with lower MediSave balances, for five years from 1 Jan 2026",
+   "applies_to": "Top-ups from 1 Jan 2026 (YA2027 onward)",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/central-provident-fund-(cpf)-cash-top-up-relief",
+   "source_quote": "CPF cash top-ups to eligible members' MediSave Accounts that attract the Matched MediSave Scheme (MMSS) matching grant will not qualify for CPF Cash Top-up Relief from Year of Assessment 2027, for cash top-ups made from 1 January 2026. (CPF/MOH: Government matches up to $1,000 a year; scheme commences 1 January 2026 for five years.)",
+   "confidence": "high"
+  },
+  {
+   "id": "matching-exclusion-is-partial",
+   "claim": "Only the portion of a top-up that attracts the matching grant is excluded from relief; top-ups (or portions) that do not attract a matching grant can still qualify, up to S$16,000 a year in total.",
+   "value": "Excluded amount = amount that attracts MRSS/MMSS matching grant only",
+   "applies_to": "MRSS from 1 Jan 2025; MMSS from 1 Jan 2026",
+   "source_url": "https://www.cpf.gov.sg/service/article/do-i-get-tax-relief-for-voluntary-top-ups-to-the-medisave-account",
+   "source_quote": "The top-up amount which attracts the matching grant will not qualify for tax relief. Cash top-ups that do not attract the matching grants may qualify for personal tax relief of up to $16,000 a year.",
+   "confidence": "medium"
+  },
+  {
+   "id": "exclusion-cpf-transfers",
+   "claim": "Only cash top-ups qualify for relief; top-ups made by transferring CPF savings (e.g. from your own OA) do not qualify.",
+   "value": "CPF transfers: S$0 relief",
+   "applies_to": "All YAs",
+   "source_url": "https://www.cpf.gov.sg/service/article/what-are-the-conditions-for-me-to-enjoy-tax-relief-to-special-account-or-retirement-account",
+   "source_quote": "CPF: Tax relief applies to cash top-ups to yourself or your loved ones up to the current year's FRS, but would not apply to a CPF transfer. IRAS (summary): transfers from your own CPF account do not qualify; only cash top-ups do.",
+   "confidence": "high"
+  },
+  {
+   "id": "employer-topups-count-toward-self-cap",
+   "claim": "Contrary to the brief's assumption, CPF guidance indicates that cash top-ups made by your employer (or platform operator) to your own SA/RA count toward your own S$8,000 relief rather than being excluded.",
+   "value": "Employer/platform-operator cash top-ups to the employee's SA/RA fall within the employee's S$8,000 self cap",
+   "applies_to": "Current CPF guidance (2025-2026)",
+   "source_url": "https://www.cpf.gov.sg/service/article/what-are-the-conditions-for-me-to-enjoy-tax-relief-to-special-account-or-retirement-account",
+   "source_quote": "Search-result summary of CPF page: the own-account $8,000 applies when you or your employer or platform operator tops up your own SA or RA, and the second $8,000 applies when you top up your loved ones' SA or RA.",
+   "confidence": "medium"
+  },
+  {
+   "id": "vcma-treated-as-cash-topup-relief",
+   "claim": "Since 1 January 2022, voluntary contributions to one's own MediSave Account are no longer a separate relief item; they are relieved under CPF Cash Top-up Relief, sharing the S$8,000 self cap, and are limited by the Basic Healthcare Sum rather than the CPF Annual Limit.",
+   "value": "VC-MA = MediSave cash top-up for relief purposes; limit = BHS - MA balance; CPF Annual Limit does not cap it",
+   "applies_to": "Top-ups from 1 Jan 2022 (YA2023 onward)",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/central-provident-fund(cpf)-relief-for-employees",
+   "source_quote": "Search-result summary of IRAS employee CPF relief page: the [separate] tax treatment ceased for voluntary contributions to an individual's own MediSave Account from 1 January 2022; those contributions are now capped only by the BHS, not the annual limit, and are allowed under CPF Cash Top-up Relief.",
+   "confidence": "medium"
+  },
+  {
+   "id": "cpf-annual-limit",
+   "claim": "The CPF Annual Limit is S$37,740 per calendar year and caps voluntary contributions to the three CPF accounts (VC3A) together with mandatory contributions for that year.",
+   "value": "S$37,740 per calendar year (in force since 1 Jan 2016); VC3A room = S$37,740 - mandatory contributions received in the year",
+   "applies_to": "2025 and 2026",
+   "source_url": "https://www.cpf.gov.sg/service/article/what-are-the-differences-between-topping-up-my-retirement-savings-making-a-voluntary-housing-refund-topping-up-my-medisave-account-and-topping-up-my-three-cpf-accounts",
+   "source_quote": "Search-result summary: CPF Board says top-ups to a person's three CPF accounts cannot exceed the $37,740 annual limit, which includes mandatory contributions for the calendar year. IRAS footnote: $37,740 annual limit applies from 1 January 2016.",
+   "confidence": "high"
+  },
+  {
+   "id": "iras-medisave-page-legacy-formula",
+   "claim": "The IRAS 'Compulsory and Voluntary MediSave Contributions' page still shows a formula giving relief as the lowest of the voluntary cash contribution, the CPF Annual Limit less mandatory contributions, and BHS less MA balance; the search tool flagged this as the pre-2022 formulation and it should not be used for employees' MA cash top-ups.",
+   "value": "Legacy formula: min(VC-MA amount, S$37,740 - mandatory contributions, BHS - MA balance)",
+   "applies_to": "Pre-2022 / self-employed context; NOT the employee MA cash top-up rule from 2022",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/compulsory-and-voluntary-medisave-contributions",
+   "source_quote": "Search-result summary: IRAS's compulsory and voluntary MediSave page sets relief at the lowest of three amounts: the voluntary cash sum, the CPF annual limit minus mandatory contributions, or the BHS minus the existing MediSave balance. Caveat from the search: that page still carries the pre-2022 formula; read the post-2022 rule from the employee relief and cash top-up pages.",
+   "confidence": "low"
+  },
+  {
+   "id": "relief-granted-automatically",
+   "claim": "CPF Cash Top-up Relief does not need to be claimed; IRAS grants it automatically from records transmitted by CPF Board.",
+   "value": "Automatic; no claim in the tax return",
+   "applies_to": "All YAs",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/central-provident-fund-(cpf)-cash-top-up-relief",
+   "source_quote": "The relief is granted automatically to those who are eligible based on records sent to us by the CPF Board.",
+   "confidence": "high"
+  },
+  {
+   "id": "deadline-31-dec",
+   "claim": "To get relief in a given YA, the cash top-up application must be received by CPF Board by 31 December of the preceding calendar year.",
+   "value": "31 December of the top-up year (31 Dec 2026 for YA2027)",
+   "applies_to": "YA2027: top-ups received by CPF by 31 Dec 2026",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/central-provident-fund-(cpf)-cash-top-up-relief",
+   "source_quote": "Search-result summary of IRAS page: Top-ups made in one year are relieved the following year, with the CPF application needing to be received by 31 December.",
+   "confidence": "medium"
+  },
+  {
+   "id": "overall-relief-cap-80k",
+   "claim": "CPF Cash Top-up Relief counts toward the overall personal income tax relief cap of S$80,000 per Year of Assessment.",
+   "value": "S$80,000 per YA across all personal reliefs",
+   "applies_to": "YA2018 onward, including YA2026 and YA2027",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/central-provident-fund-(cpf)-cash-top-up-relief",
+   "source_quote": "For each Year of Assessment, a personal income tax relief cap of $80,000 applies to the total amount of all tax reliefs claimed (including any relief on cash top-ups made). CPF: Your total personal income tax relief, including CPF top-ups, is capped at $80,000/year.",
+   "confidence": "high"
+  },
+  {
+   "id": "payout-estimates-2026",
+   "claim": "CPF estimates monthly CPF LIFE payouts from age 65 of about S$950 (BRS), S$1,780 (FRS) and S$3,440 (ERS) for the 2026 sums.",
+   "value": "BRS S$110,200 -> ~S$950/month; FRS S$220,400 -> ~S$1,780/month; ERS S$440,800 -> ~S$3,440/month (one CPF article says S$3,400)",
+   "applies_to": "2026 retirement sums (illustrative only)",
+   "source_url": "https://www.cpf.gov.sg/member/infohub/educational-resources/what-is-the-cpf-retirement-sum",
+   "source_quote": "Search-result summary: BRS $110,200 about $950 a month; FRS $220,400 an estimated $1,780 a month; 2026 ERS provides up to $3,440 a month (one CPF article gives $3,400).",
+   "confidence": "medium"
+  }
+ ],
+ "summary": "RESEARCH WAS CUT SHORT: only 8 web searches ran before the shared per-turn search budget (200 calls across all agents) was exhausted; every later search was refused. Direct fetching is unavailable (gov.sg blocked as stated; taxsummaries.pwc.com and en.wikipedia.org also failed DNS and would have to be allowed in the session's network settings). Everything below comes from search-result content of iras.gov.sg, cpf.gov.sg, moh.gov.sg and hdb.gov.sg pages; several brief items could not be verified and are listed in open_questions rather than filled from memory. A follow-up run with search budget is needed to close them.\n\nCONFIRMED (official sources):\n- Caps: S$8,000 relief for cash top-ups to own SA/RA/MA (one shared self cap) plus a separate S$8,000 for top-ups to loved ones' SA/RA/MA; max S$16,000 per YA. CPF/MOH 2026 material says members \"may continue to enjoy\" these for 2026 top-ups (YA2027). No source found on any change for 2027.\n- Loved ones: parents, parents-in-law, grandparents, grandparents-in-law, spouse, siblings. Spouse/sibling must have had annual income not exceeding S$8,000 in the preceding year (raised from S$4,000 with effect from YA2025) or have a disability. Giver must be a Singapore Citizen/PR.\n- Limits: under 55, top-up room = current FRS - SA savings - net SA monies withdrawn under CPFIS for investments not completely disposed of. 55+: RA can be topped up to current ERS, BUT tax relief is only given up to the current year's FRS (no relief between FRS and ERS; no relief if recipient is already at FRS). MA: up to BHS less MA balance.\n- Values: 2026 BRS/FRS/ERS = S$110,200 / S$220,400 / S$440,800; 2027 = S$114,100 / S$228,200 / S$456,400; ERS 2025 = S$426,000; from 2026 ERS = 2 x current FRS. BHS 2025 = S$75,500, BHS 2026 = S$79,000. BHS 2027 not found.\n- Exclusions: amounts attracting MRSS matching grant (top-ups from 1 Jan 2025 / YA2026; grant up to S$2,000/yr, S$20,000 lifetime); amounts attracting the new Matched MediSave Scheme grant (top-ups from 1 Jan 2026 / YA2027; up to S$1,000/yr, Singaporeans 55-70 with lower MA balances, 5 years); CPF transfers (non-cash); amounts above FRS. Only the matched portion is excluded.\n- IMPORTANT CORRECTION TO THE BRIEF: CPF guidance says employer/platform-operator cash top-ups to your own SA/RA count toward your own S$8,000 relief - they are not an exclusion (medium confidence; IRAS confirmation not retrieved).\n- VC-MA: since 1 Jan 2022 voluntary contributions to own MediSave are relieved under CPF Cash Top-up Relief (shared S$8,000 self cap), limited by BHS and not by the CPF Annual Limit. CPF Annual Limit S$37,740 applies to VC3A (including mandatory contributions).\n- Admin: relief is automatic from CPF records; top-up must be received by CPF by 31 Dec; subject to the S$80,000 overall personal relief cap.\n- Interest: OA 2.5% and SA/MA/RA 4% p.a. throughout 2026 (Q4 2026 confirmed); 4% floor extended to 31 Dec 2027 (announced 22 Sep 2026).\n\nNOT VERIFIED (see open_questions): BRS/FRS 2025 direct figures, BHS 2027, extra interest on first S$60,000, SA closure details, recommended earlier cut-off date, irreversibility, tax-residency requirement, VC3A no-relief-for-employees statement, Budget 2026 / 2027 changes, and official IRAS worked examples. No official worked examples were retrieved; the worked_examples supplied are derived arithmetic on the sourced rules and are labelled as such.",
+ "open_questions": [
+  "SEARCH BUDGET EXHAUSTED after 8 searches (shared 200-call limit); direct fetch of gov.sg, taxsummaries.pwc.com and en.wikipedia.org failed DNS. All items below need a follow-up run with search budget or with those hosts allowed in the session network settings.",
+  "BRS and FRS for 2025 were not directly quoted in retrieved results. Only ERS 2025 = S$426,000 was sourced. Candidate values to verify (derived from ERS = 2 x FRS = 4 x BRS, unverified): FRS 2025 = S$213,000, BRS 2025 = S$106,500. Needed for YA2026 back-testing.",
+  "Basic Healthcare Sum for 2027: not found. It is normally announced with the Q1 interest-rate release (the 2026 BHS was in the 'CPF interest rates from 1 January to 31 March 2026 and Basic Healthcare Sum for 2026' release), so it may not yet be published as of 13 Nov 2026.",
+  "Extra interest: the brief's 'extra interest on first S$60,000' was not retrieved. Verify on https://www.cpf.gov.sg/service/article/what-are-the-cpf-interest-rates (expected, unverified: extra 1% on first S$60,000 of combined balances with OA capped at S$20,000; for members 55+, extra 2% on first S$30,000 and 1% on next S$30,000).",
+  "CPF interest rates for 1 Jan - 31 Mar 2027 not yet retrieved (4% SMRA floor is confirmed to 31 Dec 2027, but OA/SMRA Q1 2027 release not seen).",
+  "Closure of the Special Account for members 55+ from January 2025: not verified in retrieved content. A CPF article exists at https://www.cpf.gov.sg/member/infohub/educational-resources/closure-of-cpf-special-account-so-what-next but its content (effective date, transfer of SA savings to RA up to FRS and remainder to OA) was not retrieved.",
+  "Any change to the S$8,000 + S$8,000 relief caps or eligibility for top-ups made in 2027 (YA2028): nothing found either way. Budget 2026 CPF changes were not retrieved (see https://www.cpf.gov.sg/member/infohub/educational-resources/cpf-changes-announced-in-budget2026-and-what-it-means-for-you and https://www.cpf.gov.sg/member/infohub/news/cpf-related-announcements/budget-highlights-2026).",
+  "Recommended earlier cut-off for year-end top-ups (e.g. CPF advice to complete the top-up some days before 31 Dec, and which payment modes are same-day): not retrieved. Only the IRAS statement that the application must be received by CPF by 31 December was found.",
+  "Irreversibility of RSTU / MediSave cash top-ups (cannot be refunded or withdrawn once made): not retrieved; needs a CPF source.",
+  "Whether the giver must be a Singapore tax resident to obtain the relief: not retrieved. IRAS result only states the giver must be a Singapore Citizen or PR. Personal reliefs being restricted to tax residents needs an IRAS citation.",
+  "Explicit statement that voluntary contributions to all three accounts (VC3A) give NO tax relief to employees (only self-employed get relief on VC as part of CPF relief for SEPs): not retrieved. Check the CPF comparison article https://www.cpf.gov.sg/service/article/what-are-the-differences-between-topping-up-my-retirement-savings-making-a-voluntary-housing-refund-topping-up-my-medisave-account-and-topping-up-my-three-cpf-accounts and the IRAS CPF relief for employees page.",
+  "Official IRAS worked examples: the IRAS CPF Cash Top-up Relief page and PDF (https://www.iras.gov.sg/docs/default-source/individual-income-tax/employees/cpf-cash-top-up-relief.pdf) likely contain numeric examples but none were retrieved. The CPF FAQ 'How is tax relief computed for my cash top-ups to Special Account/Retirement Account' (https://www.cpf.gov.sg/service/article/how-is-tax-relief-computed-for-my-cash-top-ups-to-special-account-retirement-account) should also be read.",
+  "Exact definition of 'RA savings' used for the FRS relief test for members 55+ (e.g. whether it excludes interest and government grants and includes amounts already used for CPF LIFE premiums, withdrawals or property pledge). Retrieved text only says 'RA savings, excluding interest, government grants and retirement withdrawals'.",
+  "Employer top-ups: CPF says employer/platform-operator top-ups to your own SA/RA fall under your S$8,000 self relief. Confirm on the IRAS page (and whether the employer's top-up is taxable employment income to the employee), since the brief assumed employer top-ups were excluded.",
+  "Whether IRAS's own list of family members includes grandparents-in-law (CPF's list does; the IRAS search summary did not show it).",
+  "Exact inequality for the spouse/sibling income test: IRAS wording retrieved is 'not exceeding $8,000'; one CPF page was summarised as 'less than $8,000'. Treat IRAS as authoritative but confirm, and confirm which income types count.",
+  "MRSS eligibility criteria (age, RA/SA balance below BRS, income and property limits) and any 2026 expansion (the MOH release title says 'More Singaporeans eligible for matching government grants') were not retrieved; the calculator needs these to know whether a loved one's top-up attracts matching and therefore loses relief.",
+  "How IRAS allocates the S$8,000 self cap when both own SA/RA and own MA top-ups are made and one of them is partly ineligible (above FRS/BHS or matched) - assumed simple sum of eligible amounts capped at S$8,000, not verified.",
+  "Whether the CPF Annual Limit constrains RSTU top-ups: believed not (RSTU limited by FRS/ERS; MA top-ups by BHS per IRAS), but one search summary loosely stated top-ups cannot push total contributions past S$37,740 - this appears to refer to VC3A only and should be confirmed."
+ ],
+ "worked_examples": [
+  {
+   "description": "DERIVED ILLUSTRATION (not an official IRAS/CPF example): member below 55 with ample FRS room tops up own SA in 2026",
+   "inputs": "Age 40; SA savings S$100,000; no SA monies invested under CPFIS; cash top-up to own SA S$8,000 in 2026; no MA top-up; 2026 FRS S$220,400",
+   "expected_outputs": "Top-up room = 220,400 - 100,000 - 0 = S$120,400; top-up allowed in full; CPF Cash Top-up Relief (self) for YA2027 = S$8,000",
+   "source_url": "https://www.cpf.gov.sg/service/article/what-is-the-maximum-amount-of-top-ups-i-can-receive",
+   "caveat": "Arithmetic applied to sourced rules (FRS 2026, top-up limit formula, S$8,000 self cap); not a published example. Subject to the S$80,000 overall relief cap."
+  },
+  {
+   "description": "DERIVED ILLUSTRATION (not official): member below 55 close to FRS splits top-up between SA and MA under the shared S$8,000 self cap",
+   "inputs": "Age 45; SA savings S$216,400 (no CPFIS-SA investments); MA balance S$75,000; 2026 FRS S$220,400; 2026 BHS S$79,000; cash top-ups in 2026: S$4,000 to own SA and S$4,000 to own MA",
+   "expected_outputs": "SA room = 220,400 - 216,400 = S$4,000; MA room = 79,000 - 75,000 = S$4,000; both top-ups accepted; relief (self) for YA2027 = 4,000 + 4,000 = S$8,000 (shared cap reached)",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/central-provident-fund-(cpf)-cash-top-up-relief",
+   "caveat": "Derived from sourced rules; not a published example. Assumes the member is not MMSS-eligible (MMSS targets ages 55-70)."
+  },
+  {
+   "description": "DERIVED ILLUSTRATION (not official): member 55+ tops up RA above FRS - relief limited to the FRS gap",
+   "inputs": "Age 58; RA savings (as defined by CPF for top-up purposes) S$215,000; cash top-up to own RA S$8,000 in 2026; 2026 FRS S$220,400; 2026 ERS S$440,800; not MRSS-eligible",
+   "expected_outputs": "Top-up allowed (215,000 + 8,000 < ERS 440,800); relief-eligible amount = FRS - RA savings = 220,400 - 215,000 = S$5,400; relief (self) for YA2027 = S$5,400; remaining S$2,600 gets no relief",
+   "source_url": "https://www.cpf.gov.sg/member/growing-your-savings/saving-more-with-cpf/top-up-to-enjoy-higher-retirement-payouts",
+   "caveat": "Derived from 'tax relief will not be granted for top-ups beyond the current year's FRS'. The exact definition of RA savings for this test (treatment of interest, grants, withdrawals, CPF LIFE premiums) is an open question."
+  },
+  {
+   "description": "DERIVED ILLUSTRATION (not official): self plus parent top-up reaching the combined S$16,000 cap",
+   "inputs": "Age 35; own SA far below FRS; cash top-up S$8,000 to own SA and S$10,000 to mother's RA in 2026; mother's RA savings well below 2026 FRS; mother's top-up does not attract MRSS matching",
+   "expected_outputs": "Relief (self) = S$8,000; relief (family) = min(10,000, 8,000) = S$8,000; total CPF Cash Top-up Relief for YA2027 = S$16,000",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/central-provident-fund-(cpf)-cash-top-up-relief",
+   "caveat": "Derived, not published. If the parent is MRSS-eligible, the portion of the top-up that attracts the matching grant (up to S$2,000/yr) does not qualify for relief; how the remaining amount interacts with the S$8,000 family cap should be confirmed with IRAS."
+  }
+ ]
+}

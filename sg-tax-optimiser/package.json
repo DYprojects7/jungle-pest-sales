@@ -10,7 +10,11 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "build:release": "npm run build && node scripts/copy-release.mjs",
+    "build:workbook": "tsx workbook/build.ts",
+    "test:e2e": "node tests/e2e/run.cjs",
+    "test:reference": "python3 -m unittest discover -s reference -p 'test_*.py'"
   },
   "devDependencies": {
     "@preact/preset-vite": "^2.10.6",

@@ -1,0 +1,123 @@
+{
+ "items": [
+  {
+   "id": "spouse",
+   "status": "corrected",
+   "value": "Spouse Relief S$2,000; Spouse Relief (Disability) S$5,500 (both confirmed). Spouse's annual income must not exceed S$8,000 (from YA2025; S$4,000 for YA2024 and earlier) - but this income condition applies to Spouse Relief ONLY; it is NOT applicable when claiming Spouse Relief (Disability).",
+   "evidence_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/spouse-relief-spouse-relief-(disability)",
+   "evidence_quote": "As relayed by the search tool reading the IRAS page (not verbatim): amount-of-relief table lists Spouse Relief $2,000 and Spouse Relief (Disability) $5,500; threshold raised from $4,000 to $8,000 from YA 2025; the $8,000 condition is \"not applicable\" when claiming Spouse Relief (Disability).",
+   "note": "Dollar amounts and the S$8,000/YA2025 threshold are confirmed. The only correction is scope: do not gate the Disability variant on spouse income. IRAS page is currently headed YA2026; no YA2027-specific change found."
+  },
+  {
+   "id": "qcr",
+   "status": "confirmed",
+   "value": "Qualifying Child Relief S$4,000 per child; Child Relief (Disability) S$7,500 per child.",
+   "evidence_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/qualifying-child-relief-(qcr)-child-relief-(disability)",
+   "evidence_quote": "\"the maximum QCR/Child Relief (Disability) per child is $4,000 and $7,500 respectively\"",
+   "note": "QCR has a child-income condition of S$8,000 from YA2025. I could not confirm within budget whether that income test is waived for Child Relief (Disability) (it is waived for the spouse and parent disability variants) - check before gating CR(D) on child income. Relief is shareable between parents. Page is headed YA2026; no YA2027 change found."
+  },
+  {
+   "id": "wmcr",
+   "status": "confirmed",
+   "value": "Fixed S$8,000 (1st child) / S$10,000 (2nd) / S$12,000 (3rd and subsequent) for SC children born/adopted on or after 1 Jan 2024; 15% / 20% / 25% of mother's earned income for children born/adopted before 1 Jan 2024; QCR/CR(D) + WMCR capped at S$50,000 per child.",
+   "evidence_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/working-mother's-child-relief-(wmcr)",
+   "evidence_quote": "\"On or after 1 Jan 2024: 1st child: $8,000, 2nd child: $10,000, 3rd & subsequent children: $12,000; Before 1 Jan 2024: 15%, 20%, and 25% of mother's earned income\"; total Child Relief cap (QCR/Child Relief (Disability) plus WMCR) \"is $50,000 per child\"",
+   "note": "Additional rules the calculator needs: (1) total WMCR across all children is capped at 100% of the mother's earned income; (2) QCR/CR(D) is allowed first regardless of which parent claims it, and WMCR is limited to the remaining balance of the S$50,000 per-child cap; (3) the search tool reported that the current IRAS page keys the fixed-vs-percentage split on the date the child BECAME a Singapore Citizen (relevant for children born before 2024 who obtained citizenship on/after 1 Jan 2024) - edge case not fully verified."
+  },
+  {
+   "id": "parent",
+   "status": "corrected",
+   "value": "Parent Relief S$9,000 (staying with) / S$5,500 (not staying with) per dependant; Parent Relief (Disability) S$14,000 / S$10,000 (all confirmed). Parent's annual income must not exceed S$8,000 (from YA2025) and parent must be 55 or older - but these conditions apply to Parent Relief ONLY; Parent Relief (Disability) has no income threshold and no age requirement.",
+   "evidence_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/parent-relief-parent-relief-(disability)",
+   "evidence_quote": "As relayed by the search tool reading the IRAS page: $9,000 / $5,500 and $14,000 / $10,000 per dependant; \"the total allowable Parent Relief claim will be $9,000 in the YA 2026 if the parent is staying with a claimant\"; the income condition \"does not apply\" if claiming Parent Relief (Disability).",
+   "note": "Dollar amounts and the S$8,000 threshold are confirmed; the correction is only that the income (and age 55+) test must not be applied to the Disability variant. Amounts are per dependant, not per claimant - where several claimants share one parent, the total is still S$9,000 / S$5,500 (apportioned). Page is headed YA2026; no YA2027 amount change found."
+  },
+  {
+   "id": "grandparent-caregiver",
+   "status": "confirmed",
+   "value": "Grandparent Caregiver Relief S$3,000 (working mothers only).",
+   "evidence_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/grandparent-caregiver-relief",
+   "evidence_quote": "\"You may claim $3,000 on your or your husband's parents, grandparents, step-parents, step-grandparents, adoptive parents, or adoptive grandparents\"; \"single taxpayers or male taxpayers are not eligible for this relief\"",
+   "note": "One claim of S$3,000 in total (not per child, not shareable). Caregiver's income cap rose to S$8,000 from YA2025 (was S$4,000)."
+  },
+  {
+   "id": "sibling-disability",
+   "status": "confirmed",
+   "value": "Sibling Relief (Disability) S$5,500 per sibling.",
+   "evidence_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/sibling-relief-(disability)",
+   "evidence_quote": "\"You may claim $5,500 for each of your or your spouse's siblings, step-siblings, or adoptive siblings with disability.\"",
+   "note": "Covers spouse's siblings too. Shareable between claimants by agreed apportionment; sibling must live in the same household in Singapore, or the claimant must have incurred S$2,000 or more supporting them."
+  },
+  {
+   "id": "nsman",
+   "status": "confirmed",
+   "value": "NSman Self Relief S$1,500 (no NS activity in preceding work year) / S$3,000 (performed NS activity); key command and staff appointment holders S$3,500 / S$5,000; NSman Wife Relief S$750; NSman Parent Relief S$750 per parent.",
+   "evidence_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/nsman-relief-(self-wife-and-parent)",
+   "evidence_quote": "As relayed by the search tool reading the IRAS table (not verbatim): regular NSmen $1,500 without NS activity and $3,000 with; key command and staff appointment holders $3,500 without and $5,000 with; wife $750; parent $750 \"for each parent, regardless of the number of children who are NSmen\".",
+   "note": "The work year runs 1 Apr to 31 Mar (YA2026 = 1 Apr 2025 to 31 Mar 2026; so YA2027 = 1 Apr 2026 to 31 Mar 2027), not the calendar year. Only one NSman relief per person - the higher of self / wife / parent relief (e.g. an NSman who is also an NSman's father gets the higher, not both). Granted automatically. The search tool flagged a YA2026 IRAS brochure apparently showing $1,500 for key appointment holders with no activity; this conflicts with the main IRAS page ($3,500), which I treat as authoritative."
+  },
+  {
+   "id": "life-insurance",
+   "status": "corrected",
+   "value": "Life Insurance Relief is available only if the taxpayer's TOTAL of (a) compulsory employee CPF contributions AND (b) self-employed MediSave / voluntary CPF contributions is below S$5,000. Amount = lower of (i) S$5,000 minus that CPF contribution total, and (ii) up to 7% of the insured value of own/spouse's life, or the insurance premiums paid (in practice the lowest of the three figures).",
+   "evidence_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/life-insurance-relief",
+   "evidence_quote": "\"Compulsory employee CPF contribution; and b. Self-employed MediSave/voluntary CPF contribution. | Less than $5,000 | You may claim the lower of: a. the difference between $5,000 and your CPF contribution; or b. up to 7% of the insured value of your own/your spouse's life, or the amount of insurance premiums paid.\"",
+   "note": "The formula in the candidate is right; the correction is that the S$5,000 test is not on compulsory employee CPF alone - self-employed MediSave and voluntary CPF contributions count too (voluntary cash top-ups to MediSave stopped counting from YA2023). IRAS worked example for YA2026: insured value $50,000 (7% = $3,500), premiums $3,800, CPF $1,600 -> relief $3,400. New from YA2026: relief expanded to premiums paid by wives on their husbands' policies. Premiums on a child's life do not qualify."
+  },
+  {
+   "id": "course-fees",
+   "status": "confirmed",
+   "value": "Course Fees Relief discontinued from YA2026; last claimable in YA2025.",
+   "evidence_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/course-fees-relief",
+   "evidence_quote": "\"Course Fees Relief has been discontinued with effect from Year of Assessment (YA) 2026. The final year in which Course Fees Relief may be claimed is in YA 2025.\"",
+   "note": "An MOF parliamentary reply (\"Reintroduction of Course Fees Relief from 2027 or Alternative Personal Income Tax Reliefs for Skills Upgrading\") says there are no plans to reintroduce it, so it stays at zero for YA2027 and YA2028."
+  },
+  {
+   "id": "fdwl",
+   "status": "confirmed",
+   "value": "Foreign Domestic Worker Levy Relief discontinued from YA2025; last claimable in YA2024.",
+   "evidence_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/foreign-domestic-worker-levy-(fdwl)-relief",
+   "evidence_quote": "\"has been discontinued with effect from Year of Assessment (YA) 2025. The final year in which FDWL Relief may be claimed is in YA 2024.\"",
+   "note": "Also confirmed by an MOF parliamentary reply: \"the Foreign Domestic Worker Levy Relief will lapse with effect from the Year of Assessment 2025.\""
+  },
+  {
+   "id": "eir-disability",
+   "status": "confirmed",
+   "value": "Earned Income Relief (Disability): S$4,000 (below 55) / S$10,000 (55 to 59) / S$12,000 (60 and above).",
+   "evidence_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/earned-income-relief",
+   "evidence_quote": "As relayed by the search tool reading the IRAS table (not verbatim): maximum claimable $4,000 below 55, $10,000 for 55 to 59, $12,000 for 60 and above; standard EIR $1,000 / $6,000 / $8,000.",
+   "note": "Age is taken as at 31 Dec of the previous year (the income year). The relief is capped at taxable earned income if that is lower than the maximum. It replaces, not adds to, the standard EIR."
+  },
+  {
+   "id": "new-reliefs",
+   "status": "unverified",
+   "value": "No new personal relief for YA2026 or YA2027 was found, but I could not obtain an official statement or the full Budget 2026 tax annex confirming the negative. Treat the candidate as not contradicted, not as confirmed.",
+   "evidence_url": "https://www.mof.gov.sg/news-resources/newsroom/second-reading-opening-speech-on-the-finance--income-taxes--bill---2m-jeffrey-siow/",
+   "evidence_quote": "As relayed by the search tool: the Finance (Income Taxes) Bill 2026 has 20 Income Tax Act amendments, ten giving effect to Budget 2026 measures; the items surfaced were business/donation measures plus a Fixed Expense Deduction Ratio for self-employed persons - no personal relief and no personal income tax rebate for YA2026 or YA2027.",
+   "note": "Searched (3 queries on iras.gov.sg / mof.gov.sg / singaporebudget.gov.sg): Budget 2026 personal income tax changes for YA2027; IRAS 'Budget 2026 - Overview of Tax Changes'; Finance (Income Taxes) Bill 2026 measures. The IRAS page 'Budget 2026: Tax Changes and Enterprise Disbursements' (https://www.iras.gov.sg/news-events/singapore-budget/budget-2026--tax-changes-and-enterprise-disbursements) exists and lists individual income tax as a category, but its content did not come through - it is the page to read to close this item. Budget 2025 was not separately searched; the only Budget 2025 personal measure that surfaced was the YA2025 Personal Income Tax Rebate (60% of tax payable, capped at S$200) - a rebate, not a relief, and YA2025 only. One widening (not a new relief): Life Insurance Relief covers wives paying premiums on husbands' policies from YA2026."
+  },
+  {
+   "id": "relief-names",
+   "status": "confirmed",
+   "value": "IRAS uses \"(Disability)\" naming: Spouse Relief (Disability), Parent Relief (Disability), Child Relief (Disability), Sibling Relief (Disability), Earned Income Relief (Disability).",
+   "evidence_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/parent-relief-parent-relief-(disability)",
+   "evidence_quote": "IRAS page titles: \"Parent Relief/Parent Relief (Disability)\", \"Spouse Relief/Spouse Relief (Disability)\", \"Qualifying Child Relief (QCR)/Child Relief (Disability)\", \"Sibling Relief (Disability)\"",
+   "note": "An older IRAS URL slug still reads 'parent-relief-handicapped-parent-relief' but the page title is the new name."
+  }
+ ],
+ "summary": "Of 13 items, 9 are confirmed against IRAS/MOF pages, 3 are corrected on scope rather than on dollar amounts, and 1 (no new reliefs) is unverified. Every dollar amount in the packet matched IRAS.\n\n**Corrections**\n- **Spouse:** the S$8,000 spouse-income test applies to Spouse Relief only, not to Spouse Relief (Disability).\n- **Parent:** the S$8,000 income test and the age-55 condition apply to Parent Relief only; Parent Relief (Disability) has neither.\n- **Life insurance:** the S$5,000 test is on compulsory employee CPF plus self-employed MediSave/voluntary CPF contributions, not employee CPF alone.\n\n**Unverified**\n- **New reliefs:** three searches of Budget 2026 material surfaced no new personal relief or rebate for YA2026/YA2027. I could not read the Budget 2026 tax-changes page itself, so the negative is not officially confirmed.\n\n**YA2027 vs YA2026:** the IRAS relief pages are still headed YA2026. I found no announced change to any of these amounts for YA2027, but IRAS has not yet published YA2027 pages, so YA2027 = YA2026 is an inference.\n\n**Evidence quality:** direct page fetching was blocked, so quotes are as extracted by the search tool. Several are its paraphrase of IRAS tables, not verbatim text; each is marked in the item. All 12 searches were used.",
+ "extra_findings": [
+  "Disability variants are exempt from the dependant-income test: IRAS says the S$8,000 condition is not applicable to Spouse Relief (Disability) or Parent Relief (Disability), and the CPF Cash Top-up page says the same for a spouse or sibling with disability. Whether Child Relief (Disability) is likewise exempt was not confirmed.",
+  "Life Insurance Relief was widened from YA2026 to cover premiums paid by wives on their husbands' life insurance policies (previously the wife could not claim on the husband's policy).",
+  "A Fixed Expense Deduction Ratio for self-employed persons and individual sole proprietors is in the Finance (Income Taxes) Bill 2026. The search tool reported it as optional, 20% of revenue, for annual revenue up to S$50,000 (Clause 13(2)). The effective YA and whether it is a Budget 2026 or periodic-review measure were not verified. It is a deduction against trade income, not a personal relief, but it matters if the calculator supports self-employed users.",
+  "WMCR has two caps beyond the S$50,000 per-child cap: total WMCR across all children is limited to 100% of the mother's earned income, and QCR/Child Relief (Disability) is allowed first with WMCR limited to the remaining balance.",
+  "WMCR edge case: the current IRAS page reportedly determines fixed-dollar vs percentage treatment by the date the child became a Singapore Citizen, so a child born before 2024 who became a citizen on or after 1 Jan 2024 may get the fixed amount. Not fully verified.",
+  "NSman relief is assessed on a work year of 1 April to 31 March, not the calendar year, and a person gets only the highest of self / wife / parent NSman relief, not a sum.",
+  "Parent Relief amounts are per dependant, not per claimant: siblings sharing one parent split S$9,000 or S$5,500 between them. Grandparent Caregiver Relief cannot be shared at all.",
+  "The overall personal income tax relief cap remains S$80,000 per YA (seen on the IRAS WMCR and tax reliefs pages).",
+  "The dependant/caregiver income threshold of S$8,000 (up from S$4,000) from YA2025 also applies to QCR, WMCR, Grandparent Caregiver Relief and CPF Cash Top-up Relief for spouse/siblings.",
+  "MOF has stated there are no plans to reintroduce Course Fees Relief (parliamentary reply on reintroduction from 2027).",
+  "The only personal income tax rebate found is for YA2025 (60% of tax payable, capped at S$200). None was found for YA2026 or YA2027, so the calculator should not apply one to those years unless the Budget 2026 page says otherwise."
+ ],
+ "searches_used": 12
+}

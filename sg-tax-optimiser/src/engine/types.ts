@@ -94,7 +94,12 @@ export interface YearRules {
   srs: {
     capCitizenPr: number;
     capForeigner: number;
-    /** Statutory retirement age prevailing for first contributions made in this income year (informational). */
+    /** Minimum age to contribute. */
+    minAge: number;
+    /**
+     * Statutory retirement age that a FIRST SRS contribution made at the end of this income year locks in
+     * as the penalty-free withdrawal age (informational; shown in the UI).
+     */
     statutoryRetirementAge: number;
   };
 
@@ -109,6 +114,10 @@ export interface YearRules {
     enhancedRetirementSum: number;
     /** Basic Healthcare Sum for the year (MediSave limit). */
     basicHealthcareSum: number;
+    /** Residency statuses that can claim CPF Cash Top-up Relief for top-ups to family members. */
+    familyGiverResidency: Residency[];
+    /** Interest rate floor on SA/MA/RA for the year (informational; shown in the UI). */
+    interestRateSmra: number;
   };
 
   /** Last day contributions count for this income year, ISO date (YYYY-MM-DD). */
@@ -123,13 +132,22 @@ export interface YearRules {
 
 export interface ReliefCatalogItem {
   id: string;
+  /** Grouping for display. 'disability' items are shown in a collapsed group. */
+  group: 'family' | 'ns' | 'disability' | 'other';
   label: string;
   /** Relief amount per unit (e.g. per child, per parent). 0 when the user must type the amount. */
   amountPerUnit: number;
-  /** 'count' = user enters how many (amount = count * amountPerUnit); 'amount' = user types a dollar amount; 'toggle' = on/off. */
-  input: 'count' | 'amount' | 'toggle';
+  /**
+   * 'count'  = user enters how many (amount = count * amountPerUnit);
+   * 'amount' = user types a dollar amount;
+   * 'toggle' = on/off (amount = amountPerUnit when on);
+   * 'select' = user picks one of `options`.
+   */
+  input: 'count' | 'amount' | 'toggle' | 'select';
   /** Maximum count or amount, if any. */
   max?: number;
+  /** Choices for input === 'select'. The first option should be the "none" choice with amount 0. */
+  options?: { label: string; amount: number }[];
   help: string;
 }
 
@@ -208,6 +226,8 @@ export interface PlannerInput {
     minSavingRate: number;
     /** Order in which levers are filled. Must be a permutation of the three LeverIds. */
     priority: LeverId[];
+    /** Step size for the simulator table in dollars. Default 1000; minimum 100. */
+    simulatorStep?: number;
   };
 }
 

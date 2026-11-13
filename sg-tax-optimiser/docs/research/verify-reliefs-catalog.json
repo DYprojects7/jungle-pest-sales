@@ -1,0 +1,219 @@
+{
+ "verdicts": [
+  {
+   "id": "relief-cap-80k",
+   "verdict": "unverifiable",
+   "note": "Not independently checked: every search returned 'not performed' (shared 200-call budget exhausted) and no host was reachable. Unsourced model recall agrees (S$80,000 per YA from YA2018). Recall is not evidence. Whether Budget 2026 changed it for YA2027 is unchecked by both researcher and me."
+  },
+  {
+   "id": "relief-cap-excess-treatment",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Researcher's own evidence is a search-result paraphrase, not a quote. The substance (reliefs limited to S$80,000, no carry-forward of unused reliefs) matches unsourced recall, but the exact 'cannot be carried over' wording is unconfirmed."
+  },
+  {
+   "id": "relief-cap-includes-cpf-relief",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Unsourced recall agrees that relief on compulsory and voluntary CPF contributions counts toward the cap. Researcher's evidence is a paraphrase only."
+  },
+  {
+   "id": "relief-cap-includes-srs",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Unsourced recall agrees SRS relief is inside the cap. Researcher's evidence is a paraphrase only."
+  },
+  {
+   "id": "relief-count-13",
+   "verdict": "unverifiable",
+   "note": "Not independently checked and my recall does not cover the count. The researcher did not retrieve the list of 13, so the catalogue's completeness is unproven. Not a computational input, but do not display '13' without a direct read of the IRAS tax-reliefs page."
+  },
+  {
+   "id": "ptr-is-rebate-not-relief",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Researcher itself rates this low-confidence and found no explicit cap-exclusion wording. Unsourced recall: PTR is a rebate set against tax payable, so it sits outside a cap on reliefs, but that inference still needs an official quote before the calculator relies on it."
+  },
+  {
+   "id": "eir-standard-amounts",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Unsourced recall agrees (S$1,000 / S$6,000 / S$8,000 by age at 31 Dec of the preceding year). YA2027 'unchanged' remains an assumption because Budget 2026 was never checked."
+  },
+  {
+   "id": "eir-capped-at-earned-income",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Unsourced recall agrees (lower of band maximum and taxable earned income after allowable expenses). Researcher's evidence is a paraphrase only."
+  },
+  {
+   "id": "eir-disability-amounts",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Unsourced recall agrees (S$4,000 / S$10,000 / S$12,000). Note the researcher's quote supports only that a higher relief exists, not the three dollar figures, so the amounts themselves are unevidenced in the researcher's output."
+  },
+  {
+   "id": "spouse-relief-amounts",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Unsourced recall agrees (S$2,000 / S$5,500). The researcher omitted the maintenance-payment variant (relief limited to maintenance actually paid to a legally separated spouse), which a calculator may need; that too is unverified."
+  },
+  {
+   "id": "dependant-income-threshold-8000",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Unsourced recall agrees (S$4,000 raised to S$8,000 from YA2025, announced in Budget 2024). The researcher has a direct-looking quote for this one, so it is among the better-supported items."
+  },
+  {
+   "id": "dependant-annual-income-definition",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Taxable + tax-exempt + foreign-sourced income matches unsourced recall. The '(excluding CPF payouts)' carve-out is not in the researcher's quoted text and I could not confirm it; treat that detail as unsupported."
+  },
+  {
+   "id": "spouse-disability-no-income-test",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Researcher's evidence is a paraphrase only. Unsourced recall agrees that the income condition does not apply to a disabled spouse."
+  },
+  {
+   "id": "relief-conditions-tested-in-preceding-year",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Consistent with the basic preceding-year basis of assessment. The YA2027 half is the researcher's inference, as stated. One exception inside the researcher's own output: NSman relief is tested on an April-March work year, not the calendar year."
+  },
+  {
+   "id": "qcr-amount",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. S$4,000 is evidenced only indirectly through a cap illustration. Unsourced recall agrees with S$4,000. The Child Relief (Disability) amount, the child's income threshold and the age/study conditions are all still missing and are needed by a calculator."
+  },
+  {
+   "id": "wmcr-fixed-dollar-regime",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Unsourced recall agrees (S$8,000 / S$10,000 / S$12,000 for Singapore Citizen children born or adopted on or after 1 Jan 2024, from YA2025). Researcher's evidence is a paraphrase."
+  },
+  {
+   "id": "wmcr-percentage-regime",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Unsourced recall agrees (15% / 20% / 25% of the mother's earned income). Researcher's evidence is a paraphrase."
+  },
+  {
+   "id": "wmcr-citizenship-date-rule",
+   "verdict": "unverifiable",
+   "note": "Not independently checked and my recall does not settle it. This is a regime-switching rule resting on a fragmentary quote; it changes the computed relief for children born before 2024 who were naturalised later. Needs a direct read of the IRAS WMCR page before the calculator keys the regime on citizenship date rather than birth/adoption date."
+  },
+  {
+   "id": "qcr-wmcr-50k-per-child-cap",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Unsourced recall agrees (S$50,000 per child, QCR allowed first). Logical observation from the researcher's own figures: under the fixed-dollar regime the cap cannot bind (S$4,000 + S$12,000 = S$16,000), so it matters only for percentage-regime children."
+  },
+  {
+   "id": "wmcr-100pct-earned-income-cap",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Unsourced recall agrees for the percentage regime. How the 100% limit interacts with fixed-dollar amounts for a mother with children in both regimes was not captured by the researcher and remains open."
+  },
+  {
+   "id": "parent-relief-amounts",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Unsourced recall agrees with S$9,000 / S$5,500 and S$14,000 / S$10,000. Researcher's evidence is a paraphrase, and the researcher's own output records a conflicting S$9,000 reading for the not-staying disability case, so the S$10,000 figure in particular needs a direct read."
+  },
+  {
+   "id": "parent-relief-disability-not-staying-conflict",
+   "verdict": "unverifiable",
+   "note": "Could not resolve the conflict: the e-Filer quick guide was not reachable. Unsourced recall favours S$10,000 and suggests S$9,000 is a misread table cell (S$9,000 is the ordinary staying-with amount). Do not ship either figure for this cell until one official document is read directly."
+  },
+  {
+   "id": "parent-relief-conditions",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Age 55+, S$8,000 income limit and the S$2,000 support test match unsourced recall. The claim that the age condition is waived for a disabled parent is flagged by the researcher as 'reportedly' and is unconfirmed. The researcher also omitted the limit on the number of dependants that can be claimed and the bar on claiming where someone else claims another relief on the same dependant."
+  },
+  {
+   "id": "parent-relief-sharing-cap",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Consistent with unsourced recall that claimants share one relief amount per dependant by agreed apportionment. The quoted S$9,000 illustration covers only the staying-with case."
+  },
+  {
+   "id": "gcr-amount-conditions",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. S$3,000 and the working-mother condition match unsourced recall. The researcher's own open questions admit the exact child-age wording and caregiver conditions were not captured, so the conditions are incomplete."
+  },
+  {
+   "id": "gcr-caregiver-income-threshold",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Researcher's evidence is a paraphrase. Unsourced recall agrees that from YA2025 the caregiver may have trade or employment income up to S$8,000; I do not recall the earlier rule being a 'S$4,000 income cap' (recall is that the caregiver previously could not be working at all), so the 'up from S$4,000' wording is doubtful."
+  },
+  {
+   "id": "sibling-relief-disability",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Unsourced recall agrees (S$5,500 per disabled sibling or sibling-in-law, same household or at least S$2,000 support). Researcher's evidence is a paraphrase."
+  },
+  {
+   "id": "nsman-self-relief-amounts",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Unsourced recall agrees (S$1,500 / S$3,000; key appointment holders S$3,500 / S$5,000). Researcher's evidence is a paraphrase."
+  },
+  {
+   "id": "nsman-work-year",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. A work year ending 31 Mar 2026 for YA2026 overlaps the filing season; that is plausible only if the relief is added at assessment rather than pre-filled, which matches my unsourced recollection but is unconfirmed. The YA2027 work year (presumably 1 Apr 2026 to 31 Mar 2027) is an inference. A calculator run in November 2026 cannot know a user's activity through March 2027, so this affects UI wording."
+  },
+  {
+   "id": "nsman-wife-parent-relief",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Unsourced recall agrees (S$750 wife, S$750 each parent). The citizenship condition for the parent claimant was not captured by the researcher."
+  },
+  {
+   "id": "nsman-either-or-rule",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Unsourced recall agrees that only one NSman relief (the higher) is given per person."
+  },
+  {
+   "id": "nsman-auto-granted",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Unsourced recall agrees it is granted automatically from MINDEF / Home Team records."
+  },
+  {
+   "id": "life-insurance-relief-rule",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Unsourced recall agrees with the S$5,000 CPF test. Wording risk for the calculator: the researcher's 'value' field is ambiguous. The researcher's own worked example (premiums S$3,800 ignored in favour of 7% = S$3,500) shows the relief is the lowest of three amounts: S$5,000 minus CPF, 7% of insured value, and premiums paid. Implement it as a three-way minimum."
+  },
+  {
+   "id": "life-insurance-relief-policy-conditions",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Unsourced recall agrees (10 Aug 1973 date and Singapore office/branch condition). Researcher's evidence is a paraphrase."
+  },
+  {
+   "id": "life-insurance-relief-ya2026-expansion",
+   "verdict": "unverifiable",
+   "note": "Not independently checked and my recall does not cover this change. It is a YA2025-versus-YA2026 difference resting on a single quote with no identified Budget or amending Act. Needs a second official source."
+  },
+  {
+   "id": "course-fees-relief-lapsed-ya2026",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Unsourced recall agrees (lapse from YA2026 announced in Budget 2024, last claim YA2025, former maximum S$5,500). The researcher holds a direct-looking IRAS quote."
+  },
+  {
+   "id": "course-fees-relief-no-reintroduction",
+   "verdict": "unverifiable",
+   "note": "Not independently checked; my recall does not cover this parliamentary reply. Paraphrase only, with no date for the reply. Not a computational input."
+  },
+  {
+   "id": "disability-relief-renaming",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Based on page titles returned by search. UI labelling only; no effect on computed tax."
+  },
+  {
+   "id": "cpf-cash-topup-relief-16000-lead",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Researcher retrieved a title fragment only. Unsourced recall: S$16,000 is a combined maximum of S$8,000 for own accounts plus S$8,000 for family members, not a single limit, and top-ups that attract a government matching grant were later excluded from relief. Using 16,000 as one cap would overstate relief for anyone topping up only their own account. Needs proper sourcing under the CPF topic."
+  }
+ ],
+ "example_checks": [
+  {
+   "description": "IRAS Life Insurance Relief illustration (Mr Teo): insured value S$50,000, premiums S$3,800, CPF S$1,600",
+   "arithmetic_ok": true,
+   "note": "7% x 50,000 = 3,500. 5,000 - 1,600 = 3,400. Lowest of 3,400 / 3,500 / 3,800 = 3,400. Matches the stated S$3,400. The inputs themselves were not independently confirmed against the IRAS page. The example implies a three-way minimum, which the researcher's rule wording does not state clearly."
+  },
+  {
+   "description": "IRAS QCR + WMCR per-child cap illustration: WMCR limited to balance of S$50,000 after QCR of S$4,000",
+   "arithmetic_ok": true,
+   "note": "50,000 - 4,000 = 46,000. Correct. Inputs are incomplete (no earned income or child order), so this cannot serve as an end-to-end test case. For the cap to bind, the mother's earned income would have to exceed about S$306,667 (15%), S$230,000 (20%) or S$184,000 (25%). It is not an S$80,000-cap example."
+  },
+  {
+   "description": "IRAS WMCR regime-selection illustration: child born 2022, Singapore Citizen from 2024, fixed S$8,000",
+   "arithmetic_ok": true,
+   "note": "No arithmetic to check; S$8,000 equals the researcher's first-child fixed amount, so it is internally consistent. Child order is inferred by the researcher, and the underlying citizenship-date rule is unverified."
+  }
+ ],
+ "missed_facts": [],
+ "resolved_open_questions": [],
+ "summary": "NO INDEPENDENT VERIFICATION WAS POSSIBLE, so all 39 verdicts are \"unverifiable\". None of the researcher's claims has been confirmed or refuted by me.\n\nWhat blocked it:\n- All four of my first WebSearch calls returned \"search not performed\": the shared limit of 200 WebSearch calls for this turn was already used up.\n- gov.sg cannot be fetched directly, as briefed.\n- One direct fetch of a secondary source (taxsummaries.pwc.com) failed because the host is outside the session's allowed network domains. I stopped there rather than try more hosts or route around the limit.\n\nTo finish this step, send a follow-up message so the search budget resets, or raise CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION. Allowing taxsummaries.pwc.com in the session's network settings would add a secondary source.\n\nWhat I could check without sources:\n- **Arithmetic:** all three worked examples are arithmetically correct (3,500 / 3,400 / 3,400; 50,000 - 4,000 = 46,000; the third has no arithmetic).\n- **S$80,000 cap example:** none of the three exercises the overall cap, so brief item 10 is still unmet.\n- **Life Insurance Relief:** the researcher's rule wording is ambiguous. Its own example shows the relief is the lowest of three amounts: S$5,000 minus CPF, 7% of insured value, and premiums paid.\n- **QCR + WMCR cap:** on the researcher's own figures the S$50,000 per-child cap cannot bind under the fixed-dollar regime (4,000 + 12,000 = 16,000).\n- **Parent Relief (Disability), not staying:** the researcher's output contains an unresolved S$10,000 versus S$9,000 conflict.\n- **Evidence quality:** many facts rest on search-result paraphrases, not quotes. The Earned Income Relief disability amounts have no supporting quote for the dollar figures at all.\n\nItems I would re-verify first, because a calculator depends on them and the evidence is thinnest:\n1. Budget 2026 changes \u2014 never searched by the researcher or me. Every \"assumed unchanged for YA2027\" note depends on it.\n2. Donations: the 250% rate, its expiry date and its treatment outside the cap \u2014 nothing sourced.\n3. Foreign Domestic Worker Levy Relief lapse year \u2014 nothing sourced.\n4. Explicit cap exclusions (donations, employment and rental expenses, Parenthood Tax Rebate) \u2014 nothing sourced.\n5. Parent Relief (Disability) not-staying amount.\n6. WMCR citizenship-date rule and how the 100% earned-income limit works for mothers with children in both regimes.\n7. Life Insurance Relief YA2026 expansion \u2014 single quote, no Budget or Act identified.\n8. Child Relief (Disability) amount and the QCR conditions.\n9. CPF Cash Top-up Relief \u2014 the \"16,000\" is a title fragment and is probably a combined limit, not a single one.\n10. NSman work year for YA2027.\n11. The S$8,000 Grandparent Caregiver income rule \u2014 the \"up from S$4,000\" wording looks doubtful.\n\nUnsourced model recall, for triage only and not to be shipped as fact: the core dollar amounts match what I remember (cap, Earned Income, Spouse, QCR, WMCR, Parent, Grandparent Caregiver, Sibling, NSman, Life Insurance S$5,000 test, Course Fees lapse from YA2026). Recall also suggests:\n- Child Relief (Disability) is S$7,500.\n- Foreign Domestic Worker Levy Relief lapsed from YA2025.\n- The 250% donation deduction ran to 31 Dec 2026 under Budget 2023, which would cover donations made in income year 2026.\n- Budget 2025 gave a 60% rebate capped at S$200 for YA2025 only.\nI have no reliable recall of Budget 2026 personal tax measures.\n\nI left missed_facts and resolved_open_questions empty on purpose: I have no source I actually read this session, and entries there could be consumed as verified figures."
+}

@@ -1,0 +1,236 @@
+{
+ "verdicts": [
+  {
+   "id": "srs-cap-citizen-pr",
+   "verdict": "unverifiable",
+   "note": "No independent check was possible: all 3 WebSearch calls were refused (shared search budget exhausted) and direct fetches of bank pages failed DNS. Recall only, not a source: S$15,300 matches what I know, and matches the regulation formula 15% x 17 months x S$6,000 = S$15,300. Launch-critical value - re-verify on iras.gov.sg before shipping."
+  },
+  {
+   "id": "srs-cap-foreigner",
+   "verdict": "unverifiable",
+   "note": "Not independently checked (search budget exhausted). Recall only: S$35,700 matches what I know and the formula 35% x 17 x S$6,000 = S$35,700. Launch-critical value - re-verify."
+  },
+  {
+   "id": "srs-cap-unchanged-since-2016",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Recall only: the caps rose from S$12,750 / S$29,750 to S$15,300 / S$35,700 on 1 Jan 2016 (Budget 2015). The researcher's quote is a search-result paraphrase, not page text, so 'high' confidence is overstated."
+  },
+  {
+   "id": "srs-cap-2027-no-change-found",
+   "verdict": "unverifiable",
+   "note": "A negative finding from one search of secondary guides; the Budget 2025 and Budget 2026 statements/annexes on singaporebudget.gov.sg were never checked, by the researcher or by me (my Budget 2026 search was refused). I recall no SRS cap change in either Budget, but that is recall, not evidence. Do not hard-code a 2027 cap; the calculator's 2026 (YA2027) figures do not depend on this."
+  },
+  {
+   "id": "srs-relief-timing",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Consistent with my recall of IRAS: relief in the YA after the contribution year, tax residents only. Residency is tested for the YA of relief (YA2027 for 2026 contributions), so the calculator needs a residency input."
+  },
+  {
+   "id": "srs-deadline-31-dec",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. The quoted IRAS text covers YA2026 (31 Dec 2025) only; 31 Dec 2026 for YA2027 is an extrapolation of the same rule. Bank cut-off dates/times remain unsourced - the bank sites (www.dbs.com.sg, www.ocbc.com, www.uob.com.sg) do not resolve in this session. The calculator should say 'credited by 31 Dec 2026; your bank's cut-off may be earlier' rather than state a time."
+  },
+  {
+   "id": "srs-relief-automatic",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Consistent with my recall (operators transmit contribution data to IRAS; no claim needed)."
+  },
+  {
+   "id": "personal-relief-cap-80k",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Consistent with my recall: S$80,000 overall personal relief cap per YA, SRS relief included. Launch-critical value - re-verify."
+  },
+  {
+   "id": "personal-relief-cap-start-ya2018",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Consistent with my recall (Budget 2016 measure, effective YA2018). The researcher could not name the MOF page carrying the quote. Low impact for a YA2027 calculator."
+  },
+  {
+   "id": "relief-excess-disregarded",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Consistent with my recall; personal reliefs cannot be carried forward. The quote shown supports 'disregarded and cannot be transferred'; 'cannot be carried forward' is not in the quoted text."
+  },
+  {
+   "id": "srs-no-refund",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Consistent with my recall that SRS contributions are irrevocable (getting money out is a withdrawal, taxed and penalised). Part of the supporting text is a search paraphrase."
+  },
+  {
+   "id": "srs-employer-contributions",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Consistent with my recall. A calculator must count employer and own contributions against one annual cap. The project spec (/home/user/jungle-pest-sales/sg-tax-optimiser/SPEC.md line 51) lists employer SRS contributions as out of scope."
+  },
+  {
+   "id": "srs-relief-non-resident",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. As the researcher admits, the SRS-specific exclusion is an inference from two IRAS statements plus a secondary guide, so 'high' confidence is overstated. It is consistent with my recall (non-residents get no personal reliefs)."
+  },
+  {
+   "id": "srs-foreigner-annual-declaration",
+   "verdict": "unverifiable",
+   "note": "Not independently checked; sole source is a search paraphrase of a StashAway page that the researcher could not open. I recall an IRAS 'Declaration Form for SRS (For Foreigners)' existing, but not whether it is strictly annual. Needs the IRAS page text."
+  },
+  {
+   "id": "srs-cap-prorated-on-becoming-pr",
+   "verdict": "unverifiable",
+   "note": "Not independently checked and weakly sourced (secondary paraphrase, no formula). I cannot recall an official pro-rating rule. Do not implement pro-rating; if the user changed status during the year, show a 'check with your SRS operator' caution instead."
+  },
+  {
+   "id": "srs-eligibility",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Consistent with my recall of the MOF/IRAS criteria (18 or older, not an undischarged bankrupt, not mentally disordered and able to manage own affairs). Matches the spec rule ageAtYearEnd >= 18, though whether 18 is tested at contribution date or year end was not sourced."
+  },
+  {
+   "id": "srs-operators",
+   "verdict": "unverifiable",
+   "note": "Not independently checked; secondary sources only. Consistent with my recall (DBS, OCBC, UOB). POSB branding still unconfirmed."
+  },
+  {
+   "id": "srs-one-account-only",
+   "verdict": "unverifiable",
+   "note": "Not independently checked; secondary sources only. Consistent with my recall of the MOF FAQ (one SRS account at any time; transfer between operators allowed)."
+  },
+  {
+   "id": "srs-retirement-age-locked-at-first-contribution",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Consistent with my recall of the IRAS/MOF wording (statutory retirement age prevailing at the first contribution; later increases do not affect existing members)."
+  },
+  {
+   "id": "srs-retirement-age-64-from-1-jul-2026",
+   "verdict": "unverifiable",
+   "note": "Not independently checked - my MOM search on the 1 Jul 2026 change was refused. Consistent with my recall that the statutory retirement age rose to 64 (re-employment age 69) on 1 Jul 2026. The explicit 'first contribution on/after 1 Jul 2026 = 64' split comes from a secondary source."
+  },
+  {
+   "id": "srs-retirement-age-63-before-1-jul-2026",
+   "verdict": "partially_correct",
+   "corrected_value": "Age 63 only where the first contribution was made from 1 Jul 2022 to 30 Jun 2026; age 62 where the first contribution was made before 1 Jul 2022. Dates are from the task brief and my recall of MOM - NOT confirmed by a search in this run.",
+   "note": "Scope problem visible without a new source: the claim text says every first contribution before 1 Jul 2026 locks in 63, yet the researcher's own applies_to cites an older MOF reply giving 62 for earlier accounts. Coded as written, a calculator would give age 63 to members who first contributed before 1 Jul 2022. Needs a lower date bound and official confirmation of the 1 Jul 2022 date."
+  },
+  {
+   "id": "srs-withdrawal-50pct-concession",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Consistent with my recall (50% of withdrawals at/after the prescribed retirement age is taxable)."
+  },
+  {
+   "id": "srs-10-year-withdrawal-window",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Consistent with my recall. Incomplete for a withdrawal-phase model: treatment of the balance at the end of year 10 is missing (see missed_facts)."
+  },
+  {
+   "id": "srs-40k-tax-free-withdrawal",
+   "verdict": "unverifiable",
+   "note": "Not independently checked; the researcher could not name the exact MOF page. Arithmetic holds: 50% x S$40,000 = S$20,000, which sits in the 0% resident band if the first S$20,000 of chargeable income is taxed at 0% (to be confirmed by the tax-rates topic). Applies to tax residents with no other taxable income only."
+  },
+  {
+   "id": "srs-premature-withdrawal-penalty",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Consistent with my recall (100% taxable plus 5% penalty on the amount withdrawn)."
+  },
+  {
+   "id": "srs-penalty-exceptions",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Consistent with my recall of the four exceptions (death, medical grounds, bankruptcy, foreigner's full withdrawal)."
+  },
+  {
+   "id": "srs-exception-taxable-share",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Consistent with my recall: medical 50%, foreigner full withdrawal 50%, bankruptcy 100% with no penalty. The death case (50% after the exemption) is in the separate S$400,000 fact."
+  },
+  {
+   "id": "srs-foreigner-full-withdrawal-conditions",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Consistent with my recall of the three IRAS conditions."
+  },
+  {
+   "id": "srs-death-terminal-illness-400k-exemption",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Consistent with my recall (up to S$400,000 exempt, 50% of the remainder taxable, exemption reduced once the 10-year period has started). The reduction formula is not given - do not model it."
+  },
+  {
+   "id": "srs-withholding-tax-foreigners-prs",
+   "verdict": "unverifiable",
+   "note": "Not independently checked; the whole fact is a search paraphrase, so 'high' confidence is overstated. 24% matches my recall of the non-resident rate from YA2024. I recall a 15% concession tied to withdrawals of S$200,000 or less with no other income, but cannot confirm whether it is a withholding rate, a final tax rate, or both. Do not compute non-resident withdrawal tax from this fact."
+  },
+  {
+   "id": "srs-contributions-stop-after-first-withdrawal",
+   "verdict": "unverifiable",
+   "note": "Not independently checked; a search paraphrase. Consistent with my recall of IRAS."
+  },
+  {
+   "id": "srs-withdrawals-are-taxable-income",
+   "verdict": "unverifiable",
+   "note": "Not independently checked. Consistent with my recall. Worth a calculator warning: 50% of the whole withdrawal is taxable, including investment gains that would not be taxed outside SRS."
+  },
+  {
+   "id": "srs-cash-interest-rate",
+   "verdict": "unverifiable",
+   "note": "Not independently checked; secondary sources only, no bank rate page. My direct fetches of www.dbs.com.sg, www.ocbc.com and www.uob.com.sg all failed DNS. 0.05% p.a. matches my recall, but bank rates can change at any time - if shown, date it and label it indicative."
+  },
+  {
+   "id": "srs-permitted-investments",
+   "verdict": "unverifiable",
+   "note": "Not independently checked; secondary source only. The list matches my recall. Exclusions (direct property; limits on insurance product types) were not sourced. The spec treats investment modelling as out of scope."
+  },
+  {
+   "id": "srs-investment-returns-tax-deferred",
+   "verdict": "unverifiable",
+   "note": "Not independently checked; secondary source only. Consistent with my recall (returns accumulate untaxed in the account; tax arises on withdrawal)."
+  }
+ ],
+ "example_checks": [
+  {
+   "description": "MOF tax-free withdrawal illustration: S$40,000 a year, no other taxable income",
+   "arithmetic_ok": true,
+   "note": "50% x 40,000 = 20,000 taxable per year; 10 x 40,000 = 400,000. Zero tax only if the first S$20,000 of chargeable income is taxed at 0% (resident schedule, not sourced in this topic) and the member is a tax resident. Source page not independently opened."
+  },
+  {
+   "description": "IRAS example: foreigner contributes S$20,000 and relief is included automatically",
+   "arithmetic_ok": true,
+   "note": "No calculation involved. 20,000 is within the 35,700 foreigner cap, so relief = 20,000 is internally consistent. Only a snippet of the example was seen; relief still depends on tax residency for that YA."
+  },
+  {
+   "description": "Contribution year to YA mapping",
+   "arithmetic_ok": true,
+   "note": "By 31 Dec 2025 -> YA2026 and by 31 Dec 2026 -> YA2027 follows from 'relief in the YA following the year of contribution'. The YA2027 line is an extrapolation, not quoted IRAS text."
+  },
+  {
+   "description": "Derived: retirement age locked in by first contribution date in 2026",
+   "arithmetic_ok": true,
+   "note": "15 Jun 2026 -> 63 and 1 Dec 2026 -> 64 are consistent with the stated rule. Add boundary tests for 30 Jun 2026 (63) and 1 Jul 2026 (64), and a first contribution before 1 Jul 2022 (62, unverified here). The 1 Jul 2026 date was not independently confirmed."
+  },
+  {
+   "description": "Derived: SRS contribution partly wasted by the S$80,000 relief cap",
+   "arithmetic_ok": true,
+   "note": "75,000 + 15,300 = 90,300; 90,300 - 80,000 = 10,300 disregarded; 15,300 - 10,300 = 5,000 effective. Attributing the lost amount to SRS is a presentation choice: the cap applies to total reliefs, not to SRS specifically."
+  },
+  {
+   "description": "Derived: premature withdrawal of S$10,000",
+   "arithmetic_ok": true,
+   "note": "100% x 10,000 = 10,000 taxable; 5% x 10,000 = 500 penalty. For a foreigner or PR the stated 24% withholding would be 2,400 on top (a credit against final tax), if that fact holds."
+  }
+ ],
+ "missed_facts": [
+  {
+   "claim": "UNVERIFIED (fact-checker recall, no search possible in this run): accounts whose first SRS contribution was made before 1 Jul 2022 have a prescribed retirement age of 62, not 63. The statutory retirement age was 62 until 30 Jun 2022, 63 from 1 Jul 2022, and 64 from 1 Jul 2026.",
+   "value": "UNVERIFIED: first contribution before 1 Jul 2022 -> 62; 1 Jul 2022 to 30 Jun 2026 -> 63; on/after 1 Jul 2026 -> 64",
+   "source_url": "NOT RETRIEVED - verify on mom.gov.sg (retirement and re-employment) and the IRAS 'Tax on SRS withdrawals' page"
+  },
+  {
+   "claim": "UNVERIFIED (fact-checker recall): at the end of the 10-year withdrawal window any balance left in the SRS account is deemed withdrawn, with 50% of it taxable in that year. A life annuity bought with SRS funds is the exception: payouts continue past year 10 with 50% of each payout taxable.",
+   "value": "UNVERIFIED: remaining balance deemed withdrawn at end of year 10, 50% taxable; life annuity payouts 50% taxable for as long as paid",
+   "source_url": "NOT RETRIEVED - verify at https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/special-tax-schemes/tax-on-srs-withdrawals"
+  },
+  {
+   "claim": "UNVERIFIED (fact-checker recall): the annual cap applies to the combined total of the member's own and the employer's contributions, and operators do not accept contributions above it, so SRS relief for a year can never exceed S$15,300 (Citizen/PR) or S$35,700 (foreigner).",
+   "value": "UNVERIFIED: own + employer contributions <= one annual cap; relief <= cap",
+   "source_url": "NOT RETRIEVED - verify at https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/special-tax-schemes/srs-contributions"
+  },
+  {
+   "claim": "UNVERIFIED (fact-checker recall): the S$40,000-a-year tax-free withdrawal logic holds only for tax residents. A non-resident's SRS withdrawals are taxed under non-resident rules, not the 0% band on the first S$20,000.",
+   "value": "UNVERIFIED: S$40,000/year tax-free applies to tax residents only",
+   "source_url": "NOT RETRIEVED - verify on the IRAS 'Tax on SRS withdrawals' and SRS withholding tax pages"
+  }
+ ],
+ "resolved_open_questions": [],
+ "summary": "VERIFICATION DID NOT RUN: no claim was independently confirmed or contradicted. All three of my WebSearch calls (IRAS/MOF caps, Budget 2026 SRS changes, MOM retirement age) were refused because the turn's shared web-search budget (200 calls) was already used up. Direct fetches of www.ocbc.com, www.uob.com.sg and www.dbs.com.sg failed DNS (hosts outside the session's allowed network domains), *.gov.sg was already known to be blocked, and the repo holds no saved source material. To finish this check, send a follow-up message or raise CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION; the bank hosts would also need allowing in network settings.\n\nResult: 34 of 35 facts are \"unverifiable\" and 1 is \"partially_correct\". Treat every SRS fact as unverified, not as passed.\n\nWhat I could do without sources:\n- Arithmetic: all six worked examples are internally correct (details in example_checks).\n- Scope defect: srs-retirement-age-63-before-1-jul-2026 says every first contribution before 1 Jul 2026 locks in age 63. The researcher's own notes cite 62 for older accounts, so the claim needs a lower bound (63 only for 1 Jul 2022 to 30 Jun 2026; 62 before that). Those dates come from the task brief and my recall, not from a search.\n- Recall check (not evidence): none of the 35 claims conflicts with what I know of the SRS rules. The caps also match the regulation formula as I recall it: 15% and 35% of 17 x S$6,000 give S$15,300 and S$35,700.\n- Overstated confidence: several \"high\" facts rest on search-result paraphrases or inference, not page text - srs-relief-non-resident, srs-withholding-tax-foreigners-prs, srs-contributions-stop-after-first-withdrawal, srs-cap-unchanged-since-2016, srs-eligibility.\n\nRe-verify first (these drive the v1 calculator per /home/user/jungle-pest-sales/sg-tax-optimiser/SPEC.md):\n1. Caps of S$15,300 / S$35,700 for calendar 2026, and that Budget 2025 and Budget 2026 changed nothing. The Budget statements and annexes were never checked by anyone.\n2. The S$80,000 overall relief cap and the no-refund rule.\n3. Relief timing: 2026 contributions give YA2027 relief, tax residents only, deadline 31 Dec 2026. Bank cut-off times are still unsourced, so the calculator should not state one.\n4. Retirement age of 64 from 1 Jul 2026, and the 62/63 history.\n\nDo not implement yet:\n- Pro-rating of the cap in the year a foreigner becomes a PR (single secondary paraphrase, no formula).\n- The 15% concessionary rate for non-resident withdrawals (unclear whether it is a withholding or final rate).\n- The reduction formula for the S$400,000 death/terminal-illness exemption.\n- The secondary-source claim that the cap halves to S$7,650 from age 66: I know of no such rule and it conflicts with the flat caps; treat it as false unless an official source appears.\n\nNo open question was resolved. The four missed_facts are labelled UNVERIFIED and come from my recall, with no source opened; they are leads to check, not facts to ship."
+}

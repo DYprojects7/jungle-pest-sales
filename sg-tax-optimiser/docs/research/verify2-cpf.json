@@ -1,0 +1,135 @@
+{
+ "items": [
+  {
+   "id": "cpf-2026",
+   "status": "confirmed",
+   "value": "From 1 Jan 2026 (wages > S$750; employer/employee/total): 55 and below 17/20/37; above 55 to 60 16/18/34; above 60 to 65 12.5/12.5/25; above 65 to 70 9/7.5/16.5; above 70 7.5/5/12.5.",
+   "evidence_url": "https://www.cpf.gov.sg/employer/employer-obligations/how-much-cpf-contributions-to-pay",
+   "evidence_quote": "55 and below | 17 | 20 | 37; Above 55 to 60 | 16 | 18 | 34; Above 60 to 65 | 12.5 | 12.5 | 25; Above 65 to 70 | 9 | 7.5 | 16.5; Above 70 | 7.5 | 5 | 12.5",
+   "note": "Same figures appear in the CPF FAQ on the 1 Jan 2026 senior-worker changes and in the official table PDF (CPFcontributionratesfrom1Jan2026.pdf)."
+  },
+  {
+   "id": "cpf-2025",
+   "status": "confirmed",
+   "value": "1 Jan - 31 Dec 2025 (wages > S$750; employer/employee/total): 55 and below 17/20/37; above 55 to 60 15.5/17/32.5; above 60 to 65 12/11.5/23.5; above 65 to 70 9/7.5/16.5; above 70 7.5/5/12.5.",
+   "evidence_url": "https://www.cpf.gov.sg/member/infohub/educational-resources/changes-to-cpf-in-2024-and-beyond",
+   "evidence_quote": "Above 55 to 60: Total 32.5 (+1.5), employer 15.5 (+0.5), employee 17.0 (+1) ... Above 60 to 65: Total 23.5 (+1.5), employer 12.0 (+0.5), employee 11.5 (+1)",
+   "note": "The two changed bands were read directly from official pages (cpf.gov.sg / MOM COS 2025 factsheet were both in the result set; I could not tell which of the two carried the table). The other three bands are confirmed indirectly: CPF states only the above-55-to-65 bands changed on 1 Jan 2025 and again on 1 Jan 2026, and 'contribution rates for employees aged 65 to 70 remain unchanged, at 16.5%'. The definitive 2025 table is https://www.cpf.gov.sg/content/dam/web/employer/employer-obligations/documents/CPF_contribution_rates_from_1_Jan_2025.pdf (found, but its text was not returned)."
+  },
+  {
+   "id": "cpf-2027",
+   "status": "confirmed",
+   "value": "From 1 Jan 2027 (wages > S$750; employer/employee/total): above 55 to 60 16.5/19/35.5; above 60 to 65 13/13/26; 55 and below 17/20/37, above 65 to 70 9/7.5/16.5 and above 70 7.5/5/12.5 unchanged.",
+   "evidence_url": "https://www.cpf.gov.sg/service/article/what-are-the-changes-to-the-cpf-contribution-rates-for-senior-workers-that-will-take-effect-from-1-january-2027",
+   "evidence_quote": "Above 55 to 60: total 34% to 35.5%, employer 16% to 16.5%, employee 18% to 19%. Above 60 to 65: total 25% to 26%, employer and employee each +0.5 point to 13% and 13%.",
+   "note": "Official 2027 table PDF: https://www.cpf.gov.sg/content/dam/web/employer/employer-obligations/documents/jan2027cpfcontributionrates.pdf. CPF states rates for 55 and below and above 65 are unchanged."
+  },
+  {
+   "id": "ow-ceiling",
+   "status": "confirmed",
+   "value": "OW ceiling S$7,400/month for 1 Jan - 31 Dec 2025; S$8,000/month from 1 Jan 2026; S$8,000 in 2027 (2026 was the final step of the phased increase; no further change announced).",
+   "evidence_url": "https://www.cpf.gov.sg/service/article/what-is-the-ordinary-wage-ow-ceiling",
+   "evidence_quote": "OW ceiling $7,400 from 1 January 2025 to 31 December 2025; $8,000 from 1 January 2026 (the last of four increases since 1 September 2023)",
+   "note": "The 2027 figure rests on CPF describing 2026 as the last round of increases and on the Budget 2026 CPF highlights containing no OW ceiling change; I did not see a line that literally says '2027: $8,000'."
+  },
+  {
+   "id": "annual-ceiling",
+   "status": "confirmed",
+   "value": "CPF annual salary ceiling S$102,000 (unchanged); AW ceiling = S$102,000 - total Ordinary Wages subject to CPF for the year.",
+   "evidence_url": "https://www.cpf.gov.sg/service/article/what-is-the-additional-wage-aw-ceiling",
+   "evidence_quote": "$102,000 \u2013 Total Ordinary Wages subject to CPF for the year",
+   "note": "CPF's 2026 notice says the annual salary ceiling 'remains unchanged' at $102,000. The AW ceiling is per employee, per employer, per calendar year, and the year is the one in which the AW is due and payable."
+  },
+  {
+   "id": "low-wage-2026",
+   "status": "confirmed",
+   "value": "TW <= S$50: nil. > S$50 to S$500: employer share only. > S$500 to S$750: employee share = factor x (TW - S$500), factor 0.6 (55 and below), 0.54 (above 55 to 60), 0.375 (above 60 to 65), 0.225 (above 65 to 70), 0.15 (above 70).",
+   "evidence_url": "https://www.cpf.gov.sg/content/dam/web/employer/employer-obligations/documents/CPFcontributionratesfrom1Jan2026.pdf",
+   "evidence_quote": "Above 55 to 60: 16% (TW) + 0.54 (TW - $500); above 60 to 65: 12.5% (TW) + 0.375 (TW - $500); above 65 to 70: 9% (TW) + 0.225 (TW - $500); 55 and below: 0.6 (TW - $500)",
+   "note": "Read directly from Table 1: the 0.6 / 0.54 / 0.375 / 0.225 factors and nil contributions at <= $50. NOT read directly: the above-70 factor 0.15 and the '> $50 to $500 employer only' row. Both are consistent with the table's structure (factor = 3 x employee rate; total in the $500-750 band = employer % x TW + employee share), but were not in the returned extract."
+  },
+  {
+   "id": "low-wage-2025",
+   "status": "unverified",
+   "value": "Candidate retained: 0.6, 0.51, 0.345, 0.225, 0.15 (55 and below / above 55-60 / above 60-65 / above 65-70 / above 70).",
+   "evidence_url": "https://www.cpf.gov.sg/content/dam/web/employer/employer-obligations/documents/CPF_contribution_rates_from_1_Jan_2025.pdf",
+   "note": "Two searches quoting '0.51 (TW - $500)' and '0.345 (TW - $500)' located the 2025 table PDF URL but did not return its text. The candidate is arithmetically consistent with the rule that holds in the confirmed 2026 and 2027 tables (factor = 3 x employee rate: 3 x 17% = 0.51, 3 x 11.5% = 0.345), but no official text was seen for it."
+  },
+  {
+   "id": "low-wage-2027",
+   "status": "confirmed",
+   "value": "From 1 Jan 2027: 0.6 (55 and below), 0.57 (above 55 to 60), 0.39 (above 60 to 65), 0.225 (above 65 to 70), 0.15 (above 70).",
+   "evidence_url": "https://www.cpf.gov.sg/content/dam/web/employer/employer-obligations/documents/jan2027cpfcontributionrates.pdf",
+   "evidence_quote": "Above 55 to 60: employee's share 0.57 (TW - $500); above 60 to 65: employee's share 0.39 (TW - $500)",
+   "note": "0.57 and 0.39 read directly from the 2027 Table 1. The other three factors are unchanged bands (CPF: rates for 55 and below and above 65 unchanged; phased-in rates for the two senior bands 'rise proportionally'); the above-70 0.15 carries the same caveat as in low-wage-2026."
+  },
+  {
+   "id": "rounding",
+   "status": "confirmed",
+   "value": "Total contribution rounded to the nearest dollar (under 50 cents dropped, 50 cents and above = extra dollar); employee share: cents always dropped; employer share = rounded total - employee share.",
+   "evidence_url": "https://www.cpf.gov.sg/service/article/are-cpf-contributions-rounded-to-the-nearest-dollar",
+   "evidence_quote": "Cents should be dropped for amounts less than 50 cents, and amounts of 50 cents and above should be treated as an additional dollar ... the cents should always be dropped for the employee's share"
+  },
+  {
+   "id": "age-switch",
+   "status": "confirmed",
+   "value": "New age-band rates apply from the first day of the month after the month of the 55th/60th/65th/70th birthday.",
+   "evidence_url": "https://www.cpf.gov.sg/service/article/when-will-my-cpf-contribution-rates-change-when-I-turn-55-60-65-or-70",
+   "evidence_quote": "New contribution rates apply from the first day of the month after the employee's 55th, 60th, 65th or 70th birthday.",
+   "note": "CPF example: 55th birthday on 13 January 2026 -> new rates from 1 February 2026. The employee stays in the old band for the whole birthday month."
+  },
+  {
+   "id": "spr-gg-year1-2026",
+   "status": "confirmed",
+   "value": "1st-year SPR G/G, wages > S$750: employee 5% in all age bands; employer 4% (55 and below, above 55 to 60), 3.5% (above 60). Employee phase-in factor for S$500-750: 0.15.",
+   "evidence_url": "https://www.cpf.gov.sg/content/dam/web/employer/employer-obligations/documents/CPFcontributionratesfrom1Jan2026.pdf",
+   "evidence_quote": "1st year, 55 & below: employer 4%, employee 5% (total 9%); employee's share 0.15 (TW - $500); 'no changes to the graduated employer and employee rates since 1 January 2016'",
+   "note": "Employee side (what drives CPF relief) is supported for every band read: 5% explicit for 55 and below; 0.15 (TW - $500), i.e. 5%, for above 55-60 and above 60-65 in the G/G table, and for above 65-70 in the F/G table (same graduated employee rate). NOT independently read: the employer percentages for bands above 55 (4% and 3.5%) - the PDF extract was illegible there. Check the PDF if employer CPF is displayed for older 1st-year SPRs."
+  },
+  {
+   "id": "spr-gg-year2-2026",
+   "status": "unverified",
+   "value": "Candidate retained: 2nd-year SPR G/G, wages > S$750: employee 15% / 12.5% / 7.5% / 5% (55 and below / above 55-60 / above 60-65 / above 65); employer 9% / 6% / 3.5% / 3.5%. Phase-in factors 0.45 / 0.375 / 0.225 / 0.15.",
+   "evidence_url": "https://www.cpf.gov.sg/content/dam/web/employer/employer-obligations/documents/CPFcontributionratesfrom1Jan2026.pdf",
+   "evidence_quote": "2nd year, 55 & below: employer 9%, employee 15% (total 24%); 0.45 (TW - $500). Above 55 to 60: 0.375 (TW - $500); above 60 to 65: 0.225 (TW - $500)",
+   "note": "PARTLY confirmed, nothing contradicted. Read from the official 2026/2027 tables: 55 and below 9% / 15% / 24% and factor 0.45; factors 0.375 (above 55-60) and 0.225 (above 60-65), which imply employee rates of 12.5% and 7.5%. NOT read (extract garbled/incomplete): the whole above-65 row (5%, 0.15, employer 3.5%) and the employer percentages 6% and 3.5% for the above 55-60 and above 60-65 bands. Two searches targeted this table."
+  },
+  {
+   "id": "spr-year-def",
+   "status": "confirmed",
+   "value": "1st year = from the date SPR status is granted to the last day of the month of the first anniversary; 2nd year = the following 12 months; full (Table 1) rates from the 3rd year.",
+   "evidence_url": "https://www.cpf.gov.sg/service/article/do-i-need-to-pay-cpf-contributions-for-my-foreign-employee-who-has-recently-obtained-singapore-permanent-residence-status",
+   "evidence_quote": "from the day your employee obtains his SPR status until the last day of the month of his first anniversary",
+   "note": "CPF example: SPR obtained 15 January 2026 -> 1st year to 31 January 2027; 2nd year 1 February 2027 to 31 January 2028. SPR date is the one on the ICA Entry Permit (Form 5/5A). Table 1 is headed for Singapore Citizens and SPRs from the 3rd year."
+  },
+  {
+   "id": "cpf-relief-iras",
+   "status": "corrected",
+   "value": "CPF relief for employees = compulsory employee contributions on Ordinary Wages (up to the OW ceiling) and Additional Wages (up to the AW ceiling), counted within the S$80,000 overall relief cap. Voluntary contributions in excess of the compulsory amount under the CPF Act do NOT qualify - EXCEPT voluntary contributions to the MediSave Account, which IRAS says do qualify for relief. Also excluded: contributions on AW above the cap where the employee has two or more related employers, and contributions made during an overseas secondment/posting. Maximum compulsory relief for age 55 and below = 20% x S$102,000 = S$20,400 (derived).",
+   "evidence_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/central-provident-fund(cpf)-relief-for-employees",
+   "evidence_quote": "Employees can claim relief on compulsory employee CPF contributions and on voluntary contributions to their MediSave Account",
+   "note": "Correction is to the blanket 'voluntary contributions are not deductible': IRAS excludes voluntary contributions above the compulsory amount but allows relief on voluntary MediSave contributions (subject to its own limits, which I did not retrieve - see IRAS page 'Compulsory and voluntary MediSave contributions'). The rest of the candidate is confirmed: IRAS worked examples cap OW at the yearly ceiling (using $7,400/month for 2025) and AW at the remainder of $102,000; the $80,000 cap covers 'the total of all tax reliefs claimed, including relief on compulsory and voluntary CPF contributions'. The S$20,400 maximum is arithmetic (20% x $102,000), not a figure I saw quoted by IRAS; month-by-month dropping of cents can make the actual maximum a few dollars lower."
+  },
+  {
+   "id": "foreigners",
+   "status": "confirmed",
+   "value": "Foreigners on Employment Pass / S Pass / Work Permit (and Miscellaneous Work Pass) make and receive no CPF contributions; contributions start from the day SPR status is granted.",
+   "evidence_url": "https://www.cpf.gov.sg/content/dam/web/employer/employer-obligations/documents/Who_do_you_need_to_pay_cpf_for.pdf",
+   "evidence_quote": "CPF contributions are not allowed for foreigners.",
+   "note": "MOM agrees: 'employers of S Pass holders will not have to make Central Provident Fund (CPF) contributions for them' (https://www.mom.gov.sg/faq/s-pass/do-i-have-to-make-cpf-contributions-for-s-pass-holders). A 2021 MOM parliamentary reply says this has applied to all foreigners since 2003."
+  }
+ ],
+ "summary": "12 of 12 searches used; 15 items checked: 12 confirmed, 1 corrected, 2 unverified. No candidate rate or ceiling was contradicted by an official source.\n\nDirect page fetching was blocked, so every quote is the official page's text as relayed by the search tool's page reader, not a page I opened myself.\n\n- **Corrected (cpf-relief-iras):** \"voluntary contributions are not deductible\" is too broad. IRAS excludes voluntary contributions above the compulsory amount, but allows relief on voluntary contributions to the MediSave Account. The rest of that item stands; the S$20,400 maximum is arithmetic, not an IRAS-quoted figure.\n- **Unverified (low-wage-2025):** the 2025 table PDF was located but its text was not returned. The factors 0.51 and 0.345 fit the rule seen in the 2026 and 2027 tables (factor = 3 x employee rate), but I saw no official text for them.\n- **Unverified (spr-gg-year2-2026):** partly confirmed. The 55-and-below row (9% / 15%, factor 0.45) and the factors 0.375 and 0.225 were read. The above-65 row and the employer rates of 6% and 3.5% for the older bands were not legible.\n- **Confirmed with gaps:**\n  - spr-gg-year1-2026: the employer 4% / 3.5% for bands above 55 was not read; the employee side is supported for every band.\n  - low-wage-2026 and low-wage-2027: the above-70 factor 0.15 was not read. For 2026 the \"> S$50 to S$500 employer only\" row was also not read.\n  - ow-ceiling: the 2027 figure of S$8,000 rests on CPF calling 2026 the last increase, not on an explicit 2027 line.\n  - cpf-2025: the three unchanged bands are confirmed indirectly, from CPF saying only the 55-to-65 bands changed.\n\nOfficial rate table PDFs, for a manual check of the gaps:\n- 2025: https://www.cpf.gov.sg/content/dam/web/employer/employer-obligations/documents/CPF_contribution_rates_from_1_Jan_2025.pdf\n- 2026: https://www.cpf.gov.sg/content/dam/web/employer/employer-obligations/documents/CPFcontributionratesfrom1Jan2026.pdf\n- 2027: https://www.cpf.gov.sg/content/dam/web/employer/employer-obligations/documents/jan2027cpfcontributionrates.pdf",
+ "extra_findings": [
+  "AW ceiling timing: CPF says the applicable AW ceiling depends on when the Additional Wage is due and payable - e.g. a 2025 bonus paid in 2026 falls under the 2026 AW ceiling. The AW ceiling applies per employee, per employer, per calendar year.",
+  "Derived from the confirmed ceilings: for someone at or above the OW ceiling all year, the AW ceiling is $102,000 - $96,000 = $6,000 in 2026 and 2027, versus $102,000 - $88,800 = $13,200 in 2025. Total CPF-liable wages stay at $102,000 in all three years.",
+  "Voluntary MediSave contributions qualify for IRAS relief (see cpf-relief-iras). The limits were not retrieved; the IRAS page 'Compulsory and voluntary MediSave contributions' has them. A tax optimiser should not treat all voluntary CPF as non-deductible.",
+  "IRAS also excludes from employee CPF relief: contributions made during an overseas secondment or posting, and contributions on Additional Wages above the cap where the employee works for two or more related employers.",
+  "IRAS: the $80,000 cap applies to the total of all reliefs per Year of Assessment, including compulsory and voluntary CPF; excess relief is disregarded and cannot be carried forward.",
+  "The CPF rate PDFs also carry F/G tables (full employer, graduated employee) for 1st- and 2nd-year SPRs, separate from G/G. The graduated employee factors match G/G (0.15 in year 1; 0.375 and 0.225 for the 55-60 and 60-65 bands in year 2). A calculator offering only G/G will misstate employer CPF for F/G cases, and employee CPF for anyone who has opted for full employee rates.",
+  "The SPR tables show maximum employee shares of $400 (1st year, 5%) and $1,200 (2nd year, 55 and below, 15%) for 2026, consistent with the $8,000 OW ceiling.",
+  "Age-band rule detail: on the birthday the employee is treated as having just turned that age and stays in the old band for the whole birthday month (CPF example: 55th birthday 13 Jan 2026 -> new rates from 1 Feb 2026).",
+  "2027: employers get a CPF Transition Offset equal to half of the 2027 increase in employer contributions, applied automatically. The extra 2027 contributions for ages above 55 to 65 go to the Retirement Account up to the Full Retirement Sum, then to the Ordinary Account. Neither affects the employee's tax."
+ ],
+ "searches_used": 12
+}

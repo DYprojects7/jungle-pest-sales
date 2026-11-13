@@ -1,0 +1,140 @@
+{
+ "items": [
+  {
+   "id": "tax-table",
+   "status": "confirmed",
+   "value": "Resident rates from YA2024 onwards (unchanged for YA2026/YA2027): first 20,000 0%; next 10,000 2%; next 10,000 3.5%; next 40,000 7%; next 40,000 11.5%; next 40,000 15%; next 40,000 18%; next 40,000 19%; next 40,000 19.5%; next 40,000 20%; next 180,000 22%; next 500,000 23%; above 1,000,000 24%. Cumulative: 30k=200, 40k=550, 80k=3,350, 120k=7,950, 160k=13,950, 200k=21,150, 240k=28,750, 280k=36,550, 320k=44,550, 500k=84,150, 1m=199,150.",
+   "evidence_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-residency-and-tax-rates/individual-income-tax-rates",
+   "evidence_quote": "IRAS YA2026 sample (Mr Fong): tax $21,150 on the first $200,000 and $6,479 at 19% on the next $34,100. Rates page: gross tax $199,150 on the first $1,000,000, 24% above.",
+   "note": "The rates-page table came through garbled in the search extract. Directly legible: 0%/2%/3.5%/7% bands, cumulative 200 / 550 / 3,350, 21,150 at 200k, 19% band above 200k, 199,150 at 1m, 24% top rate. The 11.5%/15%/18% and 19.5%/20%/22%/23% bands were not individually legible, but the candidate rates reconcile exactly to the two official checkpoints (3,350 -> 21,150 at 200k; 21,150 -> 199,150 at 1m). No Budget 2026 change to rates was found."
+  },
+  {
+   "id": "pit-rebate-ya2025",
+   "status": "confirmed",
+   "value": "60% of tax payable, capped at S$200, for tax-resident individuals, YA2025.",
+   "evidence_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-residency-and-tax-rates/individual-income-tax-rates",
+   "evidence_quote": "Search extract of IRAS rates page (paraphrase): YA 2025 rebate of 60% of tax payable, capped at $200; YA 2024 was 50% capped at $200.",
+   "note": "Also restated in the IRAS Annual Report FY2024/25."
+  },
+  {
+   "id": "pit-rebate-ya2026",
+   "status": "confirmed",
+   "value": "No personal income tax rebate for YA2026.",
+   "evidence_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-residency-and-tax-rates/sample-income-tax-calculations",
+   "evidence_quote": "IRAS YA2026 sample: net tax payable $27,629 = $21,150 on the first $200,000 + $6,479 (19% on next $34,100), i.e. gross tax with no rebate deducted.",
+   "note": "Confirmed by inference, not by an explicit 'no rebate' sentence: the IRAS YA2026 worked example has net tax equal to gross tax, and the IRAS Personal Income Tax Rebate page lists only YA2024 and YA2025. Budget 2026 and the two 2026 Middle East support packages (7 Apr and ~29 Jul 2026) gave a corporate rebate only; no individual rebate appeared in any result."
+  },
+  {
+   "id": "pit-rebate-ya2027",
+   "status": "unverified",
+   "value": "None announced for YA2027 (no official announcement found as of Nov 2026).",
+   "evidence_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/personal-income-tax-rebate",
+   "note": "Negative claim, so nothing can be quoted. Searched the IRAS rebate page (covers YA2024 and YA2025 only), Budget 2026 pages on singaporebudget.gov.sg/mof.gov.sg, and both 2026 support packages: nothing for YA2027. A YA2027 rebate would normally be announced at Budget 2027 (around Feb 2027), so keep this as a configurable parameter defaulting to 0 and re-check then."
+  },
+  {
+   "id": "budget-2026-individuals",
+   "status": "unverified",
+   "value": "No Budget 2026 change found to resident rates, the S$80,000 relief cap or the CPF cash top-up relief cap (still up to S$16,000). SRS caps were not checked. Personal-tax change Budget 2026 DID make: the 250% deduction for qualifying donations is extended three years to 31 Dec 2029.",
+   "evidence_url": "https://www.mof.gov.sg/news-resources/newsroom/public-consultation-on-proposed-finance-income-taxes--bill-2026/",
+   "evidence_quote": "MOF consultation on Finance (Income Taxes) Bill 2026 (search extract): 250% scheme extended by three years until 31 December 2029; ten ITA amendments give effect to Budget 2026 measures.",
+   "note": "The Budget 2026 Annex / IRAS 'Budget 2026 - Overview of Tax Changes' could not be retrieved in 4 searches, so the full list of individual measures is not confirmed. Supporting evidence for no change: IRAS pages current in 2026 still show the 'YA 2024 onwards' rate table, the $80,000 cap, and CPF cash top-up relief up to $16,000. The same Bill also carries a non-Budget change: a broad-based Fixed Expense Deduction Ratio for self-employed persons / sole proprietors (details and effective YA not retrieved)."
+  },
+  {
+   "id": "relief-cap",
+   "status": "confirmed",
+   "value": "S$80,000 per YA on the total of all personal reliefs (so it includes employee CPF relief, SRS relief, CPF cash top-up relief and Earned Income Relief). Excess is disregarded and cannot be transferred. Donation deductions and employment expenses are deducted before assessable income and are not personal reliefs.",
+   "evidence_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs",
+   "evidence_quote": "\"a personal income tax relief cap of $80,000 applies to the total amount of all tax reliefs claimed for each Year of Assessment (YA)\"",
+   "note": "The 'does not limit donations or employment expenses' part is structural rather than an explicit IRAS sentence: the cap is worded around 'personal reliefs', and the IRAS samples deduct donations to reach assessable income before reliefs are applied. Also quoted: \"the personal reliefs allowed to you will be limited to $80,000. The balance ... will be disregarded and cannot be transferred.\""
+  },
+  {
+   "id": "eir",
+   "status": "confirmed",
+   "value": "S$1,000 (below 55), S$6,000 (55 to 59), S$8,000 (60 and above); age as at 31 December of the year before the YA (YA2026 uses age at 31 Dec 2025); capped at taxable earned income.",
+   "evidence_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/earned-income-relief",
+   "evidence_quote": "\"55 to 59 $6,000; 60 and above $8,000\"; \"the relief will be capped at the amount of taxable earned income\"; YA2026 relief table shows \"Earned Income Relief $1,000\".",
+   "note": "Higher amounts apply for persons with disabilities; those were not checked in this run."
+  },
+  {
+   "id": "donation-250",
+   "status": "corrected",
+   "value": "250% deduction now runs for qualifying donations made up to 31 Dec 2029 (extended three years from 31 Dec 2026 by Budget 2026), so it covers 2027, 2028 and 2029. It is deducted in arriving at assessable income and is not a personal relief.",
+   "evidence_url": "https://www.mof.gov.sg/news-resources/newsroom/public-consultation-on-proposed-finance-income-taxes--bill-2026/",
+   "evidence_quote": "IRAS business-expenses page (search extract): donations made \"from 1 Jan 2016 to 31 Dec 2029\" qualify for 2.5 times deduction; \"extended for another 3 years till 31 Dec 2029\".",
+   "note": "The candidate's 31 Dec 2026 expiry is out of date. Legislated through the Finance (Income Taxes) Bill 2026 (consultation 8 Jun to 1 Jul 2026; a Second Reading speech exists); final passage/assent was not confirmed, but IRAS already publishes the 2029 date. Some older IRAS pages still show 2026. The YA2026 samples show donations ($250) deducted before assessable income (50,000 -> 49,750)."
+  },
+  {
+   "id": "iras-sample-heng",
+   "status": "confirmed",
+   "value": "Employment income S$50,000, donation deduction S$250, assessable income S$49,750, personal reliefs S$15,000, chargeable income S$34,750, tax S$366.25, fully offset by Parenthood Tax Rebate (S$5,000), net tax S$0.",
+   "evidence_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-residency-and-tax-rates/sample-income-tax-calculations",
+   "evidence_quote": "Search extract: assessable income $49,750; chargeable income $34,750 after $15,000 of personal reliefs; tax before rebate $366.25; PTR fully offsets, net tax payable $0.",
+   "note": "The name 'Mr Heng', age 35 and the split of the $15,000 reliefs (EIR 1,000 + QCR 4,000 + CPF 10,000) were not visible in the extract; only the $15,000 total was. Arithmetic checks: 200 + 3.5% x 4,750 = 366.25."
+  },
+  {
+   "id": "iras-sample-250k",
+   "status": "confirmed",
+   "value": "Employment income S$250,000, donations S$250, personal reliefs S$15,650, chargeable income S$234,100, net tax payable S$27,629 (21,150 + 19% x 34,100 = 6,479).",
+   "evidence_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-residency-and-tax-rates/sample-income-tax-calculations",
+   "evidence_quote": "Search extract: Mr Fong, aged 64; chargeable income $234,100; net tax payable for YA 2026 $27,629 = $21,150 on first $200,000 + $6,479 at 19% on next $34,100.",
+   "note": "The taxpayer in this sample is Mr Fong, aged 64 (so EIR is the 60-and-above amount, not $1,000)."
+  },
+  {
+   "id": "rounding",
+   "status": "confirmed",
+   "value": "IRAS shows tax to the cent (S$366.25; a PTR balance of S$697.70). No IRAS statement on rounding chargeable income down to the nearest dollar was found; the IRAS samples all use whole-dollar chargeable incomes.",
+   "evidence_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-residency-and-tax-rates/sample-income-tax-calculations",
+   "evidence_quote": "Tax before rebate is $366.25 (IRAS YA2026 sample); unutilised PTR \"$697.70\" (IRAS PTR example).",
+   "note": "Only the cents-level tax display is confirmed. Whether chargeable income is truncated to whole dollars is unverified; do not hard-code a rounding-down rule on the strength of this check."
+  },
+  {
+   "id": "non-resident",
+   "status": "confirmed",
+   "value": "Non-residents cannot claim personal reliefs. Employment income: flat 15% or resident progressive rates, whichever gives the higher tax. Director's fees, consultancy fees and other income: 24%.",
+   "evidence_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-residency-and-tax-rates/individual-income-tax-rates",
+   "evidence_quote": "\"taxed at the flat rate of 15% or the progressive resident tax rates, whichever is the higher tax amount\"; \"the tax rate for non-resident individuals is currently at 24%\"",
+   "note": "Short-term employment of 60 days or less in a calendar year may be exempt (not for directors, public entertainers or professionals). Some income types have their own withholding rates; those were not checked here."
+  },
+  {
+   "id": "tax-resident-def",
+   "status": "confirmed",
+   "value": "Foreigner who stayed/worked in Singapore at least 183 days in the calendar year before the YA is a tax resident. IRAS also treats as resident: a foreigner working a continuous period straddling 2 calendar years with total stay of at least 183 days (not directors, public entertainers, professionals), and a foreigner with a work pass valid for at least 1 year (reviewed at tax clearance). Singapore Citizen/PR residing in Singapore: candidate retained, limb not shown in results.",
+   "evidence_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-residency-and-tax-rates/working-out-my-tax-residency",
+   "evidence_quote": "\"worked in Singapore for a continuous period straddling 2 calendar years and the total period of stay is at least 183 days\"; \"work pass that is valid for at least 1 year will also be treated as a tax resident\"",
+   "note": "Only the foreigner limbs were quoted in the search output. The Singapore Citizen/PR limb was not returned, so that half of the candidate is not verified in this run (nothing contradicted it). The 183-day test is one of several routes, so a pure '183 days' rule will misclassify some foreigners."
+  },
+  {
+   "id": "ptr",
+   "status": "confirmed",
+   "value": "PTR is a credit against tax payable (S$5,000 first child, S$10,000 second, S$20,000 third and each subsequent). Unused balance carries forward automatically, is not refundable, and can be transferred to a spouse. It is applied after tax is computed, so it is not a relief and is not part of the S$80,000 relief cap.",
+   "evidence_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/parenthood-tax-rebate-(ptr)",
+   "evidence_quote": "\"The PTR is a credit to offset your tax payable.\" \"Any unutilised amount will automatically be carried forward to offset your future income tax payable. Any remaining balance is not refundable.\"",
+   "note": "No IRAS sentence was found saying in terms that PTR is outside the $80,000 cap. That follows from IRAS wording the cap around 'reliefs' and from the samples, where PTR is deducted from tax after chargeable income is computed. Balance is forfeited from the following YA if the child is given up for adoption."
+  },
+  {
+   "id": "filing",
+   "status": "corrected",
+   "value": "Filing due date is 18 April for both e-filing and paper returns (paper moved from 15 April to 18 April with effect from YA2025). For YA2027 that is 18 April 2027 (a Sunday; no YA2027-specific IRAS notice found yet). Payment within 1 month of NOA and up to 12 interest-free GIRO instalments: not verified in this run.",
+   "evidence_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/understanding-my-income-tax-filing/filing-a-paper-income-tax-return",
+   "evidence_quote": "\"With effect from YA 2025, the filing due date for paper Form P, B, B1 and M has been changed from 15 April to 18 April to align with the e-Filing due date.\"",
+   "note": "The candidate's 'paper 15 April' is out of date. YA2026 was due 18 April 2026 (a Saturday, not shifted), with NOAs issued end Apr to end Sep 2026. The search on payment terms returned only filing pages, so the 1-month payment rule and 12-instalment GIRO plan stay as candidates, unverified."
+  }
+ ],
+ "summary": "12 of 12 searches used; all evidence came from search-tool extracts of official pages (iras.gov.sg, mof.gov.sg, singaporebudget.gov.sg), since direct fetching is blocked. Of 15 items: 11 confirmed, 2 corrected, 2 unverified.\n\nCorrections:\n- donation-250: the 250% deduction no longer expires 31 Dec 2026. Budget 2026 extended it three years to 31 Dec 2029, so it applies to 2026 and 2027 income (YA2027 and the projected YA2028).\n- filing: the paper filing deadline is 18 April, the same as e-filing, from YA2025 (not 15 April).\n\nUnverified:\n- pit-rebate-ya2027: a negative claim; nothing announcing one was found, and Budget 2027 is the next likely point for one.\n- budget-2026-individuals: the Budget 2026 tax annex itself could not be retrieved. No change to rates, the $80,000 cap or the CPF top-up relief cap was found; SRS caps were not checked.\n\nPartly confirmed (status is \"confirmed\" but read the notes):\n- tax-table: the 11.5%/15%/18% and 19.5%/20%/22%/23% band rates were not legible in the extract; they reconcile exactly to IRAS's $21,150 at $200,000 and $199,150 at $1,000,000.\n- pit-rebate-ya2026: confirmed by inference from the IRAS YA2026 worked example (net tax equals gross tax, no rebate line) and the IRAS rebate page listing only YA2024 and YA2025.\n- rounding: tax to the cent is confirmed; no rule on rounding chargeable income to whole dollars was found.\n- tax-resident-def: only the foreigner limbs were quoted; the Citizen/PR limb did not appear in results.\n- filing: the 1-month payment rule and 12 interest-free GIRO instalments were not verified.",
+ "extra_findings": [
+  "250% donation deduction is extended to 31 Dec 2029 (Budget 2026), so the projected year 2027 (YA2028) should also use 250%, not 100%.",
+  "Paper returns (Form P, B, B1, M) are due 18 April from YA2025, aligned with e-filing; remove any 15 April reference.",
+  "Two post-Budget support packages for the Middle East situation (Ministerial Statement 7 Apr 2026; second package about 29 Jul 2026) raised the YA2026 Corporate Income Tax rebate from 40% to 50% (minimum $2,000, cap $40,000). Household help was vouchers, U-Save rebates and cash payments. No personal income tax rebate appeared in either package.",
+  "CPF Cash Top-up Relief: from YA2026 (top-ups made from 1 Jan 2025), cash top-ups that attract a Matched Retirement Savings Scheme matching grant do not qualify for relief. Relief for other top-ups remains up to $16,000 a year. The calculator should exclude MRSS-matched top-ups.",
+  "Course Fees Relief has lapsed from YA2026 and Foreign Domestic Worker Levy Relief lapsed from YA2025; neither should be offered for the 2025, 2026 or 2027 income years.",
+  "Dependant income threshold for dependant-related reliefs (including CPF cash top-up recipients) rose from $4,000 to $8,000 from YA2025.",
+  "Working Mother's Child Relief is a fixed amount for children born on or after 1 Jan 2024: $8,000 first child, $10,000 second, $12,000 third and subsequent. Parent Relief for YA2026 is $9,000 per dependant if living with the parent, $5,500 if not.",
+  "Reliefs above the $80,000 cap are disregarded and cannot be transferred or carried forward.",
+  "The Finance (Income Taxes) Bill 2026 includes a broad-based Fixed Expense Deduction Ratio for self-employed persons and individual sole proprietors (a non-Budget amendment). Details and the effective YA were not retrieved; check this if the calculator handles self-employed income.",
+  "Tax residency for foreigners has more routes than the 183-day test: a continuous work period straddling two calendar years totalling at least 183 days, and a work pass valid for at least one year. Employment of 60 days or less in a calendar year may be exempt for non-residents.",
+  "The IRAS $250,000 sample taxpayer is Mr Fong, aged 64, with personal reliefs of $15,650; a back-test using age 35 and $1,000 EIR will not reproduce $234,100.",
+  "18 April 2027 falls on a Sunday. IRAS kept 18 April 2026 (a Saturday) unchanged, but no YA2027 filing notice was found yet.",
+  "Not checked in this run and still candidate-only: SRS contribution caps, the 1-month payment deadline after the NOA, the 12 interest-free GIRO instalments, Earned Income Relief amounts for persons with disabilities, and any rounding of chargeable income."
+ ],
+ "searches_used": 12
+}

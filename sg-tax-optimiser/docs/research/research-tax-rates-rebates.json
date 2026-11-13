@@ -1,0 +1,342 @@
+{
+ "summary": "COVERAGE WARNING: this research step is only partly complete. Six web searches ran successfully; after that the shared web-search budget for this turn (200 calls across all agents) was exhausted and every further search was refused. Direct page fetches also failed with DNS errors for every host tried (taxsummaries.pwc.com, www.grantthornton.sg, www.ey.com, dentons.rodyk.com, in addition to the *.gov.sg block already known), so those hosts would have to be allowed in the session's network settings before the pages can be read. No search engine, proxy or archive workaround was used. Everything below comes only from the content of those six search results; anything not sourced there is listed under open_questions instead of being filled from memory.\n\nWHAT IS ESTABLISHED (topics 1 and 2, well covered):\n(1) Resident rate table. The IRAS table is headed \"From YA 2024 onwards\" and is the table in force for YA2025, YA2026 and YA2027: 0% on first S$20,000; 2% next 10,000; 3.5% next 10,000; 7% next 40,000; 11.5% next 40,000; 15% next 40,000; 18% next 40,000; 19% next 40,000; 19.5% next 40,000; 20% next 40,000; 22% next 180,000; 23% next 500,000; 24% above S$1,000,000. Cumulative gross tax at the band boundaries: 20k=0, 30k=200, 40k=550, 80k=3,350, 120k=7,950, 160k=13,950, 200k=21,150, 240k=28,750, 280k=36,550, 320k=44,550, 500k=84,150, 1m=199,150. I re-derived every cumulative figure arithmetically from the band rates and they all reconcile, including the IRAS-confirmed anchor of S$44,550 on the first S$320,000. Secondary sources state Budget 2026 changed no rates for YA2026 or YA2027.\n(2) PIT rebate. YA2024: 50% of tax payable, capped S$200 (IRAS). YA2025: 60%, capped S$200, SG60 package, automatic (MOF). YA2026: none - Budget 2026 (12 Feb 2026) announced no Personal Income Tax Rebate (Grant Thornton and several secondary sources; not confirmed against the IRAS/MOF Budget 2026 pages, whose text could not be retrieved). YA2027: none announced as of 13 Nov 2026. Design point: the YA2024 and YA2025 rebates were each announced in the Budget held in February of the YA itself, i.e. after the income year had closed, so any YA2027 rebate would only be known at Budget 2027, after the 31 Dec 2026 top-up deadline. The calculator should default the YA2027 rebate to zero and keep percentage and cap as configurable parameters.\n(3) Budget 2026 for individuals: no rate change, no PIT rebate, no new personal reliefs, no SRS change found, S$80,000 relief cap unchanged (secondary sources, medium/low confidence). CPF items from the official CPF Board page: senior-worker total contribution rates rise from 1 Jan 2027 by 1.5 percentage points (aged above 55 to 60) and 1.0 point (above 60 to 65), allocated to the Retirement Account up to the FRS, with the CPF Transition Offset covering half the 2027 employer increase; a one-time Government CPF top-up of up to S$1,500 in December 2026 for eligible Singaporeans aged 50 and above; a new CPF investment scheme in H1 2028; higher MediSave chronic-care withdrawal limits from Jan 2027. A new deduction for CPF cash top-ups applies to platform operators (not employees) from YA2027 for top-ups made from 1 Jan 2026.\n\nWHAT IS NOT ESTABLISHED (topics 3 to 7, largely unresolved): the IRAS computation chain wording, the order in which Parenthood Tax Rebate and PIT rebate apply, rounding conventions, the 183-day residency rules, the 15%-or-resident-rates rule for non-resident employment income, whether a non-resident can claim SRS relief, bonus timing, the tax treatment of employer CPF, Parenthood Tax Rebate amounts, and the filing/NOA/GIRO timeline. The relevant IRAS pages surfaced by URL in the results but their text did not come through. These are itemised in open_questions with the page to check; a follow-up run with search budget (or with the hosts allowed) is needed before the engine hard-codes any of them.\n\nLocal context noted, not used as evidence: the product code lives at /home/user/jungle-pest-sales/sg-tax-optimiser (engine types at /home/user/jungle-pest-sales/sg-tax-optimiser/src/engine/types.ts).",
+ "facts": [
+  {
+   "id": "resident-rate-table-bands",
+   "claim": "The resident individual progressive income tax rate table in force from YA2024 onwards has 13 bands running from 0% to 24%.",
+   "value": "First S$20,000: 0% | next S$10,000 (20,001-30,000): 2% | next S$10,000 (30,001-40,000): 3.5% | next S$40,000 (40,001-80,000): 7% | next S$40,000 (80,001-120,000): 11.5% | next S$40,000 (120,001-160,000): 15% | next S$40,000 (160,001-200,000): 18% | next S$40,000 (200,001-240,000): 19% | next S$40,000 (240,001-280,000): 19.5% | next S$40,000 (280,001-320,000): 20% | next S$180,000 (320,001-500,000): 22% | next S$500,000 (500,001-1,000,000): 23% | above S$1,000,000: 24%",
+   "applies_to": "YA2024 onwards (covers YA2025 = income 2024, YA2026 = income 2025, YA2027 = income 2026)",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-residency-and-tax-rates/individual-income-tax-rates",
+   "source_quote": "Search-result paraphrase of the IRAS page: table headed 'From YA 2024 onwards'; first $20,000 taxed at 0%, rates rise in steps through 2%, 3.5%, 7%, 11.5%, 15%, 18%, 19%, 19.5%, 20%, 22% and 23%; income above $1,000,000 taxed at 24%. Band widths corroborated by the PwC Tax Summaries table (https://taxsummaries.pwc.com/singapore/individual/taxes-on-personal-income).",
+   "confidence": "high"
+  },
+  {
+   "id": "resident-rate-table-cumulative-tax",
+   "claim": "Cumulative gross tax payable at each band boundary of the YA2024-onwards resident table.",
+   "value": "Chargeable income S$20,000 -> S$0 | 30,000 -> S$200 | 40,000 -> S$550 | 80,000 -> S$3,350 | 120,000 -> S$7,950 | 160,000 -> S$13,950 | 200,000 -> S$21,150 | 240,000 -> S$28,750 | 280,000 -> S$36,550 | 320,000 -> S$44,550 | 500,000 -> S$84,150 | 1,000,000 -> S$199,150; excess over S$1,000,000 at 24%",
+   "applies_to": "YA2024 onwards (YA2025, YA2026, YA2027)",
+   "source_url": "https://taxsummaries.pwc.com/singapore/individual/taxes-on-personal-income",
+   "source_quote": "PwC 'tax on column 1' figures as reported by the search result: 20,000=0; 30,000=200; 40,000=550; 80,000=3,350; 120,000=7,950; 160,000=13,950; 200,000=21,150; 240,000=28,750; 280,000=36,550; 320,000=44,550; 500,000=84,150; 1,000,000=199,150. I recomputed each step from the band rates (e.g. 40,000 x 7% = 2,800; 180,000 x 22% = 39,600; 500,000 x 23% = 115,000) and all reconcile; IRAS independently confirms the 320,000 -> 44,550 anchor.",
+   "confidence": "high"
+  },
+  {
+   "id": "rate-table-anchor-320k",
+   "claim": "IRAS material confirms that gross tax on the first S$320,000 of chargeable income is S$44,550 under the structure effective from YA2024.",
+   "value": "S$44,550 gross tax on first S$320,000 of chargeable income",
+   "applies_to": "YA2024 onwards",
+   "source_url": "https://www.iras.gov.sg/docs/default-source/budget-2022/budget-2022---overview-of-tax-changes69937d71-ba59-4b39-b1e5-7e85b2504e1c.pdf?sfvrsn=8339ba5a_5",
+   "source_quote": "Search-result paraphrase: 'the tax on the first $320,000 is $44,550'; the new PIT rate structure for tax-resident individual taxpayers was set in Budget 2022 and appears in the same table.",
+   "confidence": "high"
+  },
+  {
+   "id": "rate-table-top-rates-from-ya2024",
+   "claim": "From YA2024 the top marginal resident rate is 24%: chargeable income above S$500,000 up to S$1 million is taxed at 23% and income above S$1 million at 24% (the change was set in Budget 2022).",
+   "value": "23% on S$500,001-S$1,000,000; 24% above S$1,000,000; top rate 24%",
+   "applies_to": "YA2024 onwards",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-residency-and-tax-rates/individual-income-tax-rates",
+   "source_quote": "'Income exceeding SGD 500,000 but not exceeding SGD 1 million will be taxed at 23%, while income surpassing SGD 1 million will be taxed at 24%.' (secondary guide quoted in results); PwC: 'The current highest personal income tax rate is at 24%.'",
+   "confidence": "high"
+  },
+  {
+   "id": "rate-table-unchanged-ya2025-ya2027",
+   "claim": "The resident rate table is unchanged across YA2025, YA2026 and YA2027; Budget 2026 made no change to personal income tax rates.",
+   "value": "Same table for YA2024, YA2025, YA2026, YA2027 (no rate change announced in Budget 2026)",
+   "applies_to": "YA2025-YA2027 (income years 2024-2026); nothing announced for YA2028 either as far as the retrieved sources show",
+   "source_url": "https://incometax.tools/singapore/income-tax-rates",
+   "source_quote": "Search-result paraphrase of secondary rate guides (incometax.tools, numbers.sg): the first $20,000 is tax-free, then rates rise from 2% to 24% on income above $1,000,000, and Budget 2026 changed none of them for YA2026 or YA2027. IRAS table itself is headed 'From YA 2024 onwards'.",
+   "confidence": "high"
+  },
+  {
+   "id": "pit-rebate-ya2024",
+   "claim": "For YA2024 tax-resident individuals received a Personal Income Tax Rebate of 50% of tax payable, capped at S$200.",
+   "value": "50% of tax payable, maximum S$200 per taxpayer",
+   "applies_to": "YA2024 (income year 2023)",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-residency-and-tax-rates/individual-income-tax-rates",
+   "source_quote": "For YA2024, a Personal Income Tax Rebate of 50% of tax payable, up to maximum of $200 was granted to tax resident individuals.",
+   "confidence": "high"
+  },
+  {
+   "id": "pit-rebate-ya2025",
+   "claim": "For YA2025 all tax-resident individuals received a Personal Income Tax Rebate of 60%, capped at S$200 per taxpayer, announced in Budget 2025 as part of the SG60 package and granted automatically.",
+   "value": "60% of tax payable, maximum S$200 per taxpayer",
+   "applies_to": "YA2025 (income year 2024)",
+   "source_url": "https://www.mof.gov.sg/news-resources/newsroom/second-reading-opening-speech-on-the-finance-income-taxes-bill-sms-jeffrey-siow/",
+   "source_quote": "...all tax-resident individuals to receive a Personal Income Tax Rebate of 60% for the Year of Assessment 2025, capped at $200 per taxpayer. (MOF second-reading speech on the Finance (Income Taxes) Bill; two near-identical MOF speech URLs surfaced and I could not pin which one carries this sentence.)",
+   "confidence": "high"
+  },
+  {
+   "id": "pit-rebate-ya2026-none",
+   "claim": "Budget 2026 did not announce any Personal Income Tax Rebate, so there is no PIT rebate for YA2026.",
+   "value": "No rebate (0%, S$0) for YA2026",
+   "applies_to": "YA2026 (income year 2025)",
+   "source_url": "https://www.grantthornton.sg/insights/2026-insights/singapore-budget-2026-summary-individuals/",
+   "source_quote": "Grant Thornton: 'There was no Personal Income Tax rebate announced this year.' numbers.sg (paraphrase): IRAS lists a rebate only for YA 2024 and YA 2025. Not verified against the IRAS Budget 2026 page or MOF Annex H-1, whose text could not be retrieved.",
+   "confidence": "medium"
+  },
+  {
+   "id": "pit-rebate-ya2027-none-announced",
+   "claim": "As of 13 November 2026 no Personal Income Tax Rebate has been announced for YA2027; past rebates were announced in the Budget held in the YA itself, after the income year had ended.",
+   "value": "No rebate announced for YA2027; model as 0 by default with configurable % and cap",
+   "applies_to": "YA2027 (income year 2026)",
+   "source_url": "https://numbers.sg/tax/income-tax-rates/",
+   "source_quote": "Search-result paraphrase: there is no personal income tax rebate for YA2026, and none has been announced for YA2027 either. Timing pattern from MOF: the YA2025 rebate was 'announced in Budget 2025 as part of the SG60 package'.",
+   "confidence": "medium"
+  },
+  {
+   "id": "pit-rebate-conflicting-claim-ya2026",
+   "claim": "At least one calculator website's FAQ text claims a 60% rebate capped at S$200 was introduced in Budget 2026; this is contradicted by Grant Thornton and other sources and appears to be a stale carry-over of the YA2025 rebate.",
+   "value": "Conflicting (non-official) claim: 60% capped S$200 for YA2026 - treat as wrong",
+   "applies_to": "YA2026",
+   "source_url": "https://www.smartcalculator.sg/tax/income-tax-calculator",
+   "source_quote": "Search-result paraphrase: one site's embedded FAQ claims a 60% rebate capped at $200 was introduced in Budget 2026, contradicting the other sources; some websites claim a 60% rebate but IRAS's Budget summary does not list one. Which calculator site carries the claim was not pinned down.",
+   "confidence": "low"
+  },
+  {
+   "id": "ya2026-vs-ya2025-net-effect",
+   "claim": "Because the rebate was not renewed, most residents pay slightly more for YA2026 than for YA2025 on the same chargeable income (up to S$200 more).",
+   "value": "Difference = YA2025 rebate forgone = min(60% x tax payable, S$200)",
+   "applies_to": "YA2026 versus YA2025",
+   "source_url": "https://incometax.tools/singapore/income-tax-rates",
+   "source_quote": "Search-result paraphrase: without the rebate, most residents pay slightly more for YA2026 than for YA2025 on the same income.",
+   "confidence": "medium"
+  },
+  {
+   "id": "budget-2026-date-and-speaker",
+   "claim": "Budget 2026 was delivered on 12 February 2026 by Prime Minister and Minister for Finance Lawrence Wong, according to one secondary source; another calculator site names Gan Kim Yong as the Finance Minister.",
+   "value": "12 February 2026; speaker reported as PM and Minister for Finance Lawrence Wong (conflicting secondary source names Gan Kim Yong)",
+   "applies_to": "Budget 2026 (FY2026)",
+   "source_url": "https://www.grantthornton.sg/insights/2026-insights/singapore-budget-2026-summary-individuals/",
+   "source_quote": "Search-result paraphrase: 'Prime Minister and Minister for Finance Mr Lawrence Wong delivered it on 12 February 2026'; one calculator site names Gan Kim Yong instead. Which secondary site said which was not pinned down; no official page retrieved.",
+   "confidence": "medium"
+  },
+  {
+   "id": "budget-2026-no-new-personal-reliefs",
+   "claim": "Budget 2026 introduced no new personal reliefs and left existing reliefs (CPF, SRS, earned income) and the S$80,000 overall relief cap unchanged.",
+   "value": "No change to personal reliefs or to the S$80,000 cap for YA2026/YA2027",
+   "applies_to": "YA2026 and YA2027",
+   "source_url": "https://taxinfo.sg/budget-2026-tax-changes",
+   "source_quote": "Search-result paraphrase: 'no new reliefs were introduced, and existing reliefs (CPF, SRS, earned income, course fees) continue unchanged'; overall the sources point to no change in rates or the S$80,000 relief cap. Single secondary source, attribution within the result set not certain; its mention of course fees relief continuing looks doubtful (see open questions).",
+   "confidence": "low"
+  },
+  {
+   "id": "budget-2026-no-srs-change-found",
+   "claim": "No SRS-specific change (contribution cap, relief or withdrawal rules) from Budget 2026 was found in the retrieved sources.",
+   "value": "No SRS change identified for calendar 2026/2027 or YA2027/YA2028",
+   "applies_to": "Calendar years 2026-2027",
+   "source_url": "https://www.grantthornton.sg/insights/2026-insights/singapore-budget-2026-summary-individuals/",
+   "source_quote": "Search-result summary across Grant Thornton, EY, Dentons Rodyk and other Budget 2026 commentaries: 'I found nothing specific to SRS in these results.' This is absence of evidence, not an official statement.",
+   "confidence": "low"
+  },
+  {
+   "id": "budget-2026-platform-operator-topup-deduction",
+   "claim": "Budget 2026 lets platform operators (not employees) claim a tax deduction for CPF cash top-ups to platform workers' MediSave via voluntary contributions, effective YA2027 for top-ups made from 1 January 2026.",
+   "value": "Deduction for platform operators; effective YA2027 for CPF cash top-ups made from 1 Jan 2026",
+   "applies_to": "Platform operators; YA2027 onwards (top-ups from 1 Jan 2026)",
+   "source_url": "https://www.ey.com/content/dam/ey-unified-site/ey-com/en-sg/technical/singapore-tax-alerts/documents/ey-sg-budget-2026-news-alert-02-2026.pdf",
+   "source_quote": "Platform operators can now claim a deduction for CPF cash top-ups to platform workers' VC-MA accounts, 'with effect from YA 2027 for CPF cash top-ups made from 1 January 2026'. Exact source among EY / Grant Thornton / Dentons Rodyk not pinned down.",
+   "confidence": "medium"
+  },
+  {
+   "id": "budget-2026-cit-rebate-is-not-individual",
+   "claim": "The 40% tax rebate with S$1,500 cash grant announced at Budget 2026 is a corporate income tax measure for active companies that employed at least one local employee in 2025; it is not a rebate for individuals.",
+   "value": "40% CIT rebate with S$1,500 cash grant - companies only",
+   "applies_to": "Companies, YA2026",
+   "source_url": "https://www.mof.gov.sg/news-resources/newsroom/second-reading-opening-speech-on-the-finance--income-taxes--bill---2m-jeffrey-siow/",
+   "source_quote": "At this year's Budget, the Government had announced a 40% tax rebate, with a $1,500 cash grant for active companies that employed at least one local employee in 2025.",
+   "confidence": "medium"
+  },
+  {
+   "id": "cpf-senior-rates-jan-2027",
+   "claim": "Budget 2026 announced that from January 2027 total CPF contribution rates rise by 1.5 percentage points for employees aged above 55 to 60 and by 1.0 percentage point for employees aged above 60 to 65.",
+   "value": "+1.5 percentage points (aged above 55 to 60); +1.0 percentage point (aged above 60 to 65), from 1 January 2027",
+   "applies_to": "Wages earned from January 2027 (income year 2027, YA2028)",
+   "source_url": "https://www.cpf.gov.sg/member/infohub/educational-resources/cpf-changes-announced-in-budget2026-and-what-it-means-for-you",
+   "source_quote": "total contribution rates will be raised by 1.5 percentage points for employees aged above 55 to 60, and 1.0 percentage point for employees aged above 60 to 65, starting January 2027.",
+   "confidence": "high"
+  },
+  {
+   "id": "cpf-senior-60-65-split-2027",
+   "claim": "For employees aged above 60 to 65, the 2027 increase is split 0.5 percentage point each on the employee and employer rates, taking each to 13%.",
+   "value": "Employee 13%, employer 13% (each +0.5 percentage point) from January 2027 for ages above 60 to 65",
+   "applies_to": "From 1 January 2027",
+   "source_url": "https://sg.news.yahoo.com/budget-2026-cpf-top-ups-082707593.html",
+   "source_quote": "both the employees' and employers' contribution rates will each increase 0.5 percentage point to 13 per cent",
+   "confidence": "medium"
+  },
+  {
+   "id": "cpf-senior-increase-allocation",
+   "claim": "The 2027 increase in senior-worker contribution rates is fully allocated to the CPF Retirement Account, up to the Full Retirement Sum.",
+   "value": "100% of the increase to Retirement Account, up to FRS",
+   "applies_to": "From January 2027",
+   "source_url": "https://www.cpf.gov.sg/member/infohub/educational-resources/cpf-changes-announced-in-budget2026-and-what-it-means-for-you",
+   "source_quote": "The increase in contribution rates will be fully allocated to the CPF Retirement Account, up to their Full Retirement Sum (FRS).",
+   "confidence": "high"
+  },
+  {
+   "id": "cpf-transition-offset-2027",
+   "claim": "The Government continues the CPF Transition Offset, covering half of the 2027 increase in employer CPF contributions for senior workers, applied automatically.",
+   "value": "50% of the 2027 increase in employer contributions",
+   "applies_to": "Calendar year 2027",
+   "source_url": "https://www.cpf.gov.sg/member/infohub/news/cpf-related-announcements/budget-highlights-2026",
+   "source_quote": "The Government will also continue to provide the CPF Transition Offset to employers, which will cover half of the increase in the employer contributions for 2027.",
+   "confidence": "high"
+  },
+  {
+   "id": "cpf-senior-rates-jan-2026",
+   "claim": "Senior-worker CPF contribution rates (ages 55 to 65) already rose on 1 January 2026, by 1.5 percentage points, following the Tripartite Workgroup on Older Workers' recommendations; this was a previously announced step, not a Budget 2026 measure.",
+   "value": "+1.5 percentage points from 1 January 2026 for workers aged above 55 to 65 (exact per-band employer/employee split not retrieved)",
+   "applies_to": "Wages from 1 January 2026 (income year 2026, YA2027)",
+   "source_url": "https://www.cpf.gov.sg/service/article/what-are-the-changes-to-the-cpf-contribution-rates-for-senior-workers-from-1-january-2026",
+   "source_quote": "Search-result paraphrase: rates for workers aged 55 to 65 already rose on 1 January 2026, by 1.5 percentage points, in line with the Tripartite Workgroup on Older Workers' recommendations.",
+   "confidence": "medium"
+  },
+  {
+   "id": "cpf-ow-ceiling-2026",
+   "claim": "The CPF Ordinary Wage (monthly salary) ceiling rose to S$8,000 a month from January 2026, which raises compulsory employee CPF and hence CPF relief for employees earning above the old ceiling.",
+   "value": "S$8,000 per month from 1 January 2026",
+   "applies_to": "Wages from January 2026 (income year 2026, YA2027)",
+   "source_url": "https://www.paymetriclabs.com/sg/insights/cpf-contribution-changes-2026",
+   "source_quote": "Search-result paraphrase: 'the ordinary wage CPF ceiling rose to $8,000 a month from January 2026, which increases CPF relief for some employees' - single secondary source; the CPF Board page https://www.cpf.gov.sg/member/infohub/educational-resources/cpf-answers-how-can-i-benefit-from-the-new-cpf-monthly-salary-ceiling surfaced but its text was not retrieved.",
+   "confidence": "medium"
+  },
+  {
+   "id": "cpf-budget-2026-senior-topup-dec-2026",
+   "claim": "Budget 2026 gives eligible Singaporeans aged 50 and above in 2026 a one-time Government CPF top-up of up to S$1,500 to their Retirement or Special Account in December 2026, tiered by CPF retirement savings and property Annual Value.",
+   "value": "Up to S$1,500, credited December 2026",
+   "applies_to": "December 2026; Singaporeans aged 50 and above in 2026",
+   "source_url": "https://www.cpf.gov.sg/member/infohub/educational-resources/cpf-changes-announced-in-budget2026-and-what-it-means-for-you",
+   "source_quote": "Eligible Singaporeans aged 50 and above in 2026 will receive a CPF top-up of up to $1,500 in their CPF Retirement or Special Account in December 2026.",
+   "confidence": "high"
+  },
+  {
+   "id": "cpf-budget-2026-other-changes",
+   "claim": "Other CPF measures from Budget 2026 do not affect the 2026 tax computation: a new voluntary life-cycle CPF investment scheme planned for the first half of 2028, and MediSave chronic-care withdrawal limits rising from S$500 to S$700 a year (up to S$1,000 for complex conditions) from January 2027.",
+   "value": "New CPF investment scheme: H1 2028 (or earlier); MediSave chronic withdrawal limit S$500 -> S$700 per year, up to S$1,000 for complex conditions, from January 2027",
+   "applies_to": "2027 and 2028",
+   "source_url": "https://www.cpf.gov.sg/member/infohub/educational-resources/cpf-changes-announced-in-budget2026-and-what-it-means-for-you",
+   "source_quote": "Search-result paraphrase of the CPF Board page: CPF Board plans a new investment scheme in the first half of 2028, or earlier if possible; withdrawal limits for chronic conditions rise from $500 to S$700 a year, up to S$1000 for more complex conditions, from January 2027.",
+   "confidence": "medium"
+  },
+  {
+   "id": "finance-income-taxes-bill-2026",
+   "claim": "MOF consulted on the Finance (Income Taxes) Bill 2026 from 8 June to 1 July 2026; it proposes 20 amendments to the Income Tax Act 1947, ten of which give effect to Budget 2026 measures, and a second-reading speech has since been published.",
+   "value": "Consultation 8 June - 1 July 2026; 20 ITA amendments (10 from Budget 2026); 2 amendments to the Multinational Enterprise (Minimum Tax) Act 2024",
+   "applies_to": "Legislation implementing Budget 2026",
+   "source_url": "https://www.mof.gov.sg/news-resources/newsroom/public-consultation-on-proposed-finance-income-taxes--bill-2026/",
+   "source_quote": "Search-result paraphrase: the Bill proposes 20 amendments to the Income Tax Act 1947 and two amendments to the Multinational Enterprise (Minimum Tax) Act 2024, including ten amendments giving effect to Budget 2026 tax measures; consultation from 8 June to 1 July 2026.",
+   "confidence": "high"
+  },
+  {
+   "id": "fixed-expense-deduction-ratio-self-employed",
+   "claim": "The Finance (Income Taxes) Bill 2026 introduces an optional broad-based Fixed Expense Deduction Ratio of 20% for self-employed persons and sole proprietors with annual revenue up to S$50,000; it does not affect employees.",
+   "value": "20% deemed expense ratio; annual revenue up to S$50,000; optional",
+   "applies_to": "Self-employed persons / sole proprietors; effective YA not retrieved",
+   "source_url": "https://www.mof.gov.sg/news-resources/newsroom/second-reading-opening-speech-on-the-finance--income-taxes--bill---2m-jeffrey-siow/",
+   "source_quote": "Search-result paraphrase: the Bill would let people with annual revenue of up to $50,000 claim a Fixed Expense Deduction Ratio of 20%; the option is not compulsory.",
+   "confidence": "medium"
+  },
+  {
+   "id": "ya-basis-period",
+   "claim": "Singapore taxes on a preceding-year basis: income taxed in YA2026 is income earned from 1 January 2025 to 31 December 2025, so income earned in calendar 2026 is assessed in YA2027.",
+   "value": "YA N = income earned 1 Jan to 31 Dec of year N-1 (YA2026 = 2025 income; YA2027 = 2026 income; YA2028 = 2027 income)",
+   "applies_to": "All YAs",
+   "source_url": "https://www.iras.gov.sg/news-events/newsroom/individual-income-tax-season-2026--about-1-million-taxpayers-to-receive-their-tax-bill-directly-from-mid-march",
+   "source_quote": "income taxed in Year of Assessment 2026 refers to income earned from 1 Jan 2025 to 31 Dec 2025",
+   "confidence": "high"
+  },
+  {
+   "id": "tax-season-2026-direct-tax-bills",
+   "claim": "In the 2026 filing season about 1 million taxpayers received their tax bill (Notice of Assessment) directly from mid-March 2026 without needing to file.",
+   "value": "About 1 million taxpayers; tax bills issued directly from mid-March 2026",
+   "applies_to": "YA2026 filing season (March-April 2026); the YA2027 equivalent has not been announced",
+   "source_url": "https://www.iras.gov.sg/news-events/newsroom/individual-income-tax-season-2026--about-1-million-taxpayers-to-receive-their-tax-bill-directly-from-mid-march",
+   "source_quote": "Individual Income Tax Season 2026: About 1 Million Taxpayers to Receive their Tax Bill Directly from Mid-March (IRAS news release title).",
+   "confidence": "high"
+  },
+  {
+   "id": "personal-relief-cap-80k",
+   "claim": "Total personal income tax reliefs are capped at S$80,000 per Year of Assessment, a rule in effect since YA2018 and not changed by Budget 2026.",
+   "value": "S$80,000 per YA overall cap on personal reliefs",
+   "applies_to": "YA2018 onwards (including YA2026 and YA2027)",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs",
+   "source_quote": "Search-result paraphrase of the IRAS tax reliefs page: the $80,000 personal relief cap is an existing rule that 'takes effect from YA 2018'.",
+   "confidence": "high"
+  },
+  {
+   "id": "non-resident-no-reliefs-flat-24",
+   "claim": "Non-resident individuals are not entitled to any personal reliefs and are taxed at a flat 24% (the retrieved summary did not capture the separate employment-income rule).",
+   "value": "No personal reliefs for non-residents; flat rate 24% (applies to non-employment income per the retrieved summary; the employment-income 15%-or-resident-rates rule was NOT retrieved)",
+   "applies_to": "YA2024 onwards",
+   "source_url": "https://taxsummaries.pwc.com/singapore/individual/taxes-on-personal-income",
+   "source_quote": "Non-resident individuals are not entitled to any personal reliefs and are subject to tax at a flat rate of 24%.",
+   "confidence": "medium"
+  },
+  {
+   "id": "iras-resident-tax-calculator",
+   "claim": "IRAS publishes an 'Income tax calculator for tax resident individuals' (a YA2024 version is listed) on its calculators page, usable as an official cross-check for the engine.",
+   "value": "Official calculator available at the IRAS Quick Links > Calculators page",
+   "applies_to": "YA2024 version confirmed; later versions not confirmed",
+   "source_url": "https://www.iras.gov.sg/quick-links/calculators",
+   "source_quote": "Search-result paraphrase: for exact calculations, use the official IRAS YA2024 calculator, which IRAS lists among its 'Income tax calculator for tax resident individuals' tools.",
+   "confidence": "medium"
+  }
+ ],
+ "worked_examples": [
+  {
+   "description": "Gross tax on chargeable income of S$100,000 under the YA2024-onwards resident table (PwC figure, re-derived).",
+   "inputs": "Chargeable income S$100,000; tax resident; YA2024 onwards",
+   "expected_outputs": "Gross tax S$5,650 = S$3,350 on the first S$80,000 + 11.5% x S$20,000 (S$2,300); marginal rate 11.5%",
+   "source_url": "https://taxsummaries.pwc.com/singapore/individual/taxes-on-personal-income",
+   "caveat": "Before any Parenthood Tax Rebate or Personal Income Tax Rebate."
+  },
+  {
+   "description": "IRAS-confirmed anchor point on the cumulative tax column.",
+   "inputs": "Chargeable income S$320,000; tax resident; YA2024 onwards",
+   "expected_outputs": "Gross tax S$44,550",
+   "source_url": "https://www.iras.gov.sg/docs/default-source/budget-2022/budget-2022---overview-of-tax-changes69937d71-ba59-4b39-b1e5-7e85b2504e1c.pdf?sfvrsn=8339ba5a_5",
+   "caveat": "Figure reported in search-result paraphrase of IRAS material; matches my arithmetic from the band rates."
+  },
+  {
+   "description": "Boundary test vectors for the rate-table function (cumulative gross tax at each band edge), suitable as unit tests.",
+   "inputs": "Chargeable income of 20,000; 30,000; 40,000; 80,000; 120,000; 160,000; 200,000; 240,000; 280,000; 320,000; 500,000; 1,000,000; 1,200,000 (S$)",
+   "expected_outputs": "0; 200; 550; 3,350; 7,950; 13,950; 21,150; 28,750; 36,550; 44,550; 84,150; 199,150; 247,150 (S$)",
+   "source_url": "https://taxsummaries.pwc.com/singapore/individual/taxes-on-personal-income",
+   "caveat": "All but the last value are PwC 'tax on column 1' figures that I re-derived from the band rates. The S$1,200,000 value (199,150 + 24% x 200,000) is my own derivation, not a published figure."
+  },
+  {
+   "description": "Effect of the Personal Income Tax Rebate across YAs for the same chargeable income (cap binds).",
+   "inputs": "Chargeable income S$100,000 (gross tax S$5,650); no Parenthood Tax Rebate; tax resident",
+   "expected_outputs": "YA2024: rebate min(50% x 5,650, 200) = S$200, net S$5,450. YA2025: rebate min(60% x 5,650, 200) = S$200, net S$5,450. YA2026: no rebate, net S$5,650. YA2027: no rebate announced, net S$5,650.",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-residency-and-tax-rates/individual-income-tax-rates",
+   "caveat": "Derived arithmetic from sourced parameters, not an IRAS-published example. YA2026 'no rebate' rests on secondary sources. Assumes the rebate percentage applies to tax payable with no other offsets; the official ordering against Parenthood Tax Rebate was not retrieved."
+  },
+  {
+   "description": "Effect of the Personal Income Tax Rebate where the cap does not bind (low tax).",
+   "inputs": "Chargeable income S$30,000 (gross tax S$200); no Parenthood Tax Rebate; tax resident",
+   "expected_outputs": "YA2024: rebate 50% x 200 = S$100, net S$100. YA2025: rebate 60% x 200 = S$120, net S$80. YA2026: net S$200. The S$200 cap binds once tax payable reaches S$400 (YA2024) or S$333.34 (YA2025).",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-residency-and-tax-rates/individual-income-tax-rates",
+   "caveat": "Derived arithmetic, not an IRAS-published example; same ordering assumption as above."
+  }
+ ],
+ "open_questions": [
+  "RESEARCH INCOMPLETE - tooling limits: only 6 searches ran before the shared web-search budget for this turn was exhausted, and direct fetches failed DNS for taxsummaries.pwc.com, www.grantthornton.sg, www.ey.com and dentons.rodyk.com (plus *.gov.sg). A follow-up run with search budget, or with those hosts allowed in the session's network settings, is needed for every item below.",
+  "Official confirmation that Budget 2026 granted no Personal Income Tax Rebate for YA2026: check the IRAS page https://www.iras.gov.sg/news-events/singapore-budget/budget-2026--tax-changes-and-enterprise-disbursements and MOF Budget 2026 Annex H-1 (Tax Changes). Current evidence is secondary (Grant Thornton and others).",
+  "Will Budget 2027 (expected February 2027) grant a PIT rebate for YA2027? Unknowable today; the YA2024 and YA2025 rebates were each announced in the Budget of the YA itself. The engine should keep rebate % and cap configurable per YA.",
+  "Computation chain (topic 3) NOT sourced: text of https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-residency-and-tax-rates/sample-income-tax-calculations and .../receive-tax-bill-pay-tax-check-refunds/understanding-my-tax-assessment was not retrieved. Unverified expectation only (not from a retrieved source): employment income less allowable employment expenses, plus other income = total income; less approved donations = assessable income; less personal reliefs (capped S$80,000) = chargeable income; rate table gives gross tax; less Parenthood Tax Rebate, then PIT rebate = net tax payable. Needs confirmation of exact IRAS terms.",
+  "Order of rebates: is the PIT rebate percentage applied to tax payable after Parenthood Tax Rebate (and after any double-taxation or other credits)? Not sourced. The only sourced wording is '50% of tax payable'.",
+  "Rounding conventions: is chargeable income rounded down to the nearest dollar, and is tax computed to the cent? Not sourced in any retrieved result.",
+  "Tax residency rules (topic 4) NOT sourced: the 183-day test, the three-consecutive-years administrative concession, the two-calendar-year straddling rule and the treatment of Singapore citizens/PRs need to be taken from https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-residency-and-tax-rates/working-out-my-tax-residency (surfaced by URL only).",
+  "Non-resident employment income: the rule 'flat 15% or resident rates, whichever gives higher tax', and the exemption for short-term employment of 60 days or less, were NOT retrieved. The only sourced statement (PwC) is 'not entitled to any personal reliefs ... flat rate of 24%', which the summary did not scope to non-employment income.",
+  "Can a non-resident claim SRS relief? Not sourced. Since non-residents get no personal reliefs (PwC), the expectation is no relief, but IRAS's SRS page wording must be checked; the calculator should probably refuse or warn for non-residents until this is confirmed.",
+  "Bonus timing (topic 5) NOT sourced: whether a contractual bonus is taxed in the year the employee becomes entitled and a non-contractual bonus in the year it is declared/paid. Matters for deciding which YA a December 2026 / early 2027 bonus falls into.",
+  "Employer CPF (topic 5) NOT sourced: confirmation that compulsory employer CPF contributions are not taxable to the employee while voluntary/excess employer contributions are taxable.",
+  "Parenthood Tax Rebate (topic 6) NOT sourced: amounts per child order, sharing between spouses, carry-forward of unused balance, and its position in the computation relative to the PIT rebate.",
+  "Filing and payment timeline (topic 7) NOT sourced: e-filing deadline of 18 April 2027 (and 15 April for paper), when Notices of Assessment are issued, payment within one month of the NOA, and GIRO in up to 12 interest-free monthly instalments. Only the YA basis period and the 'tax bills directly from mid-March 2026' headline were retrieved.",
+  "Who delivered Budget 2026: one secondary source says PM and Minister for Finance Lawrence Wong on 12 February 2026, another names Gan Kim Yong. Resolve against mof.gov.sg/singaporebudget.",
+  "Course Fees Relief status: one secondary source lists course fees among reliefs that 'continue unchanged' after Budget 2026. This may conflict with an earlier Budget announcement that the relief lapses (the IRAS Budget 2024 overview PDF surfaced by URL but its text was not retrieved). Verify before offering it for YA2026/YA2027.",
+  "CPF Ordinary Wage ceiling of S$8,000 a month from January 2026 rests on one secondary source; confirm on cpf.gov.sg together with the annual salary ceiling and Additional Wage ceiling, and the exact 2026 and 2027 employer/employee rates for each age band (only the 2027 increments and the 13%/13% split for ages above 60 to 65 were retrieved).",
+  "Does the December 2026 Government CPF top-up of up to S$1,500 have any tax consequence or count against a member's top-up headroom? Expected to be neither taxable nor relief-attracting, but not sourced.",
+  "Effective Year of Assessment of the 20% Fixed Expense Deduction Ratio for self-employed persons, and whether the Finance (Income Taxes) Bill 2026 has been passed and gazetted (a second-reading speech exists; enactment not confirmed).",
+  "Exact attribution of the platform-operator CPF top-up deduction wording (EY vs Grant Thornton vs Dentons Rodyk) and its official description in MOF Annex H-1."
+ ]
+}

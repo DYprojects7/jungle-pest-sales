@@ -99,7 +99,110 @@ This product is a **tax optimisation calculator**, not just a tax calculator. It
 <!-- RULES-SECTION-START -->
 ## 5. Rules and data
 
-*(to be completed from the verified research — see `docs/RESEARCH.md`)*
+Rule values live in `src/engine/rules/<incomeYear>.ts` as plain data (`YearRules`). Every value below was
+researched from IRAS, CPF Board, MOF and MOM publications and then re-checked by an independent pass; the evidence
+trail (claims, quotes, URLs, verdicts) is in `docs/RESEARCH.md` and `docs/research/*.json`.
+
+Supported income years: **2026 (YA2027, primary)**, 2025 (YA2026, for back-testing against a Notice of
+Assessment) and 2027 (YA2028, *projected* — flagged as such everywhere it is shown).
+
+### 5.1 Resident income tax rates (YA2024 onwards — unchanged for YA2026, YA2027)
+
+| Chargeable income | Rate | Tax on the band | Cumulative tax at top of band |
+|---|---|---|---|
+| First S$20,000 | 0% | 0 | 0 |
+| Next S$10,000 (to 30,000) | 2% | 200 | 200 |
+| Next S$10,000 (to 40,000) | 3.5% | 350 | 550 |
+| Next S$40,000 (to 80,000) | 7% | 2,800 | 3,350 |
+| Next S$40,000 (to 120,000) | 11.5% | 4,600 | 7,950 |
+| Next S$40,000 (to 160,000) | 15% | 6,000 | 13,950 |
+| Next S$40,000 (to 200,000) | 18% | 7,200 | 21,150 |
+| Next S$40,000 (to 240,000) | 19% | 7,600 | 28,750 |
+| Next S$40,000 (to 280,000) | 19.5% | 7,800 | 36,550 |
+| Next S$40,000 (to 320,000) | 20% | 8,000 | 44,550 |
+| Next S$180,000 (to 500,000) | 22% | 39,600 | 84,150 |
+| Next S$500,000 (to 1,000,000) | 23% | 115,000 | 199,150 |
+| Above S$1,000,000 | 24% | | |
+
+**Personal Income Tax Rebate.** YA2025: 60% of tax payable, capped at S$200 (not a supported year). YA2026: none.
+YA2027: none announced; past rebates were announced at the Budget in February of the YA itself — after the
+31 December contribution deadline — so the tool assumes none and keeps `pitRebate` as data.
+
+### 5.2 Reliefs computed by the tool
+
+| Relief | Rule |
+|---|---|
+| Overall cap | Total personal reliefs are capped at **S$80,000** per YA. The cap includes compulsory CPF relief, Earned Income Relief, SRS relief and CPF cash top-up relief. Relief above the cap is lost: it cannot be carried forward, and the SRS/CPF money cannot be refunded. Donation deductions and employment expenses are not personal reliefs and sit outside the cap. |
+| Earned Income Relief | S$1,000 (below 55), S$6,000 (55–59), S$8,000 (60 and above), by age on 31 December of the income year; limited to earned income. |
+| CPF relief (employees) | The compulsory employee contribution on Ordinary Wages (up to the OW ceiling) and Additional Wages (up to the AW ceiling). Voluntary contributions earn no relief. |
+| Donations | Qualifying donations are deducted at 250% in arriving at assessable income (the 250% rate was extended to donations made up to 31 December 2029). |
+
+### 5.3 CPF contributions (employee share drives the CPF relief)
+
+| | 2025 | 2026 | 2027 (announced) |
+|---|---|---|---|
+| Ordinary Wage ceiling (monthly) | S$7,400 | S$8,000 | S$8,000 |
+| Annual wage ceiling | S$102,000 | S$102,000 | S$102,000 |
+| Additional Wage ceiling | S$102,000 − Ordinary Wages subject to CPF in the year | same | same |
+
+Employee / employer rates for Singapore Citizens and SPRs from their third year, monthly wages above S$750:
+
+| Age band | 2025 | 2026 | 2027 |
+|---|---|---|---|
+| 55 and below | 20% / 17% | 20% / 17% | 20% / 17% |
+| Above 55 to 60 | 17% / 15.5% | 18% / 16% | 19% / 16.5% |
+| Above 60 to 65 | 11.5% / 12% | 12.5% / 12.5% | 13% / 13% |
+| Above 65 to 70 | 7.5% / 9% | 7.5% / 9% | 7.5% / 9% |
+| Above 70 | 5% / 7.5% | 5% / 7.5% | 5% / 7.5% |
+
+- Monthly wages up to S$500: no employee share. S$500–S$750: employee share = `factor × (wage − 500)` where
+  `factor = 3 × employee rate` (0.6 for 55 and below), so it meets the full rate exactly at S$750.
+- Rounding: the total contribution is rounded to the nearest dollar; the employee share drops the cents.
+- A new age band applies from the first day of the month after the month of the 55th/60th/65th/70th birthday.
+- SPRs in their first and second year pay graduated employee rates (the G/G and F/G options share the same
+  employee share): year 1 — 5% at every age; year 2 — 15% (55 and below), 12.5% (above 55 to 60), 7.5% (above 60
+  to 65), 5% (above 65). An SPR who has opted for full employee rates should choose "3rd year onwards".
+- Foreigners on work passes make no CPF contributions.
+- Maximum compulsory employee contribution for someone 55 or below: 20% × S$102,000 = **S$20,400**.
+
+### 5.4 The three levers
+
+| | SRS | CPF cash top-up — self | CPF cash top-up — family |
+|---|---|---|---|
+| Relief cap (per calendar year) | S$15,300 (Citizen/PR); S$35,700 (foreigner) | S$8,000, shared across own SA/RA and own MediSave | S$8,000, across all family members |
+| Who | Age 18+, not an undischarged bankrupt; must be a tax resident for the YA to get relief | Citizens and PRs | Citizens and PRs topping up parents, parents-in-law, grandparents, grandparents-in-law; spouse or siblings only if they earned no more than S$8,000 in the previous year (or have a disability) |
+| Other limits | — | SA (below 55): up to the Full Retirement Sum. RA (55+): relief only up to the Full Retirement Sum. MediSave: up to the Basic Healthcare Sum | Same account limits apply to the recipient |
+| No relief for | Amounts over the cap (banks reject them) | CPF-to-CPF transfers; amounts that attract a matching grant (MRSS from 2025, Matched MediSave Scheme from 2026); amounts above the limits | Same |
+| Deadline | 31 December, or the bank's earlier cut-off (e.g. 7pm on the last day) | Received by CPF Board by 31 December | Same |
+| Lock-up | Until the statutory retirement age prevailing at the first contribution (64 for first contributions from 1 July 2026; 63 from 1 July 2022 to 30 June 2026; 62 before that). Early withdrawal: fully taxable plus 5% penalty | Until payout eligibility; forms part of retirement payouts (CPF LIFE). MediSave: healthcare use only. **Irreversible** | A gift to the recipient. Irreversible |
+| What it earns | 0.05% a year unless invested | 4% a year floor (SA/MA/RA), extended to end-2027 | Same, in the recipient's account |
+| Later tax | Only 50% of each withdrawal is taxable, spread over up to 10 years (S$40,000 a year is tax-free with no other income) | None | None |
+
+| Limits | 2025 | 2026 | 2027 |
+|---|---|---|---|
+| Full Retirement Sum | S$213,000 | S$220,400 | S$228,200 |
+| Enhanced Retirement Sum | S$426,000 | S$440,800 | S$456,400 |
+| Basic Healthcare Sum | S$75,500 | S$79,000 | not yet announced (2026 figure used) |
+
+### 5.5 Other reliefs (helper only)
+
+The user enters other reliefs as a total, or builds the total with a helper that offers the common ones:
+Spouse Relief S$2,000; Qualifying Child Relief S$4,000 per child; Working Mother's Child Relief (entered as an
+amount: S$8,000 / S$10,000 / S$12,000 for the 1st / 2nd / 3rd+ child born from 2024, or 15% / 20% / 25% of earned
+income for earlier children); Parent Relief S$9,000 (living with) or S$5,500 (not living with) per dependant, up to
+two; NSman Self Relief S$1,500 / S$3,000 / S$3,500 / S$5,000; NSman Wife/Parent Relief S$750; Grandparent Caregiver
+Relief S$3,000; the disability variants (Spouse S$5,500, Child S$7,500, Parent S$14,000 / S$10,000, Sibling
+S$5,500, and the higher Earned Income Relief entered as its difference from the standard amount); Life Insurance
+Relief (nil for most employees because it requires CPF contributions below S$5,000); any other amount. Course Fees Relief lapsed from YA2026 and Foreign Domestic Worker Levy Relief from YA2025, so
+neither is offered.
+
+### 5.6 What is not final
+
+- **YA2027 rebate:** unknown until Budget 2027; assumed nil.
+- **Income year 2027:** all values projected (`status: 'projected'`), using announced CPF rates and retirement sums
+  and carrying everything else forward.
+- **Per-user limits the tool cannot see:** the user's room below the Full Retirement Sum and Basic Healthcare Sum,
+  whether a top-up attracts a matching grant, and whether a family member qualifies. These are inputs/cautions.
 <!-- RULES-SECTION-END -->
 
 ---
@@ -172,9 +275,8 @@ monthlyEmployeeRates[m−1] = employeeRate(band(m)) for worked months, else 0
 **Override.** If `income.employeeCpfOverride` is a number, `employeeContribution = min(override, maxCompulsory)`
 with `maxCompulsory = floor(fullRates[0].employeeRate × annualWageCeiling)`; `source: 'override'`; the wage
 breakdown fields are still reported from the auto-calculation; `employerContribution = 0`. If the override exceeded
-`maxCompulsory`, emit `CPF_OVERRIDE_ABOVE_MAX`. An override is ignored for foreigners only if it is `null`/absent —
-a foreigner with an explicit override keeps it (covers foreigners with a voluntary employer arrangement? no:
-**foreigners always get 0**; the override is ignored and `source` stays `'none'`).
+`maxCompulsory`, emit `CPF_OVERRIDE_ABOVE_MAX`. For foreigners the override is ignored (contribution 0,
+`source: 'none'`).
 
 **Known approximations (documented in the UI):** contributions are computed month by month on ordinary wages with
 the employee share rounded down each month; real payslips combine OW and AW in the month paid and can differ by a
@@ -561,3 +663,79 @@ Success signal for the test: ≥ 2% of calculator sessions clicking through to t
 
 Self-employed mode; couple planning (who should claim which relief); PTR balance; SRS withdrawal-phase tax
 modelling; multi-year projections; hosted version with saved plans; reminders before the deadline.
+
+---
+
+## Appendix A — Worked examples (normative)
+
+All three implementations must reproduce these exactly. Income year 2026 unless stated.
+
+### A.1 The opening example
+
+Citizen, age 35, S$10,000 a month for 12 months, S$15,000 bonus, S$5,000 other reliefs, nothing contributed yet.
+SRS and CPF (self) enabled, family off, no budget, `minSavingRate = 0.07`, priority `srs → cpfSelf → cpfFamily`.
+
+| Step | Value |
+|---|---|
+| Employment income | 120,000 + 15,000 = **135,000** |
+| OW subject to CPF | 8,000 × 12 = 96,000 → employee 1,600 × 12 = 19,200 |
+| AW ceiling / AW subject | 102,000 − 96,000 = 6,000 / 6,000 → employee 1,200 |
+| CPF relief | **20,400** |
+| Reliefs before cap | 1,000 (EIR) + 20,400 + 5,000 = **26,400** |
+| Chargeable income | 135,000 − 26,400 = **108,600** |
+| Tax before | 3,350 + 11.5% × 28,600 = **6,639.00** (marginal rate 11.5%) |
+| U, C, L, B | 68,600 · 53,600 · 23,300 · ∞ → X = **23,300**, binding `leverLimits` |
+| Plan | SRS **15,300** + CPF self **8,000** |
+| Chargeable income after | 85,300 |
+| Tax after | 3,350 + 11.5% × 5,300 = **3,959.50** |
+| Tax saved / saving rate | **2,679.50** / 11.5% |
+| Unrealised saving | 3,959.50 − tax(55,000) = 3,959.50 − 1,600 = **2,359.50** |
+| Ladder | one tier: [0, 23,300) at 11.5%, saves 2,679.50, all used by the plan |
+| Monthly plan (today 2026-11-13) | 2 months: SRS 7,650 + 7,650; CPF self 4,000 + 4,000 |
+
+### A.2 Older PR with a budget and the relief cap in play
+
+PR (3rd year onwards), age 57 at year end, birth month 6, S$14,000 a month, S$40,000 bonus, S$30,000 other reliefs,
+S$5,000 already in SRS. All three levers enabled (family max 8,000), budget S$20,000, `minSavingRate = 0`,
+priority `cpfSelf → srs → cpfFamily`.
+
+| Step | Value |
+|---|---|
+| CPF band | above 55 to 60 all year (employee 18%) |
+| CPF relief | floor(18% × 8,000) × 12 + floor(18% × 6,000) = 17,280 + 1,080 = **18,360** |
+| Employment income | 168,000 + 40,000 = **208,000** |
+| Reliefs before cap | 6,000 (EIR 55–59) + 18,360 + 5,000 (SRS) + 30,000 = **59,360** |
+| Chargeable income | **148,640** → tax 7,950 + 15% × 28,640 = **12,246.00** |
+| Lever rooms | SRS 10,300 · CPF self 8,000 · family 8,000 → L = 26,300 |
+| U, C, L, B | 128,640 · 20,640 · 26,300 · 20,000 → X = **20,000**, binding `cashBudget` |
+| Plan | CPF self **8,000**, SRS **10,300**, family **1,700** |
+| Tax after | chargeable income 128,640 → 7,950 + 15% × 8,640 = **9,246.00**; saved **3,000.00** (15%) |
+| Unrealised saving | 9,246.00 − tax(128,000) = 9,246.00 − 9,150.00 = **96.00** |
+| Ladder | [0, 20,640) at 15% saves 3,096.00 (plan uses 20,000); [20,640, 26,300) at 0% — `reliefCap` |
+| Scenario `maxAll` | contributes 26,300, saves 3,096.00, wasted 5,660 |
+
+### A.3 Lower income: recommending nothing
+
+Citizen, age 28, S$3,500 a month, S$3,500 bonus, no other reliefs, defaults otherwise.
+
+| Step | Value |
+|---|---|
+| CPF relief | 700 × 12 + 700 = **9,100**; EIR 1,000; reliefs **10,100** |
+| Chargeable income | 45,500 − 10,100 = **35,400** → tax 200 + 3.5% × 5,400 = **389.00** (marginal 3.5%) |
+| `minSavingRate = 0.07` | U = 0 → X = **0**, binding `usefulRoom`, warning `BELOW_MIN_SAVING_RATE` |
+| `minSavingRate = 0` | U = 15,400 → SRS 15,300 + CPF self 100; tax after **0.00**; saved 389.00 (2.53%) |
+
+## Appendix B — Official figures used as test vectors
+
+| Source | Inputs (as modelled) | Expected |
+|---|---|---|
+| IRAS rate table | chargeable income 20,000 / 30,000 / 40,000 / 80,000 / 120,000 / 160,000 / 200,000 / 240,000 / 280,000 / 320,000 / 500,000 / 1,000,000 / 1,200,000 | tax 0 / 200 / 550 / 3,350 / 7,950 / 13,950 / 21,150 / 28,750 / 36,550 / 44,550 / 84,150 / 199,150 / 247,150 |
+| IRAS sample calculation, YA2026 (Mr Heng, 35) | income year 2025; S$4,000 × 12 + S$2,000 bonus (= S$50,000, CPF relief S$10,000); donations S$100 (deduction S$250); other reliefs S$4,000 (Qualifying Child Relief) | assessable income 49,750; reliefs 15,000; chargeable income **34,750**; tax **366.25** |
+| IRAS sample calculation, YA2026 (S$250,000 earner; reliefs total S$15,650) | income year 2025; age 66–70 band (EIR 8,000; employee CPF 7.5%); S$19,000 × 12 + S$22,000 bonus; donations S$100 | CPF relief 7,650; reliefs 15,650; chargeable income **234,100**; tax **27,629.00** |
+| CPF Board, 2026 table maxima | monthly OW ≥ 8,000 | employee share 1,600 (55 and below), 1,440 (above 55 to 60), 1,000 (above 60 to 65) |
+| CPF Board, AW ceiling example | 2026, S$9,000 a month all year | OW subject 96,000; AW ceiling 6,000; maximum employee CPF 20,400 |
+| CPF Board, 2025 | 2025, S$9,000 a month, S$20,000 bonus, 55 and below | 1,480 × 12 + 20% × 13,200 = 20,400 |
+| MOF / IRAS, SRS withdrawal | S$40,000 withdrawal, 50% taxable = chargeable income 20,000 | tax 0 |
+
+The IRAS samples publish totals, not every input; the inputs above are reconstructions that reproduce the published
+assessable income, relief totals, chargeable income and tax.

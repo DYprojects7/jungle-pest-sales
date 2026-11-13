@@ -1,0 +1,386 @@
+{
+ "summary": "COVERAGE WARNING: this topic is only partly researched. The shared web-search budget ran out after 8 searches, and direct page fetches failed for every host tried (sg.moneybackkit.com, www.smartcalculator.sg, taxatlas.app). Every fact below comes from search-result titles, URLs and result summaries, not from pages I opened, so nothing is rated above medium unless it is a page's existence or title. A follow-up run with more search budget, or with those hosts allowed in the session's network settings, is needed to finish items 1-3 of the brief.\n\nNOT RESEARCHED AT ALL (see open_questions):\n- Bank SRS calculators (DBS, OCBC, UOB) and CPF Board's own top-up calculators.\n- Seedly, MoneySmart, SingSaver and Dollars and Sense.\n- Gumroad, Etsy and Carousell price points.\n- Finance writers' rule-of-thumb thresholds (7% vs 11.5%) with named sources.\n\nWHAT THE EVIDENCE SHOWS\n\n1. The joint \"SRS + CPF\" niche is already occupied. smartcalculator.sg runs a free \"Tax Relief Optimizer Singapore 2026 \u2014 SRS + CPF\" and sells an Excel \"Income Tax Optimiser\" at a launch price of S$17.90 (list S$24.90). That is the only paid price anchor found. Its bundle is one .xlsx, a PDF guide and a personal-use licence, for desktop Excel only.\n\n2. Free single-purpose calculators are a commodity. One search surfaced at least seven SRS tax-savings calculators (StashAway, interest.sg, fino.tools, super-calculator.com, calculatorsg.com, sgfinancecalculators.com, srs.sg) and a dozen income-tax calculators. The typical pattern is income plus SRS amount in, one savings figure out (e.g. S$120,000 income and S$15,300 SRS gives S$1,759).\n\n3. Competitor accuracy is weak, which is the clearest opening.\n- smartcalculator.sg contradicts itself on whether compulsory CPF relief sits inside the S$80,000 cap, on the SRS penalty-free age (63 vs 64 from 1 Jul 2026), and on priority order (SRS first vs CPF SA first).\n- Its optimiser says SRS and CPF top-ups give \"identical relief per dollar\", while its own article warns that multiplying a whole contribution by the starting marginal rate overstates the saving when the deduction crosses a band.\n- taxatlas.app excludes SRS and most reliefs, and has bracket-count and CPF-ceiling inconsistencies.\n\n4. Year-of-assessment labelling is inconsistent. Some tools model YA2026 and some YA2027 (numbers.sg already titles itself YA 2027), so users can easily apply a 2026 contribution to the wrong year.\n\n5. The official IRAS calculator may not help in the planning window. IRAS says the resident calculator for the current YA is updated by 1 March. My inference is that no official YA2027 calculator exists in November-December 2026, when the contribution decision has to be made.\n\n6. Rule-of-thumb evidence is thin. Commentary says savings depend on the marginal bracket, not the scheme; a common order is SRS first (larger limit) then CPF top-ups; lower-bracket earners gain little, and one source questions the 7% bracket directly. The objections seen were CPF lock-up until 55 or retirement, 50% of SRS withdrawals being taxable, and a 5% penalty plus full tax on early SRS withdrawal.\n\nGAPS A NEW PRODUCT COULD FILL\nThese are hypotheses: the first is supported by the evidence above, the rest are untested against the tools I could not open.\n- A band-by-band \"how much is enough\" answer: the saving on each successive dollar of SRS, own top-up and family top-up, stopping where the marginal rate drops.\n- Correct handling of the S$80,000 cap including compulsory CPF relief, with a warning when top-ups would be wasted.\n- Edge cases generic tools skip: the Full Retirement Sum ceiling on top-up relief (S$220,400 quoted for 2026), top-ups matched under the Matched Retirement Savings Scheme (MRSS, from 2025) or the Matched MediSave Scheme (MMSS, from 2026) earning no relief, the family S$8,000 limit, and the foreigner SRS cap of S$35,700.\n- Explicit \"income year 2026, YA2027\" framing with a 31 December countdown and a monthly contribution plan.\n- A liquidity view next to the tax saving: lock-up, 50% taxable withdrawals, early-withdrawal penalty.\n- Trust features: every constant cited to IRAS or CPF with a \"last verified\" date.\n\nUX PATTERNS WORTH COPYING\n- YA and year in the page title (numbers.sg, Syfe).\n- An explicit \"what this does not cover\" list (taxatlas).\n- A deadline note that money must be received by 31 December (numbers.sg).\n- An embeddable widget version (smartcalculator.sg /embed/).\n- Free web calculator leading to a paid Excel bundle with a struck-through launch price (smartcalculator.sg).\n- Year-end checklist articles as seasonal acquisition (TestHub, The Kopi Notes, methodology.sg).\n- Named author and \"last updated\" stamp (excellencesg.com).",
+ "facts": [
+  {
+   "id": "mbk-srs-calculator-listed",
+   "claim": "MoneyBackKit's Singapore site lists an 'SRS Tax Savings Calculator' among its free tools, but the calculator page itself was not retrievable, so inputs, outputs and cap handling are unverified.",
+   "value": "Listed as a free tool in site navigation; inputs/outputs/S$80k cap/CPF top-up handling: NOT VERIFIED",
+   "applies_to": "Site state as of Nov 2026",
+   "source_url": "https://sg.moneybackkit.com/en/tools/car-loan-calculator/",
+   "source_quote": "Search summary: Moneybackkit's Singapore site (sg.moneybackkit.com) does list an SRS Tax Savings Calculator among its free tools, but only as a navigation link.",
+   "confidence": "low"
+  },
+  {
+   "id": "mbk-multi-country-network",
+   "claim": "MoneyBackKit is a multi-country calculator network with country subdomains and templated tools, including a Canadian RRSP tax-savings calculator analogous to the SRS one.",
+   "value": "Subdomains seen: sg., ca., uk., and root (US). Example pages: 'RRSP Tax Savings Calculator 2026' (CA), 'Car Loan Calculator Singapore (MAS Limits)' (SG), 'CPF Rate for Age Above 60 to 65 (2026): 25%' (SG)",
+   "applies_to": "Site state as of Nov 2026",
+   "source_url": "https://ca.moneybackkit.com/en/tools/rrsp-tax-savings-calculator/",
+   "source_quote": "Result titles: 'RRSP Tax Savings Calculator 2026'; 'Car Loan Calculator Singapore (MAS Limits)'; 'CPF Rate for Age Above 60 to 65 (2026): 25%'.",
+   "confidence": "medium"
+  },
+  {
+   "id": "smartcalc-joint-srs-cpf-optimizer-exists",
+   "claim": "smartcalculator.sg already offers a web tool that jointly covers SRS and CPF cash top-ups, titled 'Tax Relief Optimizer Singapore 2026 \u2014 SRS + CPF' (also 'Tax Relief Stack Optimizer').",
+   "value": "Joint SRS + CPF top-up optimiser exists; site brands itself 'Smart Calculator \u2014 Free Singapore Calculators 2026 (CPF, IPPT, BMI, Tax, HDB)'",
+   "applies_to": "Site state as of Nov 2026",
+   "source_url": "https://www.smartcalculator.sg/tax/tax-relief-optimizer",
+   "source_quote": "Result titles: 'Tax Relief Optimizer Singapore 2026 \u2014 SRS + CPF' and 'Tax Relief Stack Optimizer'.",
+   "confidence": "high"
+  },
+  {
+   "id": "smartcalc-optimizer-recommended-order",
+   "claim": "The smartcalculator.sg optimiser's step list recommends filling SRS first, then CPF cash top-ups for high-bracket earners.",
+   "value": "Step 1: SRS up to S$15,300; then CPF cash top-up up to S$8,000 self + S$8,000 family (for high-bracket earners)",
+   "applies_to": "Contributions in calendar 2026",
+   "source_url": "https://www.smartcalculator.sg/tax/tax-relief-optimizer",
+   "source_quote": "Search summary: The Optimizer's own step list puts SRS first (up to $15,300), then CPF cash top-up (up to $8,000 self + $8,000 family) for high-bracket earners.",
+   "confidence": "medium"
+  },
+  {
+   "id": "smartcalc-identical-relief-claim-vs-band-crossing",
+   "claim": "The smartcalculator.sg optimiser says SRS and CPF top-ups give identical relief per dollar, while a sister article on the same site warns that multiplying a whole contribution by the starting marginal rate can overstate the saving when the deduction crosses a band boundary.",
+   "value": "Flat 'dollar-for-dollar' framing on the tool vs band-crossing caveat in the article",
+   "applies_to": "Site state as of Nov 2026",
+   "source_url": "https://www.smartcalculator.sg/articles/voluntary-cpf-topup-tax-relief",
+   "source_quote": "Search summary: the sister article warns that multiplying an entire contribution by your starting marginal rate may overstate the saving if the deduction crosses a band boundary.",
+   "confidence": "medium"
+  },
+  {
+   "id": "smartcalc-contradiction-80k-cap",
+   "claim": "smartcalculator.sg contradicts itself on whether compulsory employee CPF relief counts toward the S$80,000 personal relief cap.",
+   "value": "Optimiser page: mandatory CPF contributions 'sit outside the cap'. Another page: the S$80,000 cap 'includes compulsory employee CPF relief'. Which is official was not confirmed in this run.",
+   "applies_to": "Site state as of Nov 2026",
+   "source_url": "https://www.smartcalculator.sg/tax/tax-relief-optimizer",
+   "source_quote": "Search summary: The Optimizer says CPF mandatory contributions, which are not 'reliefs', sit outside the cap. Another page on the site says the $80,000 personal relief cap includes compulsory employee CPF relief. These contradict each other.",
+   "confidence": "medium"
+  },
+  {
+   "id": "smartcalc-contradiction-srs-age",
+   "claim": "smartcalculator.sg gives two different SRS penalty-free withdrawal ages on different pages.",
+   "value": "Optimiser page: age 63. Separate FAQ: penalty-free age became 64 on 1 July 2026. Official position not confirmed in this run.",
+   "applies_to": "Site state as of Nov 2026",
+   "source_url": "https://www.smartcalculator.sg/tax/tax-relief-optimizer",
+   "source_quote": "Search summary: The Optimizer gives age 63. A separate FAQ says the penalty-free age became 64 on 1 July 2026.",
+   "confidence": "medium"
+  },
+  {
+   "id": "smartcalc-contradiction-priority-order",
+   "claim": "smartcalculator.sg gives opposite priority orders on different pages.",
+   "value": "Optimiser: SRS first, then CPF top-ups. Retirement savings calculator page: CPF SA voluntary top-ups first.",
+   "applies_to": "Site state as of Nov 2026",
+   "source_url": "https://www.smartcalculator.sg/retirement/retirement-savings-calculator",
+   "source_quote": "Search summary: A separate retirement page reverses this and suggests CPF SA voluntary top-ups first.",
+   "confidence": "medium"
+  },
+  {
+   "id": "smartcalc-paid-excel-price",
+   "claim": "smartcalculator.sg sells a paid Excel product, 'Income Tax Optimiser \u2014 Singapore Excel Spreadsheet'.",
+   "value": "Launch price S$17.90, down from S$24.90",
+   "applies_to": "Listing as of Nov 2026",
+   "source_url": "https://www.smartcalculator.sg/store/income-tax-optimiser",
+   "source_quote": "Search summary: listing for the Income Tax Optimiser shows a launch price of S$17.90, down from S$24.90. Digital product only; no physical item will be shipped.",
+   "confidence": "medium"
+  },
+  {
+   "id": "smartcalc-paid-excel-contents",
+   "claim": "The paid Income Tax Optimiser download is a three-file bundle built for desktop Excel under a personal-use licence.",
+   "value": "1 editable Microsoft Excel workbook (.xlsx); 1 detailed PDF instruction guide; 1 quick-start and personal-use licence PDF. Designed and tested for desktop Microsoft Excel. Personal-use licence only. Google Sheets support not stated.",
+   "applies_to": "Listing as of Nov 2026",
+   "source_url": "https://www.smartcalculator.sg/store/income-tax-optimiser",
+   "source_quote": "Search summary: The download includes 1 editable Microsoft Excel workbook (.xlsx), 1 detailed PDF instruction guide, and a quick-start and personal-use licence PDF... designed and tested for desktop Microsoft Excel... personal-use licence only.",
+   "confidence": "medium"
+  },
+  {
+   "id": "smartcalc-store-other-products",
+   "claim": "smartcalculator.sg runs a store with other paid Singapore planners alongside the tax product.",
+   "value": "Store pages seen: /store/cpf-retirement-planner and /store/bto-hdb-buyer-planner. Prices not captured.",
+   "applies_to": "Site state as of Nov 2026",
+   "source_url": "https://www.smartcalculator.sg/store/cpf-retirement-planner",
+   "source_quote": "Result URLs: smartcalculator.sg/store/cpf-retirement-planner and smartcalculator.sg/store/bto-hdb-buyer-planner.",
+   "confidence": "medium"
+  },
+  {
+   "id": "smartcalc-distribution-patterns",
+   "claim": "smartcalculator.sg distributes through an embeddable calculator, SEO articles, a page aimed at AI assistants, and a second tax-adjacent optimiser.",
+   "value": "/embed/income-tax-calculator ('Singapore Income Tax Calculator (YA2026)'); articles such as 'how-to-reduce-income-tax-singapore-2026' and 'Voluntary CPF Top-Ups 2026: Tax Relief You Can Claim'; /for-ai; /finance/support-tax-optimizer ('Singapore Support & Tax-Savings Optimizer')",
+   "applies_to": "Site state as of Nov 2026",
+   "source_url": "https://www.smartcalculator.sg/embed/income-tax-calculator",
+   "source_quote": "Result titles/URLs: 'Singapore Income Tax Calculator (YA2026)' at /embed/income-tax-calculator; /for-ai; 'Singapore Support & Tax-Savings Optimizer'.",
+   "confidence": "medium"
+  },
+  {
+   "id": "taxatlas-sg-scope-excludes-srs",
+   "claim": "Tax Atlas's Singapore Income Tax Calculator 2026 models only Earned Income Relief and CPF Relief and explicitly excludes SRS and most other reliefs.",
+   "value": "Models: Earned Income Relief (S$1,000 under 55; S$6,000 for 55-59; S$8,000 for 60+) and CPF Relief equal to employee CPF. Excludes: WMCR, NSman Relief, parent relief, SRS contributions, rental income, capital gains, equity compensation.",
+   "applies_to": "Page labelled 2026; references YA2027 (income year 2026)",
+   "source_url": "https://taxatlas.app/sg/income-tax-calculator/",
+   "source_quote": "Search summary: The page says it does not cover WMCR, NSman Relief, parent relief, SRS contributions, rental income, capital gains, equity compensation, or other individual circumstances.",
+   "confidence": "medium"
+  },
+  {
+   "id": "taxatlas-inputs-outputs",
+   "claim": "Tax Atlas is a multi-country calculator that takes gross income and returns take-home pay, effective rate and a bracket breakdown.",
+   "value": "Inputs: gross income (country and filing status sitewide). Outputs: take-home pay, effective rate, bracket breakdown. No SRS or CPF top-up input.",
+   "applies_to": "Site state as of Nov 2026",
+   "source_url": "https://taxatlas.app/sg/income-tax-calculator/",
+   "source_quote": "Search summary: The calculator takes gross income and estimates take-home pay, effective rate, and a bracket breakdown.",
+   "confidence": "medium"
+  },
+  {
+   "id": "taxatlas-data-quality-issues",
+   "claim": "Tax Atlas's Singapore pages contain internal inconsistencies.",
+   "value": "'13 tax brackets from 2% to 24%' on the SG page vs '11 brackets (0%-24%)' on the brackets page; CPF wage ceiling stated as S$96,000 'raised from S$74,400 in 2025' (prior-year figure looks wrong and needs checking); headline 22.5% 'effective rate' on S$100,000 combines income tax and CPF.",
+   "applies_to": "Site state as of Nov 2026",
+   "source_url": "https://taxatlas.app/sg/income-tax-calculator/",
+   "source_quote": "Search summary: The Singapore page says 13 tax brackets from 2% to 24%, but the tax-brackets page says 11 brackets (0%-24%)... CPF wage ceiling is S$96,000 (raised from S$74,400 in 2025).",
+   "confidence": "medium"
+  },
+  {
+   "id": "taxatlas-no-rebate-ya2027-statement",
+   "claim": "Tax Atlas states that Budget 2026 announced no Personal Income Tax Rebate for YA2027.",
+   "value": "No PIT rebate for YA2027 (income year 2026), per a third-party page; not confirmed against MOF or IRAS in this run.",
+   "applies_to": "YA2027",
+   "source_url": "https://taxatlas.app/sg/income-tax-calculator/",
+   "source_quote": "Search summary: The page says no Personal Income Tax Rebate has been announced for YA 2027 (income year 2026) in Budget 2026.",
+   "confidence": "low"
+  },
+  {
+   "id": "third-party-no-rebate-ya2026-statement",
+   "claim": "Several third-party calculator sites say there is no personal income tax rebate for YA2026 and that earlier rebates applied only to YA2024 and YA2025.",
+   "value": "No PIT rebate for YA2026 per third-party sites; reliefs capped at S$80,000. Not confirmed against IRAS in this run.",
+   "applies_to": "YA2026",
+   "source_url": "https://www.smartcalculator.sg/tax/income-tax-calculator",
+   "source_quote": "Search summary: Several sites say there is no personal income tax rebate for YA2026, and that reliefs are capped at S$80,000. One notes the earlier rebates applied only to YA2024 and YA2025.",
+   "confidence": "low"
+  },
+  {
+   "id": "syfe-income-tax-calculator",
+   "claim": "Syfe publishes an 'Income Tax Calculator Singapore (YA 2026)' that includes an SRS input and states the SRS caps.",
+   "value": "SRS input present; caps shown as S$15,300 (citizens/PRs) and S$35,700 (foreigners). CPF top-up, S$80k cap and recommendation features not verified.",
+   "applies_to": "Page labelled YA2026",
+   "source_url": "https://www.syfe.com/financial-calculators/income-tax-calculator",
+   "source_quote": "Search summary: Syfe... include an SRS input. The Syfe page gives the citizen/PR cap as S$15,300 and the foreigner cap as S$35,700.",
+   "confidence": "medium"
+  },
+  {
+   "id": "numbers-sg-ya2027-calculator",
+   "claim": "numbers.sg already offers an income tax calculator labelled for YA2027 with reliefs, including SRS, and states the 31 December receipt deadline.",
+   "value": "Title: 'Income tax calculator Singapore YA 2027, with reliefs'. SRS input present. Notes that CPF top-ups count only if CPF Board receives them by 31 Dec 2026, and SRS likewise.",
+   "applies_to": "YA2027 (income year 2026)",
+   "source_url": "https://numbers.sg/tax/income-tax-calculator/",
+   "source_quote": "Search summary: Numbers.sg notes that CPF top-ups count only if CPF Board receives them by 31 Dec 2026; SRS in the same way.",
+   "confidence": "medium"
+  },
+  {
+   "id": "srs-sg-tax-calculator",
+   "claim": "A dedicated site, srs.sg, offers an 'SRS Tax Relief Calculator \u2014 Singapore Income Tax YA2026' with an SRS input.",
+   "value": "SRS-specific tax relief calculator labelled YA2026; other features not verified",
+   "applies_to": "Page labelled YA2026",
+   "source_url": "https://www.srs.sg/tax-calculator",
+   "source_quote": "Result title: 'SRS Tax Relief Calculator \u2014 Singapore Income Tax YA2026'.",
+   "confidence": "medium"
+  },
+  {
+   "id": "sgfinancetools-income-tax-calculator",
+   "claim": "SG Finance Tools offers an income tax calculator with an SRS input, on its own domain and a pages.dev mirror.",
+   "value": "SRS input present; other features not verified",
+   "applies_to": "Site state as of Nov 2026",
+   "source_url": "https://sgfinancetools.com/tax/income-tax/",
+   "source_quote": "Search summary: Syfe, SRS Tax Relief Calculator, Numbers.sg, and SG Finance Tools all include an SRS input.",
+   "confidence": "medium"
+  },
+  {
+   "id": "stashaway-srs-calculator-pages",
+   "claim": "StashAway has a dedicated SRS calculator page plus an SRS tax-savings calculator article and an SRS-vs-CPF top-up comparison article.",
+   "value": "Pages: /srs-calculator ('Supplementary Retirement Scheme (SRS) Calculator'); /r/srs-tax-savings-calculator-singapore ('SRS Tax Savings Calculator Singapore [2026]'); /r/srs-vs-cpf-top-ups-tax-relief-retirement-schemes. Inputs, outputs and cap handling not verified.",
+   "applies_to": "Site state as of Nov 2026",
+   "source_url": "https://www.stashaway.sg/srs-calculator",
+   "source_quote": "Result titles: 'Supplementary Retirement Scheme (SRS) Calculator'; 'SRS Tax Savings Calculator Singapore [2026]'; 'SRS vs CPF Top-Ups: Choosing the right tax-relief and retirement schemes'.",
+   "confidence": "medium"
+  },
+  {
+   "id": "endowus-cpf-vs-srs-article",
+   "claim": "Endowus publishes an insights article comparing CPF and SRS top-ups for tax relief; no Endowus calculator was confirmed.",
+   "value": "Article: 'CPF vs SRS: Which should you top up for tax reliefs?'. Content and any thresholds not captured.",
+   "applies_to": "Site state as of Nov 2026",
+   "source_url": "https://endowus.com/insights/cpf-srs-top-up",
+   "source_quote": "Result title: 'CPF vs SRS: Which should you top up for tax reliefs?'.",
+   "confidence": "medium"
+  },
+  {
+   "id": "free-srs-calculator-field-crowded",
+   "claim": "A single search surfaced at least seven free SRS tax-savings calculators besides MoneyBackKit.",
+   "value": "stashaway.sg/srs-calculator; interest.sg/calculators/srs-tax-savings/; fino.tools/calculators/sg-srs-savings; super-calculator.com/singapore-srs-tax-savings-calculator; calculatorsg.com/tax/srs-tax-savings-calculator-singapore; sgfinancecalculators.com/tax/srs-tax-savings-calculator/; srs.sg/tax-calculator",
+   "applies_to": "Search results as of Nov 2026",
+   "source_url": "https://interest.sg/calculators/srs-tax-savings/",
+   "source_quote": "Result titles include 'SRS Tax Savings Calculator', 'Supplementary Retirement Scheme (SRS) Savings Calculator (Singapore 2026)', 'Singapore SRS Tax Savings Calculator- Free Tool', 'SRS Investment Calculator Singapore 2026'.",
+   "confidence": "high"
+  },
+  {
+   "id": "free-income-tax-calculator-field-crowded",
+   "claim": "At least twelve third-party Singapore income-tax calculators surfaced across two searches.",
+   "value": "syfe.com; numbers.sg; super-calculator.com; calculatorsingapores.com; perfingo.com; sgfinancetools.com; taxatlas.app; thekopinotes.com/tools; money-snap.com; calcwize.app; themoneybees.co/calculators/category/tax; excellencesg.com; smartcalculator.sg",
+   "applies_to": "Search results as of Nov 2026",
+   "source_url": "https://www.perfingo.com/calculators/income-tax/",
+   "source_quote": "Result titles include 'Singapore Income Tax Calculator YA 2026 \u00b7 Rates and Reliefs', 'Singapore Personal Income Tax Calculator 2026 - The Kopi Notes', 'Income Tax Calculator Singapore (YA 2025)'.",
+   "confidence": "high"
+  },
+  {
+   "id": "ya-labelling-inconsistent-across-tools",
+   "claim": "Third-party calculators are split between modelling YA2026 and YA2027, and at least one is still labelled YA2025.",
+   "value": "YA2027: numbers.sg and some SRS calculators. YA2026: Syfe, srs.sg, perfingo, money-snap, smartcalculator.sg. YA2025: calcwize.app.",
+   "applies_to": "Search results as of Nov 2026",
+   "source_url": "https://calcwize.app/calculator/income-tax/singapore",
+   "source_quote": "Search summary: Some calculators model YA 2027 (the YA 2027 Singapore resident income-tax saving from a 2026 SRS contribution), while others use YA 2026. Result title: 'Income Tax Calculator Singapore (YA 2025)'.",
+   "confidence": "medium"
+  },
+  {
+   "id": "iras-calculator-updated-by-1-march",
+   "claim": "IRAS lists an income tax calculator for tax-resident individuals and says the calculator for the current YA is updated by 1 March.",
+   "value": "Current-YA calculator updated by 1 Mar. Inference (mine, unconfirmed): an official YA2027 calculator is unlikely to be available in Nov-Dec 2026.",
+   "applies_to": "IRAS calculators page; YA2027 availability is an inference",
+   "source_url": "https://www.iras.gov.sg/IRASHome/Quick-Links/Calculators/",
+   "source_quote": "Search summary: IRAS lists an income tax calculator for tax resident individuals on its calculators page, and it notes that the calculator for the current YA is updated by 1 Mar.",
+   "confidence": "medium"
+  },
+  {
+   "id": "relief-cap-80k-includes-srs-and-topup",
+   "claim": "The S$80,000 personal income tax relief cap applies to the total of all personal reliefs, including SRS relief and CPF Cash Top-up Relief.",
+   "value": "S$80,000 per YA across all personal reliefs",
+   "applies_to": "YA2027 context (as shown in search results)",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/central-provident-fund-(cpf)-cash-top-up-relief",
+   "source_quote": "Search summary: The $80,000 personal income tax relief cap applies to the total of all personal reliefs, including SRS relief and CPF Cash Top-up Relief.",
+   "confidence": "medium"
+  },
+  {
+   "id": "cpf-topup-relief-limits",
+   "claim": "CPF Cash Top-up Relief is limited to S$8,000 for top-ups to one's own account plus S$8,000 for top-ups to family members.",
+   "value": "S$8,000 self + S$8,000 family per calendar year of top-up",
+   "applies_to": "Top-ups in calendar 2026 (YA2027)",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/central-provident-fund-(cpf)-cash-top-up-relief",
+   "source_quote": "Search summary: CPF cash top-up relief can reach up to $8,000 for yourself plus $8,000 for family.",
+   "confidence": "medium"
+  },
+  {
+   "id": "srs-contribution-caps",
+   "claim": "The SRS annual contribution caps quoted consistently across calculators are S$15,300 for citizens/PRs and S$35,700 for foreigners.",
+   "value": "S$15,300 per calendar year (SC/PR); S$35,700 per calendar year (foreigners)",
+   "applies_to": "Contributions in calendar 2026 as quoted by third-party tools",
+   "source_url": "https://www.syfe.com/financial-calculators/income-tax-calculator",
+   "source_quote": "Search summary: Several sources list S$15,300/year for Singapore Citizens/PRs and up to S$35,700/year for foreigners.",
+   "confidence": "medium"
+  },
+  {
+   "id": "matched-topups-no-relief",
+   "claim": "CPF top-ups that attract an MRSS matching grant (from 2025) or an MMSS MediSave matching grant (from 2026) do not qualify for tax relief.",
+   "value": "No CPF Cash Top-up Relief on MRSS-matched top-ups from 2025 or MMSS-matched top-ups from 2026",
+   "applies_to": "Top-ups from calendar 2025 (MRSS) and 2026 (MMSS)",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/central-provident-fund-(cpf)-cash-top-up-relief",
+   "source_quote": "Search summary: Top-ups that get an MRSS grant (from 2025), or an MMSS MediSave grant (from 2026), get no tax relief. The exact page within the result set was not identified; smartcalculator.sg corroborates the MRSS part.",
+   "confidence": "medium"
+  },
+  {
+   "id": "topup-relief-frs-ceiling-2026",
+   "claim": "Top-up relief only counts up to the current Full Retirement Sum, and sources disagree on the figure.",
+   "value": "S$220,400 for top-ups made in 2026 (the source the search summary describes as IRAS-based); another site cites S$213,000 for members turning 55 in 2026. The S$220,400 figure is the one tied to IRAS.",
+   "applies_to": "Top-ups in calendar 2026",
+   "source_url": "https://personal.taxinfo.sg/cpf-tax-relief",
+   "source_quote": "Search summary: One says relief only counts up to the current Full Retirement Sum, which is $220,400 for top-ups made in 2026. Another cites $213,000 SGD for members turning 55 in 2026. The $220,400 figure matches the IRAS-based source.",
+   "confidence": "low"
+  },
+  {
+   "id": "topup-deadline-31-dec",
+   "claim": "CPF Board must receive the top-up by 31 December 2026 for the relief to count in YA2027.",
+   "value": "Deadline 31 Dec 2026 for YA2027 relief",
+   "applies_to": "Calendar 2026 top-ups, YA2027",
+   "source_url": "https://methodology.sg/guides/cpf-top-up-tax-relief-31-december-2026-owners-and-employers",
+   "source_quote": "Search summary: CPF Board must receive the application by 31 December 2026 for the relief to count in YA 2027.",
+   "confidence": "medium"
+  },
+  {
+   "id": "srs-withdrawal-objections",
+   "claim": "Calculators and commentary flag two SRS drawbacks: withdrawals are 50% taxable at retirement age, and early withdrawal carries a 5% penalty plus full tax.",
+   "value": "50% of each withdrawal taxable at retirement age; early withdrawal: 5% penalty + 100% taxable",
+   "applies_to": "SRS rules as quoted by third-party tools in 2026",
+   "source_url": "https://sgfinancecalculators.com/blog/srs-tax-savings-withdrawal-investment-growth-singapore/",
+   "source_quote": "Search summary: 'Early Withdrawal Penalty 5% + full tax' is listed, and one source notes 50% of each withdrawal is taxable at retirement age. Exact page within the result set not identified.",
+   "confidence": "low"
+  },
+  {
+   "id": "cpf-lockup-objection",
+   "claim": "Commentary comparing the two schemes frames the main CPF top-up drawback as lock-up.",
+   "value": "CPF top-up: 'Locked until 55 (SA) or retirement (RA)'. SRS: 'withdrawals 50% taxable'.",
+   "applies_to": "Commentary in 2026",
+   "source_url": "https://thekopinotes.com/articles/savings-deposits/srs-cpf-top-up-comparison-singapore-2026/",
+   "source_quote": "Search summary: CPF money is locked away: Locked until 55 (SA) or retirement (RA)... withdrawals 50 % taxable. Exact page within the result set not identified; this URL is the most likely candidate.",
+   "confidence": "low"
+  },
+  {
+   "id": "rule-of-thumb-marginal-bracket",
+   "claim": "The rule of thumb in the commentary found is that the saving depends on the marginal bracket rather than the scheme, that lower-bracket earners gain little, and that the 7% bracket is specifically questioned.",
+   "value": "Bracket-driven; common order SRS first (larger limit) then CPF top-ups; 7% bracket raised as a doubtful case. No explicit numeric 'worth it' threshold (e.g. 11.5%) was captured.",
+   "applies_to": "Commentary in 2026",
+   "source_url": "https://thekopinotes.com/articles/savings-deposits/srs-cpf-top-up-comparison-singapore-2026/",
+   "source_quote": "Search summary: Tax savings depend on your marginal bracket, not the scheme... Low earners in the lower brackets gain little from either, and one source asks this directly for the 7% bracket. Exact page within the result set not identified.",
+   "confidence": "low"
+  },
+  {
+   "id": "seasonal-year-end-content",
+   "claim": "Several sites publish year-end 2026 tax-relief checklists tied to the 31 December deadline, indicating seasonal search demand.",
+   "value": "TestHub: 'Year-End Tax Relief Checklist 2026 (YA 2027): SRS & CPF'; The Kopi Notes: 'Your 2026 Year-End Checklist (SRS, CPF & Portfolio)'; methodology.sg: 'CPF Top-Up Tax Relief: Owners and Employers Before 31 December'",
+   "applies_to": "Q4 2026",
+   "source_url": "https://testhub.sg/finance/year-end-tax-relief-checklist-2026-srs-cpf-top-up",
+   "source_quote": "Result title: 'Year-End Tax Relief Checklist 2026 (YA 2027): SRS & CPF - TestHub Singapore'.",
+   "confidence": "high"
+  },
+  {
+   "id": "service-firm-lead-gen-calculators",
+   "claim": "A Singapore accounting firm uses an income tax calculator page with a named author and 'last updated' stamp, suggesting calculators double as lead generation for service firms.",
+   "value": "excellencesg.com/income-tax-calculator-singapore/ \u2014 'By Lucas Seah, Founder of Excellence Singapore Group | Last Updated: June 2026'",
+   "applies_to": "Site state as of Nov 2026",
+   "source_url": "https://www.excellencesg.com/income-tax-calculator-singapore/",
+   "source_quote": "Result title: 'By Lucas Seah, Founder of Excellence Singapore Group | Last Updated: June 2026'.",
+   "confidence": "medium"
+  }
+ ],
+ "worked_examples": [
+  {
+   "description": "Tax Atlas Singapore calculator worked example (competitor output, not an official computation)",
+   "inputs": "Gross employment income S$100,000; age 35; citizen/PR; income year 2026",
+   "expected_outputs": "Reliefs S$20,200 (Earned Income Relief S$1,000 + employee CPF 20% x S$96,000 = S$19,200); taxable income S$79,800; combined 'income tax + CPF' S$22,536 (shown as 22.5% effective rate). Subtracting CPF of S$19,200 implies income tax of S$3,336.",
+   "source_url": "https://taxatlas.app/sg/income-tax-calculator/",
+   "caveat": "Third-party page read only through a search summary. The implied S$3,336 is my subtraction from the page's figures. The page's stated prior-year CPF ceiling looks inconsistent, so check against IRAS and CPF before using as a test case."
+  },
+  {
+   "description": "Typical headline output of a free SRS tax-savings calculator",
+   "inputs": "Annual income S$120,000; SRS contribution S$15,300 (SC/PR maximum)",
+   "expected_outputs": "Annual tax savings S$1,759 (consistent with S$15,300 x 11.5% = S$1,759.50). A second calculator quotes about S$1,760 per year for the 11.5% bracket. A third shows a YA2026 saving of about S$1,071 for different inputs.",
+   "source_url": "https://sgfinancecalculators.com/tax/srs-tax-savings-calculator/",
+   "caveat": "Attribution uncertain: the figures came from a search summary spanning interest.sg, fino.tools, super-calculator.com, calculatorsg.com, sgfinancecalculators.com and srs.sg, and the exact page was not identified. Whether S$120,000 is gross or chargeable income is not stated."
+  },
+  {
+   "description": "SRS vs CPF top-up saving at a 15% marginal rate (competitor framing)",
+   "inputs": "Marginal rate 15%; SRS S$15,300; CPF cash top-up to self S$8,000",
+   "expected_outputs": "SRS saves S$2,295 (15,300 x 15%); CPF top-up saves S$1,200 (8,000 x 15%)",
+   "source_url": "https://www.smartcalculator.sg/tax/tax-relief-optimizer",
+   "caveat": "Most likely from the smartcalculator.sg optimiser page, but the search summary did not attribute it explicitly. It assumes the whole deduction stays within the 15% band, which is the simplification a bracket-aware tool should avoid."
+  }
+ ],
+ "open_questions": [
+  "Research was cut short: the shared web-search budget ran out after 8 searches, and direct fetches of sg.moneybackkit.com, www.smartcalculator.sg and taxatlas.app failed (hosts not resolvable from this session). Those hosts would need to be allowed in the session's network settings, or the search budget raised, to complete this topic.",
+  "MoneyBackKit SRS Tax Savings Calculator: exact URL, inputs, outputs, YA covered, and whether it handles the S$80k cap, CPF top-ups, family top-ups or any recommendation logic. Only its existence as a navigation link was confirmed.",
+  "smartcalculator.sg Tax Relief Optimizer: the actual input form and outputs were not seen. Does it give a bracket-aware 'how much is enough' amount, enforce the S$80k cap, handle the FRS ceiling, or offer monthly planning?",
+  "smartcalculator.sg paid Income Tax Optimiser: which reliefs and scenarios the workbook covers, YA coverage, refund policy, and prices of the other store products (CPF Retirement Planner, BTO/HDB Buyer Planner).",
+  "IRAS Excel calculator for tax residents: which YA versions are downloadable in Nov 2026, and whether a YA2027 version exists before 1 Mar 2027. Current view is an inference from the 'updated by 1 Mar' note.",
+  "CPF Board tools: is there an official cash top-up or tax-relief calculator, and what does it ask and show? Not searched.",
+  "Bank SRS calculators (DBS, OCBC, UOB): URLs, inputs, outputs, and whether any include CPF top-ups or the S$80k cap. Not searched.",
+  "Endowus, StashAway and Syfe calculators: detailed inputs and outputs, and whether any recommend an amount rather than just computing savings for a user-entered amount. Only page existence was confirmed.",
+  "Seedly, MoneySmart, SingSaver and Dollars and Sense: do they have calculators, or only articles? Not searched.",
+  "Paid spreadsheet and template products on Gumroad, Etsy, Carousell and personal-finance blogs: products and price points. Not searched; the only price anchor found is smartcalculator.sg at S$17.90 (list S$24.90).",
+  "Rule-of-thumb thresholds from named Singapore finance writers (e.g. 'worth it from the 7% bracket' vs 'only from 11.5%'), with their reasoning on lock-up, 50% taxable SRS withdrawals and CPF irreversibility. Only an unattributed mention of the 7% bracket was found.",
+  "Official confirmation of points on which competitor sites conflict: whether compulsory CPF relief counts in the S$80,000 cap; the SRS penalty-free withdrawal age for new contributors after the statutory retirement age change on 1 July 2026 (63 vs 64); the FRS ceiling for top-up relief in 2026 (S$220,400 vs S$213,000).",
+  "Official confirmation that there is no personal income tax rebate for YA2026 or YA2027; only third-party calculator sites were seen stating this.",
+  "Is there any app or spreadsheet, other than smartcalculator.sg, that jointly optimises SRS and CPF top-ups (including family top-ups and liquidity trade-offs)? One joint tool was found; the search was not exhaustive."
+ ]
+}

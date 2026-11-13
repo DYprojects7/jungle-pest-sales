@@ -1,0 +1,297 @@
+{
+ "summary": "INCOMPLETE RESEARCH - read before use. Only 6 web searches ran before the shared WebSearch budget for this turn (200 calls across all agents) was exhausted; every later search was refused, and direct fetching failed with DNS errors (www.iras.gov.sg, endowus.com, rafflescorporateservices.com would have to be allowed in the session's network settings). No page text was read directly: every value below comes from WebSearch result content, cross-checked by my own arithmetic (run locally), not from memory.\n\nWhat was obtained (topics 1-3, partially):\n- IRAS resident rate table, YA2024 onwards: cumulative tax confirmed from the IRAS rates page at S$30,000 -> S$200, S$40,000 -> S$550, S$80,000 -> S$3,350, S$120,000 -> S$7,950, S$160,000 -> S$13,950, S$200,000 -> S$21,150; top rate 24% above S$1,000,000.\n- The S$320,000 -> S$44,550, S$500,000 -> S$84,150 and S$1,000,000 -> S$199,150 checkpoints were NOT directly quoted by a source; they follow arithmetically from the marginal rates the search tool reconstructed from the IRAS table (19%, 19.5%, 20%, 22%, 23%). The 19% band is independently confirmed by IRAS's own YA2026 sample (S$234,100 -> S$27,629 = 21,150 + 19% x 34,100).\n- Two IRAS YA2026 resident sample calculations (income year 2025, current table) plus one non-resident sample: (a) S$50,000 income -> chargeable income S$34,750 -> tax S$366.25 -> S$0 after Parenthood Tax Rebate, S$4,633.75 carried forward; (b) S$250,000 income -> chargeable income S$234,100 -> S$27,629 (relief breakdown not captured); (c) non-resident S$21,000 x 15% = S$3,150.\n- CPF: OW ceiling S$8,000/month from 1 Jan 2026; annual ceiling S$102,000; AW ceiling = S$102,000 - OW subject to CPF in the year; CPF example S$9,000/month -> AW ceiling S$6,000; secondary source citing a CPF Board example S$4,500/month -> S$48,000, dropping to S$16,500 after a raise to S$8,000 from April; age 55 and below rates 20% employee / 17% employer. IRAS CPF-relief example total S$20,360 (S$17,760 OW + S$2,600 AW).\n- YA2024 PIT rebate (50%, cap S$200) confirmed from IRAS; the YA2025 rebate (60%, cap S$200) was NOT confirmed in this session.\n\nNot obtained at all (topics 4-7): SRS tax-saving examples, CPF cash top-up relief examples (S$8,000 + S$8,000, near-FRS cases), S$80,000 relief-cap examples, YA2025 rebate examples, and full CPF monthly wage + age -> employer/employee share examples from the 2025/2026 tables (including rounding rules). These are listed under open_questions rather than filled from memory.\n\nNo example collected uses a pre-YA2024 rate table. Per the IRAS rates page, the YA2017-YA2023 schedule is identical for bands up to S$320,000, so old examples only diverge at higher chargeable incomes.\n\nExamples marked DERIVED in their caveat are my arithmetic on sourced rules, not published illustrations; treat them as provisional test vectors until checked against the IRAS YA2026/YA2027 calculator and the CPF contribution calculator.",
+ "facts": [
+  {
+   "id": "resident-rate-table-ya2024-cumulative-to-200k",
+   "claim": "IRAS's resident individual income tax rate table for YA2024 onwards gives these cumulative gross tax amounts at the top of each band up to S$200,000.",
+   "value": "First S$20,000: S$0; first S$30,000: S$200; first S$40,000: S$550; first S$80,000: S$3,350; first S$120,000: S$7,950; first S$160,000: S$13,950; first S$200,000: S$21,150",
+   "applies_to": "YA2024 onwards (covers YA2026 / income year 2025 and YA2027 / income year 2026, absent any later change)",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-residency-and-tax-rates/individual-income-tax-rates",
+   "source_quote": "Search result paraphrase of the IRAS page: resident rate table for YA 2024 onwards gives cumulative gross tax of $200 on the first $30,000 and $550 on the first $40,000, then $3,350 at $80,000, $7,950 at $120,000, $13,950 at $160,000 and $21,150 at $200,000.",
+   "confidence": "high"
+  },
+  {
+   "id": "resident-band-40k-80k-7pct",
+   "claim": "Under the YA2024-onwards resident table, the first S$40,000 of chargeable income carries S$550 of tax and the next S$40,000 is taxed at 7% (S$2,800).",
+   "value": "First S$40,000: S$550; next S$40,000 at 7% = S$2,800 (cumulative S$3,350 at S$80,000)",
+   "applies_to": "YA2024 onwards",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-residency-and-tax-rates/individual-income-tax-rates",
+   "source_quote": "IRAS table row as extracted by search: \"First $40,000 Next $40,000 | -7 | 550 2,800\"",
+   "confidence": "high"
+  },
+  {
+   "id": "resident-marginal-rates-ya2024-onwards",
+   "claim": "The marginal resident rates for YA2024 onwards run 0%, 2%, 3.5%, 7%, 11.5%, 15%, 18%, 19%, 19.5%, 20%, 22%, 23%, 24%.",
+   "value": "0% (first S$20,000), 2% (next S$10,000), 3.5% (next S$10,000), 7% (next S$40,000), 11.5% (next S$40,000), 15% (next S$40,000), 18% (next S$40,000), then 19%, 19.5%, 20%, 22%, 23%, and 24% above S$1,000,000",
+   "applies_to": "YA2024 onwards",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-residency-and-tax-rates/individual-income-tax-rates",
+   "source_quote": "Search result: the source formatting was garbled, so the marginal rates were reconstructed from the cumulative figures: 0%, 2%, 3.5%, 7%, 11.5%, 15%, 18%, 19%, 19.5%, 20%, 22%, 23%, and 24%. Band widths above S$200,000 were not quoted explicitly; rates up to 18% are confirmed by the cumulative figures and 19% by the IRAS YA2026 sample (S$234,100 -> S$27,629).",
+   "confidence": "medium"
+  },
+  {
+   "id": "resident-top-rate-24pct",
+   "claim": "Tax residents are taxed at progressive rates from 0% to 24%, with 24% applying to chargeable income above S$1,000,000.",
+   "value": "0% to 24%; 24% on chargeable income in excess of S$1,000,000",
+   "applies_to": "YA2024 onwards",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-residency-and-tax-rates/individual-income-tax-rates",
+   "source_quote": "\"Tax residents' income after reliefs is taxed at progressive rates ranging from 0% to 24%\"; rate column climbs to 24% for income above $1,000,000.",
+   "confidence": "high"
+  },
+  {
+   "id": "pre-ya2024-schedule-same-to-320k",
+   "claim": "The YA2017-YA2023 resident schedule is the same as the YA2024-onwards schedule for bands up to S$320,000; the older schedule lacks the higher top bands.",
+   "value": "Identical tax for chargeable income up to S$320,000; differs only above the old top band",
+   "applies_to": "YA2017 to YA2023 versus YA2024 onwards (for judging whether an old worked example is still a valid test vector)",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-residency-and-tax-rates/individual-income-tax-rates",
+   "source_quote": "Search result paraphrase: the rate schedule is unchanged from YA 2017 to YA 2023 for the bands up to $320,000; those earlier years did not have the higher top bands.",
+   "confidence": "medium"
+  },
+  {
+   "id": "ya2024-pit-rebate-50pct-cap-200",
+   "claim": "For YA2024 the Personal Income Tax Rebate is 50% of tax payable, capped at S$200.",
+   "value": "50% of tax payable, capped at S$200",
+   "applies_to": "YA2024 only (income year 2023). Not the YA2025 rebate, and not evidence of any rebate for YA2026 or YA2027.",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/personal-income-tax-rebate",
+   "source_quote": "Search result paraphrase of IRAS: for YA 2024 specifically, the rebate is 50% of tax payable, up to $200.",
+   "confidence": "medium"
+  },
+  {
+   "id": "iras-sample-ya2026-reliefs-used",
+   "claim": "IRAS's YA2026 resident sample (35-year-old earning S$50,000) applies Earned Income Relief of S$1,000, Qualifying Child Relief of S$4,000 and Employee CPF Relief of S$10,000, after a S$250 donations deduction.",
+   "value": "Donations deduction S$250; Earned Income Relief S$1,000; Qualifying Child Relief S$4,000; Employee CPF Relief S$10,000 (20% of S$50,000); total reliefs S$15,000",
+   "applies_to": "YA2026 (income year 2025), age 35",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-residency-and-tax-rates/sample-income-tax-calculations",
+   "source_quote": "Search result paraphrase: total employment income $50,000, less a $250 donation, giving $49,750 assessable income; after Earned Income Relief ($1,000), Qualifying Child Relief ($4,000) and Employee CPF Relief ($10,000), chargeable income is $34,750 ($49,750 - $15,000).",
+   "confidence": "high"
+  },
+  {
+   "id": "chargeable-income-definition",
+   "claim": "Chargeable income is assessable income less personal reliefs, and progressive tax is computed band by band on chargeable income before rebates are applied.",
+   "value": "Chargeable income = assessable income (income less donations deduction) - personal reliefs; rebates are subtracted from tax payable afterwards",
+   "applies_to": "All YAs",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/receive-tax-bill-pay-tax-check-refunds/understanding-my-tax-assessment",
+   "source_quote": "Search result paraphrase: chargeable income is the remainder of your assessable income after deducting personal reliefs; in the IRAS sample, tax is computed band by band before any rebate is applied.",
+   "confidence": "high"
+  },
+  {
+   "id": "ptr-offset-and-carry-forward",
+   "claim": "Parenthood Tax Rebate offsets tax payable on chargeable income and any unused balance is carried forward to offset future tax.",
+   "value": "In the IRAS sample: rebate used S$366.25, net tax S$0, remaining S$4,633.75 carried forward (implying a S$5,000 rebate balance)",
+   "applies_to": "YA2026 sample; carry-forward rule general",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-residency-and-tax-rates/sample-income-tax-calculations",
+   "source_quote": "Search result paraphrase: the tax on that figure comes to $366.25, which the rebate fully offsets, leaving net tax payable of $0; the remaining $4,633.75 offsets future tax.",
+   "confidence": "high"
+  },
+  {
+   "id": "iras-ya2026-sample-shows-no-pit-rebate",
+   "claim": "IRAS's YA2026 high-income sample shows net tax equal to the gross bracket tax, i.e. no Personal Income Tax Rebate is applied in the YA2026 illustration.",
+   "value": "Net tax S$27,629 on chargeable income S$234,100 = S$21,150 + 19% x S$34,100, with no rebate deducted",
+   "applies_to": "YA2026 (income year 2025). Inference from one example, not an explicit statement that no rebate exists.",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-residency-and-tax-rates/sample-income-tax-calculations",
+   "source_quote": "Search result paraphrase: a $250,000 employment income example with chargeable income of $234,100 gives net tax of $27,629 for YA 2026.",
+   "confidence": "medium"
+  },
+  {
+   "id": "non-resident-employment-flat-15pct-sample",
+   "claim": "IRAS's non-resident sample taxes S$21,000 of employment income at a flat 15%, giving S$3,150.",
+   "value": "15% x S$21,000 = S$3,150",
+   "applies_to": "Non-residents (outside the optimiser's resident scope; useful only as a guard/negative test)",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-residency-and-tax-rates/sample-income-tax-calculations",
+   "source_quote": "Search result paraphrase: a non-resident example at a flat 15% gives $3,150 on $21,000.",
+   "confidence": "medium"
+  },
+  {
+   "id": "cpf-ow-ceiling-2026",
+   "claim": "The CPF Ordinary Wage ceiling is S$8,000 per month from 1 January 2026.",
+   "value": "S$8,000 per month",
+   "applies_to": "Wages from 1 January 2026 (income year 2026 / YA2027)",
+   "source_url": "https://www.cpf.gov.sg/service/article/what-is-the-ordinary-wage-ow-ceiling",
+   "source_quote": "Search result paraphrase of cpf.gov.sg: the OW ceiling is $8,000 from 1 Jan 2026, with the annual figure at $102,000.",
+   "confidence": "high"
+  },
+  {
+   "id": "cpf-aw-ceiling-formula",
+   "claim": "The Additional Wage ceiling is S$102,000 minus total Ordinary Wages subject to CPF for the year.",
+   "value": "AW ceiling = S$102,000 - total OW subject to CPF for the year (per employer, per calendar year)",
+   "applies_to": "Calendar year 2026 (annual S$102,000 figure stated as unchanged)",
+   "source_url": "https://www.cpf.gov.sg/service/article/what-is-the-additional-wage-aw-ceiling",
+   "source_quote": "Search result paraphrase of cpf.gov.sg: the AW ceiling is $102,000 minus the total Ordinary Wages subject to CPF for the year.",
+   "confidence": "high"
+  },
+  {
+   "id": "cpf-aw-ceiling-minimum-6000-in-2026",
+   "claim": "For an employee earning at or above the S$8,000 OW ceiling for all 12 months of 2026, the AW ceiling is S$6,000.",
+   "value": "S$102,000 - (S$8,000 x 12) = S$6,000",
+   "applies_to": "Calendar year 2026, full-year employment",
+   "source_url": "https://www.cpf.gov.sg/service/article/what-is-the-additional-wage-aw-ceiling",
+   "source_quote": "Search result paraphrase: CPF's own example for a $9,000 salary caps OW at $8,000, so the AW ceiling is $102,000 - ($8,000 x 12) = $6,000. (Search was pinned to cpf.gov.sg; exact page among the returned CPF pages not identified.)",
+   "confidence": "high"
+  },
+  {
+   "id": "cpf-aw-above-ceiling-not-subject",
+   "claim": "Additional Wages above the AW ceiling do not attract CPF contributions if the employee works until the end of the year.",
+   "value": "AW in excess of the AW ceiling: no CPF payable",
+   "applies_to": "Calendar year 2026 (general rule)",
+   "source_url": "https://www.cpf.gov.sg/service/article/what-is-the-additional-wage-aw-ceiling",
+   "source_quote": "Search result paraphrase: any AW beyond that ceiling is not subject to CPF if the employee works until the end of the year.",
+   "confidence": "medium"
+  },
+  {
+   "id": "cpf-rates-age-55-and-below",
+   "claim": "Employees aged 55 and below contribute 20% of wages to CPF and their employers contribute 17%.",
+   "value": "Employee 20%; employer 17%; total 37%",
+   "applies_to": "Age 55 and below; stated in current CPF guidance (2026). The 2025 table and older-age bands were not extracted.",
+   "source_url": "https://www.cpf.gov.sg/content/dam/web/employer/employer-obligations/documents/CPFcontributionratesfrom1Jan2026.pdf",
+   "source_quote": "Search result paraphrase of cpf.gov.sg guidance: employees aged 55 and below contribute 20 per cent of their wages, while employers contribute 17 per cent. (Exact CPF page not identified; the rate-table PDF URL is where to verify. The PDF text itself was truncated in the result.)",
+   "confidence": "medium"
+  },
+  {
+   "id": "cpf-aw-ceiling-recalculation",
+   "claim": "The estimated AW ceiling must be recalculated when the employee's pay changes or employment ends during the year.",
+   "value": "Recalculate AW ceiling using actual OW subject to CPF for the year",
+   "applies_to": "Calendar year 2026 examples in the CPF Board document",
+   "source_url": "https://www.cpf.gov.sg/service/sfc/servlet.shepherd/document/download/069IW00000M1wtJYAR",
+   "source_quote": "Search result paraphrase: CPF's \"Examples for computation of Additional Wage (AW) Ceiling\" document covers the ceiling formula and timing rules, including re-calculations when pay changes or employment ends; headings refer to estimated AW ceilings for different months in 2026 and a total AW of $100,000.",
+   "confidence": "medium"
+  },
+  {
+   "id": "cpf-aw-ceiling-year-due-and-payable",
+   "claim": "The AW ceiling that applies to a bonus is that of the year the bonus is due and payable, not the performance year.",
+   "value": "A 2025 bonus due and payable in 2026 uses the 2026 AW ceiling",
+   "applies_to": "Bonuses straddling calendar years",
+   "source_url": "https://www.cpf.gov.sg/service/sfc/servlet.shepherd/document/download/069IW00000M1wtJYAR",
+   "source_quote": "Reported by an unidentified secondary blog in the search results as citing a CPF Board example; the URL given is the CPF Board examples PDF where it should be verified, not the blog itself.",
+   "confidence": "low"
+  },
+  {
+   "id": "iras-cpf-relief-example-total-20360",
+   "claim": "IRAS's CPF Relief for employees page illustrates a 35-year-old with a 20% employee rate whose relief is S$17,760 on Ordinary Wages plus S$2,600 on Additional Wages, totalling S$20,360.",
+   "value": "S$17,760 (OW) + S$2,600 (AW) = S$20,360 CPF relief",
+   "applies_to": "Not stated in the result; S$17,760 / 20% = S$88,800 = 12 x S$7,400, which suggests a S$7,400 monthly OW cap (the year is unconfirmed)",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/central-provident-fund(cpf)-relief-for-employees",
+   "source_quote": "Search result paraphrase: Mr Heng aged 35 with a 20% compulsory employee CPF rate; $17,760 on ordinary wages and $2,600 on additional wages, for a total CPF relief of $20,360.",
+   "confidence": "medium"
+  },
+  {
+   "id": "nsman-relief-amounts-in-iras-example",
+   "claim": "IRAS's married-couple example uses NSman Self Relief of S$3,000 for the husband and NSman Wife Relief of S$750 for the wife; the base NSman Self Relief is S$1,500.",
+   "value": "NSman self S$3,000 (in the example); NSman wife S$750; base self relief S$1,500",
+   "applies_to": "IRAS examples current as at 2026; YA not stated in the result",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-savings-for-married-couples-and-families",
+   "source_quote": "Search result paraphrase: NSman Self / Wife Relief is $3,000 for Mr Ng and $750 for Mrs Ng; a separate IRAS page sets the base quantum of NSman Self Relief at $1,500, with higher amounts for those who performed NS activities in the preceding year.",
+   "confidence": "medium"
+  },
+  {
+   "id": "official-calculators-for-validation",
+   "claim": "IRAS publishes per-YA resident income tax calculators (including YA2026 and a YA2024 XLS) and CPF Board publishes a CPF contribution calculator, which are the authoritative tools for validating test vectors.",
+   "value": "IRAS calculators page (YA2026 calculator; YA2024 XLS, 165KB); CPF contribution calculator page",
+   "applies_to": "YA2024-YA2026 calculators seen; a YA2027 calculator was not confirmed",
+   "source_url": "https://www.iras.gov.sg/quick-links/calculators",
+   "source_quote": "Search result paraphrase: the current YA 2026 tax calculator is available on the IRAS calculators page; the YA 2024 calculator is listed as \"YA 2024 (XLS, 165KB)\". CPF calculator: https://www.cpf.gov.sg/employer/tools-and-services/calculators/cpf-contribution-calculator",
+   "confidence": "medium"
+  },
+  {
+   "id": "cpf-rate-table-documents",
+   "claim": "CPF Board publishes separate contribution rate tables effective 1 January 2025 and 1 January 2026 as PDFs; their per-age-band contents were not extracted in this session.",
+   "value": "2026 table: https://www.cpf.gov.sg/content/dam/web/employer/employer-obligations/documents/CPFcontributionratesfrom1Jan2026.pdf ; 2025 table: https://www.cpf.gov.sg/content/dam/web/employer/employer-obligations/documents/CPF_contribution_rates_from_1_Jan_2025.pdf",
+   "applies_to": "Wages from 1 Jan 2025 and from 1 Jan 2026 respectively",
+   "source_url": "https://www.cpf.gov.sg/content/dam/web/employer/employer-obligations/documents/CPFcontributionratesfrom1Jan2026.pdf",
+   "source_quote": "Search result titles: \"Table 1 CPF Contribution Rate Table from 1 January 2026\" and \"Table 1 CPF Contribution Rate Table from 1 January 2025\" (content truncated in results).",
+   "confidence": "high"
+  }
+ ],
+ "worked_examples": [
+  {
+   "description": "IRAS sample resident calculation, YA2026 (income year 2025), current YA2024-onwards table: Mr Heng, 35, married, employment income S$50,000, Parenthood Tax Rebate.",
+   "inputs": "Tax resident, age 35, YA2026. Employment income S$50,000. Donations deduction S$250. Earned Income Relief S$1,000. Qualifying Child Relief S$4,000. Employee CPF Relief S$10,000. Parenthood Tax Rebate balance S$5,000 (implied by used + carried forward).",
+   "expected_outputs": "Assessable income S$49,750. Total reliefs S$15,000. Chargeable income S$34,750. Tax on first S$30,000 = S$200.00; next S$4,750 at 3.5% = S$166.25; tax payable S$366.25. Parenthood Tax Rebate used S$366.25. Net tax payable S$0. Rebate carried forward S$4,633.75.",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-residency-and-tax-rates/sample-income-tax-calculations",
+   "caveat": "Taken from search-result content, not a direct page read; arithmetic re-verified. The result does not say whether S$250 is the cash donated or the deduction after the 2.5x multiplier - model it as the deduction amount. No Personal Income Tax Rebate appears in this illustration."
+  },
+  {
+   "description": "IRAS sample resident calculation, YA2026, higher income: employment income S$250,000, chargeable income S$234,100.",
+   "inputs": "Tax resident, YA2026. Employment income S$250,000. Chargeable income S$234,100 (deductions and reliefs total S$15,900; breakdown not captured).",
+   "expected_outputs": "Tax on first S$200,000 = S$21,150; next S$34,100 at 19% = S$6,479; net tax payable S$27,629.",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-residency-and-tax-rates/sample-income-tax-calculations",
+   "caveat": "Only income, chargeable income and net tax were in the search result; the bracket split shown is my arithmetic and reproduces S$27,629 exactly. Use as a chargeable-income -> tax vector, not as a reliefs vector, until the relief lines are read from the page."
+  },
+  {
+   "description": "IRAS non-resident sample: employment income taxed at flat 15%.",
+   "inputs": "Non-resident, employment income S$21,000.",
+   "expected_outputs": "Tax = 15% x S$21,000 = S$3,150.",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-residency-and-tax-rates/sample-income-tax-calculations",
+   "caveat": "Out of scope for a resident optimiser; the YA and whether the higher-of-resident-rates comparison is shown were not captured."
+  },
+  {
+   "description": "Cumulative tax at round chargeable incomes, YA2024-onwards resident table - values confirmed from the IRAS rates page.",
+   "inputs": "Tax resident, YA2024 onwards, no rebate. Chargeable income: S$20,000; S$30,000; S$40,000; S$80,000; S$120,000; S$160,000; S$200,000.",
+   "expected_outputs": "S$20,000 -> S$0; S$30,000 -> S$200; S$40,000 -> S$550; S$80,000 -> S$3,350; S$120,000 -> S$7,950; S$160,000 -> S$13,950; S$200,000 -> S$21,150. Band arithmetic: 2% x 10,000 = 200; 3.5% x 10,000 = 350; 7% x 40,000 = 2,800; 11.5% x 40,000 = 4,600; 15% x 40,000 = 6,000; 18% x 40,000 = 7,200.",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-residency-and-tax-rates/individual-income-tax-rates",
+   "caveat": "Cumulative figures are from the IRAS table via search results. The S$0 at S$20,000 and the per-band products are implied by the cumulative figures rather than separately quoted, except the 7% / S$2,800 row which was quoted."
+  },
+  {
+   "description": "Cumulative tax at higher round chargeable incomes, YA2024-onwards resident table - DERIVED, not directly quoted by a source.",
+   "inputs": "Tax resident, YA2024 onwards, no rebate. Chargeable income: S$240,000; S$280,000; S$320,000; S$500,000; S$1,000,000. Assumed bands: 200k-240k at 19%, 240k-280k at 19.5%, 280k-320k at 20%, 320k-500k at 22%, 500k-1,000k at 23%.",
+   "expected_outputs": "S$240,000 -> S$28,750; S$280,000 -> S$36,550; S$320,000 -> S$44,550; S$500,000 -> S$84,150; S$1,000,000 -> S$199,150; above S$1,000,000 at 24%.",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-residency-and-tax-rates/individual-income-tax-rates",
+   "caveat": "DERIVED. The rates come from the search tool's reconstruction of a garbled IRAS table and the band widths above S$200,000 were not quoted; only the 19% band is independently confirmed (IRAS YA2026 sample). The totals match the values the task asked to confirm, but a direct read of the IRAS table is still needed before treating them as official."
+  },
+  {
+   "description": "CPF Board example: Additional Wage ceiling for an employee paid above the OW ceiling in 2026.",
+   "inputs": "Calendar year 2026, monthly salary S$9,000 for all 12 months, OW ceiling S$8,000, annual ceiling S$102,000.",
+   "expected_outputs": "OW subject to CPF = S$8,000 x 12 = S$96,000. AW ceiling = S$102,000 - S$96,000 = S$6,000. AW above S$6,000 attracts no CPF.",
+   "source_url": "https://www.cpf.gov.sg/service/article/what-is-the-additional-wage-aw-ceiling",
+   "caveat": "From cpf.gov.sg search-result content; the exact CPF page (AW ceiling FAQ, OW ceiling FAQ or the AW examples PDF) was not identified."
+  },
+  {
+   "description": "CPF contributions for the S$9,000/month employee above, age 55 and below, 2026 - DERIVED from the sourced rates.",
+   "inputs": "Calendar year 2026, age 55 and below, monthly OW S$9,000 (capped at S$8,000), bonus of at least S$6,000 with AW ceiling S$6,000. Rates: employee 20%, employer 17%.",
+   "expected_outputs": "Monthly on OW: employee S$1,600, employer S$1,360, total S$2,960. On AW subject to CPF (S$6,000): employee S$1,200, employer S$1,020, total S$2,220. Full-year employee share: 20% x S$102,000 = S$20,400.",
+   "source_url": "https://www.cpf.gov.sg/content/dam/web/employer/employer-obligations/documents/CPFcontributionratesfrom1Jan2026.pdf",
+   "caveat": "DERIVED by the search tool and re-checked by me, not a CPF published illustration. CPF rounding rules were not sourced (these figures are whole dollars so rounding does not bite). Verify with the CPF contribution calculator."
+  },
+  {
+   "description": "AW ceiling recalculation after a mid-year pay rise in 2026 (secondary source citing a CPF Board example).",
+   "inputs": "Calendar year 2026. Monthly OW S$4,500 from January; raised to S$8,000 from April.",
+   "expected_outputs": "Initial estimated AW ceiling = S$102,000 - (S$4,500 x 12) = S$48,000. Recalculated AW ceiling = S$102,000 - (S$4,500 x 3 + S$8,000 x 9) = S$102,000 - S$85,500 = S$16,500.",
+   "source_url": "https://rafflescorporateservices.com/cpf-on-bonus-singapore-additional-wage-ceiling-2026/",
+   "caveat": "Secondary source; attribution to the CPF Board PDF (https://www.cpf.gov.sg/service/sfc/servlet.shepherd/document/download/069IW00000M1wtJYAR) could not be verified. The formula expansions are my arithmetic and reproduce both quoted ceilings."
+  },
+  {
+   "description": "IRAS CPF Relief for employees illustration: relief split between Ordinary and Additional Wages for a 35-year-old.",
+   "inputs": "Mr Heng, age 35, compulsory employee CPF rate 20%. Wage inputs not captured; back-solved: OW subject to CPF S$88,800 (S$7,400 x 12), AW subject to CPF S$13,000.",
+   "expected_outputs": "CPF relief on OW S$17,760; on AW S$2,600; total CPF relief S$20,360.",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/central-provident-fund(cpf)-relief-for-employees",
+   "caveat": "The wage inputs and year are back-solved by me, not read from IRAS. A S$7,400 monthly cap points to an earlier OW ceiling than the S$8,000 applying in 2026, so do not reuse as a 2026 vector without checking. Implied AW ceiling would be S$13,200, so AW of S$13,000 would sit just under it."
+  },
+  {
+   "description": "YA2024 Personal Income Tax Rebate cap biting - DERIVED illustration (50% capped at S$200).",
+   "inputs": "Tax resident, YA2024, chargeable income S$50,000.",
+   "expected_outputs": "Gross tax = S$550 + 7% x S$10,000 = S$1,250. Rebate = min(50% x S$1,250, S$200) = S$200. Net tax S$1,050.",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/personal-income-tax-rebate",
+   "caveat": "DERIVED by the search tool from the IRAS rate table and YA2024 rebate rule; not an IRAS published example. YA2024 ONLY - this is not the YA2025 rebate (60% capped at S$200, which was not confirmed in this session) and must not be applied to YA2026 or YA2027."
+  },
+  {
+   "description": "IRAS married-couple illustration (Mr and Mrs Ng) - PARTIAL, not usable as a test vector yet.",
+   "inputs": "Mr Ng: NSman Self Relief S$3,000, Parenthood Tax Rebate. Mrs Ng: NSman Wife Relief S$750. Incomes and other reliefs not captured.",
+   "expected_outputs": "Mr Ng net tax payable S$430.00 after Parenthood Tax Rebate. Mrs Ng chargeable income reported as S$65,250 (unverified).",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-savings-for-married-couples-and-families",
+   "caveat": "Incomplete extract; the search tool itself flagged the Mrs Ng figure as doubtful. Recorded only so the page can be revisited."
+  }
+ ],
+ "open_questions": [
+  "Research was cut short: the shared WebSearch budget (200 calls per turn across all agents) was exhausted after 6 searches, and direct fetches failed with DNS errors. To finish, raise CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION or rerun this step, and/or allow www.iras.gov.sg, www.cpf.gov.sg, endowus.com and rafflescorporateservices.com in the session's network settings.",
+  "Topic 4 (SRS) - nothing collected. Still needed: the SRS annual contribution cap for citizens/PRs (the task assumes S$15,300) and foreigners, and bank/IRAS illustrations of income X, contribution S$15,300, tax saved Y.",
+  "Topic 5 (CPF cash top-up relief) - nothing collected. Still needed: confirmation of S$8,000 self + S$8,000 family relief limits, and examples near the Full Retirement Sum where top-ups stop qualifying.",
+  "Topic 6 (S$80,000 personal relief cap) - no example found; the cap amount itself was not confirmed in this session.",
+  "Topic 7 (YA2025 PIT rebate, 60% capped at S$200) - not confirmed; only the YA2024 rebate (50% capped at S$200) surfaced from IRAS. No published rebate example was found for either year.",
+  "Is there any Personal Income Tax Rebate for YA2026 or YA2027? The IRAS YA2026 sample shows none applied, but that is an inference from one example, not an explicit statement.",
+  "Cumulative tax at S$320,000 (S$44,550), S$500,000 (S$84,150) and S$1,000,000 (S$199,150), and the band widths above S$200,000, were derived rather than quoted directly from the IRAS table; needs a direct read.",
+  "IRAS YA2026 Example 2 (S$250,000 income, chargeable income S$234,100): the S$15,900 of deductions/reliefs was not broken down.",
+  "CPF contribution rate tables for 2025 and 2026 by age band (above 55 to 60, 60 to 65, 65 to 70, above 70), the 2025 OW ceiling, and the rounding rules for total and employee share were not extracted; no CPF-published monthly wage + age -> employer/employee share example was captured.",
+  "Full text of the CPF Board PDF 'Examples for computation of Additional Wage (AW) Ceiling' (2026 examples, including one with total AW of S$100,000) could not be read; the S$4,500 -> S$8,000 example and the 'year the bonus is due and payable' rule rest on secondary sources.",
+  "IRAS CPF Relief example (Mr Heng, S$17,760 + S$2,600 = S$20,360): the wage inputs and the year it illustrates were not captured.",
+  "Any already-announced changes for income year 2027 (YA2028) to rates, ceilings or reliefs were not researched.",
+  "Whether IRAS has published a YA2027 calculator yet was not confirmed (YA2026 and YA2024 calculators were seen)."
+ ]
+}

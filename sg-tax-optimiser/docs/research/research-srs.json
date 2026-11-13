@@ -1,0 +1,380 @@
+{
+ "summary": "SRS research for the Singapore Tax Optimiser (target: income year 2026 / YA2027). IMPORTANT LIMITATION: the shared web-search budget for this turn ran out after 10 successful searches (two planned searches - MOM retirement-age dates and the YA2018 relief-cap origin - were refused), and direct fetching failed for www.stashaway.sg and www.dbs.com.sg (hosts not in the session's allowed network domains; *.gov.sg was already known blocked). All facts below therefore rest on WebSearch result content only; nothing was filled from memory, and unresolved items are listed under open_questions. More searches need a follow-up message or a raised search limit; the two hosts would have to be allowed in network settings to verify page text directly.\n\nKEY FINDINGS\n1. Caps: IRAS and MOF both state the annual SRS contribution cap is S$15,300 (Singapore Citizens/PRs) and S$35,700 (foreigners), unchanged since 1 Jan 2016. This applies to calendar 2025 (YA2026) and 2026 (YA2027). One search for Budget 2026 changes found no reported change or review of the cap, and nothing announced for 2027 - but that is a weak negative finding from non-official sources, and Budget 2025 was not separately checked.\n2. Eligibility (MOF): Citizen, PR or foreigner; at least 18; not an undischarged bankrupt; able to manage own affairs. Operators are DBS, OCBC and UOB and only one account may be held (both from secondary sources only; POSB branding not confirmed).\n3. Relief mechanics (IRAS): relief is given in the YA after the year of contribution, only if tax resident for that YA; granted automatically from SRS operator data; counts inside the S$80,000 overall personal relief cap (MOF: from YA2018, covering SRS contributions made on/after 1 Jan 2017); excess relief is disregarded and cannot be carried forward or transferred; IRAS states there is no refund of SRS contributions. Employer contributions on the employee's behalf are taxable remuneration (reported on Form IR8A) and the employee gets SRS relief on them. Deadline is 31 Dec of the contribution year (IRAS text seen: by 31 Dec 2025 for YA2026). No source was obtained for bank cut-off times.\n4. Withdrawals (IRAS/MOF): penalty-free only at/after the statutory retirement age prevailing at FIRST contribution; IRAS states that age is 64 effective 1 Jul 2026 (up from 63), and later changes do not affect existing contributors. So accounts first funded 1 Jan-30 Jun 2026 lock in 63, and those first funded on/after 1 Jul 2026 lock in 64 (the explicit split is stated by secondary sources and is an inference from the IRAS wording). 50% of qualifying withdrawals is taxable; withdrawals may be spread over 10 years from the first penalty-free withdrawal; MOF states a member with no other taxable income can withdraw S$40,000/year tax-free, S$400,000 over 10 years. Premature withdrawals are 100% taxable plus a 5% penalty, except death, medical grounds, bankruptcy, and a foreigner's one-time full withdrawal after 10 years (conditions recorded). Withholding tax applies to foreigners/PRs (24%, or concessionary 15%).\n5. Returns: 0.05% p.a. on uninvested SRS cash at all three operators; contributions are not auto-invested; returns are not taxed until withdrawal (all secondary sources, medium confidence).\n6. Calculator warnings: first contribution locks the retirement age (a first-time contributor in Nov/Dec 2026 locks in 64, not 63); contributions are irrevocable even when the S$80k cap or non-residency makes the relief worthless; SRS is tax deferral - withdrawals are taxable income later; contributions stop once penalty-free withdrawals begin; foreigners must file a yearly declaration to use the higher cap.",
+ "facts": [
+  {
+   "id": "srs-cap-citizen-pr",
+   "claim": "The maximum yearly SRS contribution for Singapore Citizens and Singapore Permanent Residents is S$15,300.",
+   "value": "S$15,300 per calendar year",
+   "applies_to": "Calendar years 2025 and 2026 (relief in YA2026 and YA2027); in force since 1 Jan 2016",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/special-tax-schemes/srs-contributions",
+   "source_quote": "The yearly maximum is $15,300 for Singapore Citizens/Singapore Permanent Residents and $35,700 for foreigners.",
+   "confidence": "high"
+  },
+  {
+   "id": "srs-cap-foreigner",
+   "claim": "The maximum yearly SRS contribution for foreigners is S$35,700.",
+   "value": "S$35,700 per calendar year",
+   "applies_to": "Calendar years 2025 and 2026 (relief in YA2026 and YA2027); in force since 1 Jan 2016",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/special-tax-schemes/srs-contributions",
+   "source_quote": "The yearly maximum is $15,300 for Singapore Citizens/Singapore Permanent Residents and $35,700 for foreigners.",
+   "confidence": "high"
+  },
+  {
+   "id": "srs-cap-unchanged-since-2016",
+   "claim": "The current SRS contribution caps have applied since 1 January 2016 (the earlier structure of 15%/35% of income pegged to CPF wage ceilings is superseded).",
+   "value": "S$15,300 / S$35,700 effective 1 Jan 2016",
+   "applies_to": "Contribution years 2016 onwards, including 2025 and 2026",
+   "source_url": "https://www.mof.gov.sg/news-resources/supplementary-retirement-scheme/",
+   "source_quote": "Search-result paraphrase of the MOF SRS page: annual caps are $15,300 for Singapore Citizens and Permanent Residents and $35,700 for foreigners, in effect since 1 January 2016.",
+   "confidence": "high"
+  },
+  {
+   "id": "srs-cap-2027-no-change-found",
+   "claim": "No change to, or review of, the SRS contribution caps for 2027 was found; a search for Budget 2026 SRS changes returned no reports of any cap change.",
+   "value": "No announced change found; 2027 cap not confirmed (2026 caps remain S$15,300 / S$35,700)",
+   "applies_to": "Calendar year 2027 (YA2028); Budget 2026",
+   "source_url": "https://www.mof.gov.sg/news-resources/supplementary-retirement-scheme/",
+   "source_quote": "Negative finding from one extended search of mainly secondary 2026 guides: all still cite S$15,300 / S$35,700 and none report a Budget 2026 change. Not confirmed against singaporebudget.gov.sg; Budget 2025 not separately checked.",
+   "confidence": "low"
+  },
+  {
+   "id": "srs-relief-timing",
+   "claim": "SRS tax relief is allowed in the Year of Assessment following the calendar year of contribution, provided the contributor is a tax resident for that YA.",
+   "value": "Relief amount = SRS contributions made in the preceding calendar year (2026 contributions -> YA2027)",
+   "applies_to": "All YAs, including YA2026 and YA2027",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/special-tax-schemes/srs-contributions",
+   "source_quote": "You will be allowed SRS tax relief in the YA following the year of contribution, provided you are a tax resident for that YA.",
+   "confidence": "high"
+  },
+  {
+   "id": "srs-deadline-31-dec",
+   "claim": "Contributions must reach the SRS account by 31 December of the calendar year to qualify for relief in the next YA.",
+   "value": "31 Dec 2025 for YA2026; by the same rule 31 Dec 2026 for YA2027",
+   "applies_to": "YA2026 (stated by IRAS); YA2027 by direct application of the same rule",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/special-tax-schemes/srs-contributions",
+   "source_quote": "Contributions must be made by 31 Dec 2025 to qualify for SRS Relief (subject to overall personal income tax relief cap of $80,000) for the Year of Assessment (YA) 2026.",
+   "confidence": "high"
+  },
+  {
+   "id": "srs-relief-automatic",
+   "claim": "SRS relief does not need to be claimed; IRAS grants it automatically using contribution data sent by the SRS operator.",
+   "value": "Automatic; no claim in the tax return",
+   "applies_to": "All YAs",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs",
+   "source_quote": "Granted automatically based on information provided by your SRS operator. IRAS example: the SRS bank operator will transmit the contribution information to IRAS and SRS tax relief of $20,000 will be included.",
+   "confidence": "high"
+  },
+  {
+   "id": "personal-relief-cap-80k",
+   "claim": "An overall personal income tax relief cap of S$80,000 per YA applies to the total of all reliefs claimed, including SRS relief.",
+   "value": "S$80,000 per Year of Assessment",
+   "applies_to": "YA2018 onwards, including YA2026 and YA2027",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs",
+   "source_quote": "For each YA, a personal income tax relief cap of $80,000 applies to the total amount of all tax reliefs claimed (including relief on SRS contributions).",
+   "confidence": "high"
+  },
+  {
+   "id": "personal-relief-cap-start-ya2018",
+   "claim": "The S$80,000 relief cap took effect from YA2018 and covers SRS contributions made on or after 1 Jan 2017.",
+   "value": "Effective YA2018; SRS contributions from 1 Jan 2017",
+   "applies_to": "YA2018 onwards",
+   "source_url": "https://www.mof.gov.sg/news-resources/supplementary-retirement-scheme/",
+   "source_quote": "All personal income tax reliefs, including SRS contributions made on or after 1 Jan 2017, are subject to an annual cap on personal income tax relief of $80,000 from Year of Assessment 2018. (Returned by a mof.gov.sg-pinned search; the search tool did not say which MOF page carried the sentence - the SRS page is the likely one.)",
+   "confidence": "medium"
+  },
+  {
+   "id": "relief-excess-disregarded",
+   "claim": "Reliefs above the S$80,000 cap are disregarded and cannot be carried forward or transferred to another person.",
+   "value": "Excess relief is lost",
+   "applies_to": "YA2018 onwards",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs",
+   "source_quote": "the balance of the reliefs which you have claimed will be disregarded and cannot be transferred",
+   "confidence": "high"
+  },
+  {
+   "id": "srs-no-refund",
+   "claim": "SRS contributions cannot be refunded or reversed, including when the S$80,000 cap makes the relief unusable; IRAS advises checking the cap before contributing.",
+   "value": "No refund of SRS contributions",
+   "applies_to": "All contribution years",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/special-tax-schemes/srs-contributions",
+   "source_quote": "there will be no refund for SRS contributions made (search-result paraphrase adds: the cap applies whether or not you claim SRS relief, so check it before contributing).",
+   "confidence": "high"
+  },
+  {
+   "id": "srs-employer-contributions",
+   "claim": "Employer contributions to an employee's SRS account are taxable remuneration reported on Form IR8A, and the employee receives SRS relief on them.",
+   "value": "Taxable employment income + SRS relief of the same amount (within the member's annual cap and the S$80,000 relief cap)",
+   "applies_to": "All YAs",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/special-tax-schemes/srs-contributions",
+   "source_quote": "Contributions made by your employer to your SRS account on your behalf constitute part of your remuneration. Such contributions are taxable and must be declared by your employer in your Form IR8A for the relevant YA. You will be granted tax relief for such contributions.",
+   "confidence": "high"
+  },
+  {
+   "id": "srs-relief-non-resident",
+   "claim": "SRS relief is not available to someone who is a non-resident for tax purposes in the relevant YA, and the contribution is still not refundable.",
+   "value": "No SRS relief for non-tax-residents",
+   "applies_to": "All YAs",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/special-tax-schemes/srs-contributions",
+   "source_quote": "SRS relief is allowed 'provided you are a tax resident for that YA'. IRAS also says non-residents may claim expenses and donations but 'you are not eligible to claim personal reliefs'. The SRS-specific exclusion is an inference from those two statements; a secondary guide states it outright.",
+   "confidence": "high"
+  },
+  {
+   "id": "srs-foreigner-annual-declaration",
+   "claim": "Foreigners must submit the Declaration Form for SRS (For Foreigners) to their operator every year for the higher cap to be applied.",
+   "value": "Annual declaration required for the S$35,700 cap",
+   "applies_to": "Each contribution year",
+   "source_url": "https://www.stashaway.sg/r/srs-foreigners-prs-singapore",
+   "source_quote": "Search-result paraphrase: IRAS requires the Declaration Form for SRS (For Foreigners) to be submitted every year so the operator can work out that year's limit.",
+   "confidence": "medium"
+  },
+  {
+   "id": "srs-cap-prorated-on-becoming-pr",
+   "claim": "A foreigner who becomes a PR during the year has a pro-rated contribution cap for that year and should ask the operator to recalculate; from the next year the cap is S$15,300.",
+   "value": "Pro-rated cap in the year of status change; S$15,300 thereafter",
+   "applies_to": "Year in which PR status is obtained",
+   "source_url": "https://www.stashaway.sg/r/srs-foreigners-prs-singapore",
+   "source_quote": "Search-result paraphrase: a pro-rated contribution cap applies and you should contact your operator to recalculate it; if PR status starts the following year, the cap for that year is S$15,300. Formula not obtained.",
+   "confidence": "low"
+  },
+  {
+   "id": "srs-eligibility",
+   "claim": "To contribute to SRS a person must be a Singapore Citizen, PR or foreigner, at least 18 years old, not an undischarged bankrupt, and able to manage their own affairs.",
+   "value": "Age >= 18; not an undischarged bankrupt; has mental capacity",
+   "applies_to": "Current rules (2025-2026)",
+   "source_url": "https://www.mof.gov.sg/news-resources/supplementary-retirement-scheme/",
+   "source_quote": "Search-result paraphrase of the MOF SRS page: a Singapore Citizen, Permanent Resident, or foreigner; at least 18 years old; not an undischarged bankrupt; and able to manage your own affairs.",
+   "confidence": "high"
+  },
+  {
+   "id": "srs-operators",
+   "claim": "SRS accounts are offered by three bank operators: DBS, OCBC and UOB.",
+   "value": "DBS, OCBC, UOB",
+   "applies_to": "Current (2026)",
+   "source_url": "https://www.moneyowl.com.sg/faq-tags/supplementary-retirement-scheme-srs/",
+   "source_quote": "Search-result paraphrase: all sources name the same three operators - DBS, OCBC and UOB (smartwealth.sg, savvysingaporean.com, MoneyOwl). No official MOF list was retrieved; POSB branding was not confirmed.",
+   "confidence": "medium"
+  },
+  {
+   "id": "srs-one-account-only",
+   "claim": "A person may hold only one SRS account at a time, though it can be transferred between operators.",
+   "value": "Maximum 1 SRS account per person",
+   "applies_to": "Current (2026)",
+   "source_url": "https://www.moneyowl.com.sg/faq-tags/supplementary-retirement-scheme-srs/",
+   "source_quote": "Search-result paraphrase: each person may hold only one SRS account at a time but can transfer it between operators; SupportGoWhere (government listing) bars applicants with an existing or suspended SRS account or a pending application elsewhere; sgmoneymatters.com says opening accounts with more than one operator is an offence.",
+   "confidence": "medium"
+  },
+  {
+   "id": "srs-retirement-age-locked-at-first-contribution",
+   "claim": "Penalty-free withdrawal is tied to the statutory retirement age prevailing when the member made the FIRST SRS contribution; later increases in the retirement age do not affect existing members.",
+   "value": "Prescribed age is fixed at first contribution",
+   "applies_to": "All SRS accounts",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/special-tax-schemes/srs-contributions",
+   "source_quote": "Withdrawals are penalty-free only if they take place on or after the statutory retirement age (64 effective from 1 Jul 2026) that was prevailing at the time of your first SRS contribution; any subsequent change in the statutory retirement age (e.g. up to age 65) will not affect you.",
+   "confidence": "high"
+  },
+  {
+   "id": "srs-retirement-age-64-from-1-jul-2026",
+   "claim": "For accounts whose first contribution is made on or after 1 July 2026, the prescribed retirement age is 64.",
+   "value": "Age 64",
+   "applies_to": "First SRS contribution on or after 1 Jul 2026",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/special-tax-schemes/srs-contributions",
+   "source_quote": "IRAS: 'the statutory retirement age (64 effective from 1 Jul 2026)'. IRAS Latest Updates also notes the rise from 63 to 64 on 1 Jul 2026. StashAway: the prescribed retirement age is 64 if your first contribution is made on or after 1 July 2026.",
+   "confidence": "high"
+  },
+  {
+   "id": "srs-retirement-age-63-before-1-jul-2026",
+   "claim": "For accounts whose first contribution was made before 1 July 2026 (while the statutory retirement age was 63), the prescribed retirement age stays 63.",
+   "value": "Age 63",
+   "applies_to": "First SRS contribution before 1 Jul 2026 and on/after the date 63 took effect (start date not verified here; an older MOF reply cites 62 for earlier accounts)",
+   "source_url": "https://www.iras.gov.sg/latest-updates/1",
+   "source_quote": "Inference from IRAS wording (age rises from 63 to 64 on 1 Jul 2026; later changes do not affect existing contributors). A secondary guide states it directly: the age is 63 if your first contribution was before 1 Jul 2026; 64 if after.",
+   "confidence": "medium"
+  },
+  {
+   "id": "srs-withdrawal-50pct-concession",
+   "claim": "Only 50% of an SRS withdrawal made on or after the prescribed retirement age is subject to income tax.",
+   "value": "50% of the withdrawn amount is taxable",
+   "applies_to": "Withdrawals at/after the prescribed retirement age",
+   "source_url": "https://www.mof.gov.sg/news-resources/supplementary-retirement-scheme/",
+   "source_quote": "When withdrawals are made on or after the applicable statutory retirement age, only 50 per cent of the withdrawn amount is subject to tax.",
+   "confidence": "high"
+  },
+  {
+   "id": "srs-10-year-withdrawal-window",
+   "claim": "Penalty-free withdrawals can be spread over a period of up to 10 years starting from the date of the first penalty-free withdrawal.",
+   "value": "10 years from first penalty-free withdrawal",
+   "applies_to": "Withdrawals at/after the prescribed retirement age",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/special-tax-schemes/tax-on-srs-withdrawals",
+   "source_quote": "You may make penalty-free withdrawals from your SRS account over 10 years starting from the date of your first penalty-free withdrawal.",
+   "confidence": "high"
+  },
+  {
+   "id": "srs-40k-tax-free-withdrawal",
+   "claim": "MOF states that a member with no other taxable income can withdraw up to S$40,000 a year tax-free, i.e. up to S$400,000 over the 10-year window.",
+   "value": "S$40,000 per year; S$400,000 over 10 years (50% taxable = S$20,000 chargeable income per year)",
+   "applies_to": "Withdrawals at/after the prescribed retirement age, under current resident tax rates",
+   "source_url": "https://www.mof.gov.sg/news-resources/newsroom/govt-continues-to-review-srs-regularly/",
+   "source_quote": "SRS members with no other taxable income may withdraw up to $40,000 per year tax-free, and over the 10-year withdrawal period, can withdraw up to $400,000 without incurring any tax. (Returned by a mof.gov.sg-pinned search; exact newsroom page not itemised - may instead be the 'Tax-Free Withdrawals from SRS Accounts' or 'Reviewing the SRS' reply.)",
+   "confidence": "medium"
+  },
+  {
+   "id": "srs-premature-withdrawal-penalty",
+   "claim": "Withdrawals before the prescribed retirement age are 100% taxable and attract a 5% penalty.",
+   "value": "100% of the withdrawal taxable + 5% penalty on the amount withdrawn",
+   "applies_to": "Premature withdrawals not covered by an exception",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/special-tax-schemes/tax-on-srs-withdrawals",
+   "source_quote": "IRAS table lists early withdrawals before the prescribed retirement age as 100% taxable with the 5% penalty applying. MOF: the 5% penalty is a deterrent against using the SRS as a tool to lower one's income tax.",
+   "confidence": "high"
+  },
+  {
+   "id": "srs-penalty-exceptions",
+   "claim": "The 5% penalty does not apply to withdrawals on death, on medical grounds, on bankruptcy, or to a qualifying full withdrawal by a foreigner.",
+   "value": "Exceptions: death; medical grounds; bankruptcy; foreigner one-time full withdrawal",
+   "applies_to": "Withdrawals before the prescribed retirement age",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/special-tax-schemes/tax-on-srs-withdrawals",
+   "source_quote": "Withdrawals made before the prescribed retirement age may result in penalties being imposed in most circumstances except those made under exceptional circumstances (death, medical grounds, bankruptcy, full withdrawal of the SRS balance by a foreigner).",
+   "confidence": "high"
+  },
+  {
+   "id": "srs-exception-taxable-share",
+   "claim": "The taxable share differs by exception: medical grounds 50%, foreigner lump-sum withdrawal 50%, bankruptcy 100%.",
+   "value": "Medical 50% taxable; foreigner full withdrawal 50% taxable; bankruptcy 100% taxable (no penalty)",
+   "applies_to": "Exceptional-circumstance withdrawals",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/special-tax-schemes/tax-on-srs-withdrawals",
+   "source_quote": "IRAS table: in the event of bankruptcy the full amount is taxable, while a withdrawal in one lump sum by a foreigner (with at least 10 years holding period) is 50% taxable; withdrawals on medical grounds are taxed at 50% with no penalty.",
+   "confidence": "high"
+  },
+  {
+   "id": "srs-foreigner-full-withdrawal-conditions",
+   "claim": "A foreigner can make a penalty-free withdrawal with 50% taxable only if not a Citizen/PR on the withdrawal date and for the preceding 10 continuous years, the account has been held at least 10 years from first contribution, and it is a one-time full withdrawal.",
+   "value": "10 years non-SC/PR status; account held >= 10 years; single full withdrawal; 50% taxable",
+   "applies_to": "Foreigners",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/special-tax-schemes/tax-on-srs-withdrawals",
+   "source_quote": "If you are a foreigner, you may apply to withdraw your SRS savings without penalty and have 50% of the amount fully withdrawn subject to tax if you: are neither a Singapore Citizen nor a SPR on the date of withdrawal and for a continuous period of 10 years preceding the date of withdrawal; have maintained your SRS account for at least 10 years; make a one-time full withdrawal from your SRS account.",
+   "confidence": "high"
+  },
+  {
+   "id": "srs-death-terminal-illness-400k-exemption",
+   "claim": "On death or a full withdrawal for terminal illness, up to S$400,000 is exempt from tax and only 50% of the remainder is taxable; the exemption is reduced if the 10-year withdrawal period has started.",
+   "value": "S$400,000 exemption (full if the 10-year period has not started; otherwise adjusted for prior withdrawals and years remaining)",
+   "applies_to": "Deemed withdrawal on death; full withdrawal on terminal illness",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/special-tax-schemes/tax-on-srs-withdrawals",
+   "source_quote": "only 50% of the sum standing in the SRS account after deducting the amount of deemed withdrawal upon death that is exempt from tax will be subject to income tax. SRS members who have not started the 10-year withdrawal period will enjoy the full tax exemption of $400,000. Otherwise, the exemption amount will be adjusted based on the prior withdrawals made, and the number of years remaining in the 10-year withdrawal period.",
+   "confidence": "medium"
+  },
+  {
+   "id": "srs-withholding-tax-foreigners-prs",
+   "claim": "SRS operators withhold tax on the taxable portion of withdrawals by foreigners and PRs at the 24% non-resident rate (15% concessionary rate in limited cases); Singapore Citizens have no withholding.",
+   "value": "24% on the taxable portion (50% or 100% of the withdrawal); 15% if cumulative withdrawals in the calendar year are at most S$200,000 and there is no other income; 0% withholding for Citizens",
+   "applies_to": "Withdrawals by foreigners and PRs (current rates)",
+   "source_url": "https://www.iras.gov.sg/taxes/withholding-tax/withdrawal-from-supplementary-retirement-scheme-(srs)-account-(foreigners-prs)/tax-obligations-for-srs-withdrawal",
+   "source_quote": "Search-result paraphrase: the withholding rate is the prevailing non-resident rate of 24%; the concessionary withholding tax rate of 15% will apply if cumulative withdrawals in the calendar year are at most $200,000 and there is no other income that year; withholding is a credit against final tax; a non-resident's final tax is 15% or the progressive resident rates, whichever is higher; the 5% penalty is separate.",
+   "confidence": "high"
+  },
+  {
+   "id": "srs-contributions-stop-after-first-withdrawal",
+   "claim": "No further SRS contributions can be made once the member starts withdrawing at/after the prescribed retirement age or on medical grounds.",
+   "value": "Contributions blocked after first penalty-free (retirement-age or medical) withdrawal",
+   "applies_to": "All SRS accounts",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/special-tax-schemes/srs-contributions",
+   "source_quote": "Search-result paraphrase of IRAS: contributions cannot be made once withdrawals start at or after the statutory retirement age prevailing at the first contribution, or on medical grounds.",
+   "confidence": "high"
+  },
+  {
+   "id": "srs-withdrawals-are-taxable-income",
+   "claim": "SRS is tax deferral, not exemption: the taxable share of each withdrawal (50% or 100%) is added to the member's income in the year of withdrawal.",
+   "value": "50% (retirement-age/medical/foreigner full withdrawal) or 100% (premature/bankruptcy) of the withdrawal is taxable income in the withdrawal year",
+   "applies_to": "Year of withdrawal",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/special-tax-schemes/tax-on-srs-withdrawals",
+   "source_quote": "Search-result paraphrase of IRAS: early withdrawals are taxed in full and carry a 5% penalty; withdrawals at or after the prescribed age, or on medical grounds, are taxed at 50% and carry no penalty.",
+   "confidence": "high"
+  },
+  {
+   "id": "srs-cash-interest-rate",
+   "claim": "Uninvested cash in an SRS account earns 0.05% p.a. at all three operators, and contributions are not invested automatically.",
+   "value": "0.05% per annum on uninvested SRS cash",
+   "applies_to": "Current (2026) at DBS, OCBC, UOB",
+   "source_url": "https://www.syfe.com/magazine/srs-investing-guide-in-singapore/",
+   "source_quote": "Search-result paraphrase across StashAway, Endowus, Syfe, Beansprout and others: DBS pays 0.05% p.a. on idle cash; all three operator banks offer the same 0.05% rate on uninvested SRS cash; contributing to SRS does not automatically invest your money. Per-URL attribution was not itemised; no bank or MOF page was retrieved.",
+   "confidence": "medium"
+  },
+  {
+   "id": "srs-permitted-investments",
+   "claim": "SRS funds can be invested in fixed deposits, Treasury bills, Singapore Savings Bonds, unit trusts, ETFs, insurance products and individual shares.",
+   "value": "Fixed deposits, T-bills, SSBs, unit trusts, ETFs, insurance, single shares",
+   "applies_to": "Current (2026)",
+   "source_url": "https://growbeansprout.com/srs-account-singapore-guide",
+   "source_quote": "Search-result paraphrase: the menu covers safer options (fixed deposits, Treasury bills, and Singapore Savings Bonds) to unit trusts, exchange-traded funds, insurance, and single shares. Official list and exclusions were not retrieved.",
+   "confidence": "medium"
+  },
+  {
+   "id": "srs-investment-returns-tax-deferred",
+   "claim": "Investment returns inside the SRS account are not taxed as they accrue; tax arises only on withdrawal, on 50% of the amount for qualifying retirement withdrawals.",
+   "value": "Returns accumulate untaxed until withdrawal",
+   "applies_to": "Current (2026)",
+   "source_url": "https://www.syfe.com/magazine/srs-investing-guide-in-singapore/",
+   "source_quote": "Search-result paraphrase: investment returns are not taxed before withdrawal, and only 50% of the amount withdrawn is taxable on qualifying retirement withdrawals. Per-URL attribution not itemised; no official page retrieved for this wording.",
+   "confidence": "medium"
+  }
+ ],
+ "worked_examples": [
+  {
+   "description": "MOF's tax-free withdrawal illustration: member with no other taxable income withdraws S$40,000 a year at/after the prescribed retirement age.",
+   "inputs": "Annual SRS withdrawal S$40,000; no other taxable income; withdrawals spread over the 10-year window",
+   "expected_outputs": "Taxable amount = 50% x S$40,000 = S$20,000 per year; income tax = S$0 each year; total S$400,000 withdrawn tax-free over 10 years",
+   "source_url": "https://www.mof.gov.sg/news-resources/newsroom/govt-continues-to-review-srs-regularly/",
+   "caveat": "The S$40,000/S$400,000 figures are MOF's statement. The underlying step (first S$20,000 of chargeable income taxed at 0% for residents) was not sourced in this topic and must be confirmed from the tax-rates research. Exact MOF newsroom page for the quote was not itemised by the search tool."
+  },
+  {
+   "description": "IRAS example: foreigner's SRS contribution is reported by the operator and relief is included automatically.",
+   "inputs": "Foreigner contributes S$20,000 to SRS in the year (cap S$35,700)",
+   "expected_outputs": "SRS operator transmits the contribution to IRAS; SRS relief of S$20,000 is included in the assessment without a claim",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/special-tax-schemes/srs-contributions",
+   "caveat": "Only a snippet of the IRAS example was returned by search; other inputs of the example (income, other reliefs, resulting tax) were not visible. Relief still requires tax residency for that YA."
+  },
+  {
+   "description": "Contribution year to YA mapping for the calculator.",
+   "inputs": "Contribution credited by 31 Dec 2025; contribution credited by 31 Dec 2026",
+   "expected_outputs": "31 Dec 2025 -> relief in YA2026; 31 Dec 2026 -> relief in YA2027",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/special-tax-schemes/srs-contributions",
+   "caveat": "IRAS text seen states the YA2026 case; YA2027 is the same rule applied one year on. Bank cut-off times before 31 Dec were not sourced."
+  },
+  {
+   "description": "Derived test case: retirement age locked in by date of first contribution in 2026.",
+   "inputs": "Case A: first-ever SRS contribution on 15 Jun 2026. Case B: first-ever SRS contribution on 1 Dec 2026.",
+   "expected_outputs": "Case A: prescribed retirement age 63. Case B: prescribed retirement age 64.",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/special-tax-schemes/srs-contributions",
+   "caveat": "Derived by applying the IRAS rule (age prevailing at first contribution; 64 effective 1 Jul 2026, previously 63). Not an official worked example; the explicit before/after split is stated only by secondary sources."
+  },
+  {
+   "description": "Derived test case: SRS contribution partly wasted by the S$80,000 relief cap.",
+   "inputs": "Citizen with S$75,000 of other personal reliefs contributes S$15,300 to SRS in 2026",
+   "expected_outputs": "Total reliefs claimed S$90,300; allowed S$80,000; only S$5,000 of the SRS contribution reduces chargeable income; S$10,300 is disregarded, cannot be carried forward and cannot be refunded",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs",
+   "caveat": "Derived from the IRAS cap, no-carry-forward and no-refund rules; not an official IRAS example."
+  },
+  {
+   "description": "Derived test case: premature withdrawal.",
+   "inputs": "Member below prescribed retirement age withdraws S$10,000, no exception applies",
+   "expected_outputs": "S$10,000 (100%) added to taxable income for that year; 5% penalty = S$500",
+   "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/special-tax-schemes/tax-on-srs-withdrawals",
+   "caveat": "Derived from the IRAS rule; for foreigners/PRs withholding tax at 24% of the taxable portion also applies and is separate from the penalty."
+  }
+ ],
+ "open_questions": [
+  "Budget 2025 and Budget 2026: no official confirmation was obtained that neither changed nor announced a review of the SRS caps; only one search of secondary 2026 guides found no change. Check singaporebudget.gov.sg / MOF Budget annexes.",
+  "2027 (YA2028) SRS contribution caps: nothing announced was found; unconfirmed whether S$15,300 / S$35,700 continue.",
+  "Statutory retirement age history: the date 63 took effect (1 Jul 2022 per the task brief) and the age for earlier first contributions (62 per an older MOF reply) were not verified - the MOM search was refused when the search budget ran out.",
+  "Bank cut-off dates and times for year-end SRS contributions at DBS/POSB, OCBC and UOB (and whether contributions made on 31 Dec or a non-business day count) were not sourced.",
+  "Official (MOF/IRAS) confirmation of the operator list, whether POSB is covered under DBS, and the exact one-account rule and its penalty - only secondary sources were found.",
+  "Official source for the 0.05% p.a. interest on uninvested SRS cash (bank rate pages could not be fetched).",
+  "Official list of permitted and excluded SRS investments (e.g. property, restrictions on insurance products) was not retrieved.",
+  "End of the 10-year window: treatment of the remaining balance (deemed withdrawal), the life-annuity exception and in-specie withdrawal of investments were not sourced.",
+  "One secondary source claims the contribution cap halves to S$7,650 from the year the member turns 66; no IRAS or MOF result supports this and it conflicts with the flat caps they publish - treat as unreliable until checked.",
+  "Whether there is any upper age limit on contributing (an MOF newsroom item titled 'SRS Contributions Age Limit Allows Withdrawals' exists but its content was not retrieved); IRAS only says contributions stop once penalty-free withdrawals begin.",
+  "Exact pro-rating formula for the cap when a foreigner becomes a PR mid-year, and the form/deadline of the foreigner annual declaration.",
+  "The IRAS SRS page text returned by search still showed the YA2026 wording (deadline 31 Dec 2025); the YA2027 wording (31 Dec 2026) should be confirmed on the live page.",
+  "The S$40,000 tax-free withdrawal logic depends on the resident rate schedule (0% on the first S$20,000 of chargeable income), which belongs to the tax-rates topic and was not sourced here.",
+  "Exact MOF page for two quotes (YA2018 start of the S$80,000 cap; S$40,000/S$400,000 statement) - the search tool returned them from mof.gov.sg without naming the page."
+ ]
+}
