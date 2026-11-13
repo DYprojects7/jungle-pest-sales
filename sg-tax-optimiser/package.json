@@ -1,0 +1,29 @@
+{
+  "name": "sg-tax-optimiser",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Singapore Tax Optimiser: SRS + CPF Contribution Planner (web calculator + Excel workbook)",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.10.6",
+    "@types/node": "^26.6.6",
+    "exceljs": "^4.4.0",
+    "fast-check": "^4.10.2",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vite": "^6.4.6",
+    "vite-plugin-singlefile": "^2.3.4",
+    "vitest": "^3.2.7"
+  },
+  "dependencies": {
+    "preact": "^11.2.0"
+  }
+}
