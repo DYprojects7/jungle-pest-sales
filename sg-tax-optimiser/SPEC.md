@@ -550,9 +550,9 @@ sentence is omitted when its figure is 0. `FOREIGNER_NO_CPF` mentions the SRS ca
 
 The cautions that cover what the tool cannot see (messages are normative; `{…}` are figures from the rules):
 
-- `TAX_RESIDENCY_CHECK` — "You worked here for half the year or less. You are a tax resident only if you stayed or
-  worked in Singapore for at least 183 days (IRAS also counts a stay of 183 days that spans two years, and a work
-  pass valid for a year or more). Non-residents get no reliefs, so this plan would not apply."
+- `TAX_RESIDENCY_CHECK` — "You worked here for half the year or less. You are a tax resident only if you were in
+  Singapore for at least 183 days (IRAS has further rules for stays that span two years). Non-residents get no
+  reliefs, so this plan would not apply."
 - `SRS_NON_RESIDENT_WITHDRAWAL` — "If you have left Singapore when you withdraw, SRS is taxed as a non-resident's:
   at least 7.5 cents per dollar withdrawn at retirement age or under the 10-year rule for foreigners, and at least
   20 cents if earlier." When `lowValueAmount > 0` it adds " {lowValueAmount} of this plan saves less than 7.5
@@ -560,8 +560,8 @@ The cautions that cover what the tool cannot see (messages are normative; `{…}
   ladder tiers (§6.7) whose rate is below 0.075.
 - `CPF_SELF_ROOM_UNCONFIRMED` — "From age 55 the CPF Board accepts top-ups up to the Enhanced Retirement Sum
   ({ERS}), but only the part up to the Full Retirement Sum ({FRS}) earns relief, and a top-up cannot be reversed.
-  Your own CPF is left out until you enter how much you can still top up with relief (S$0 if you have reached this
-  year's Full Retirement Sum and your MediSave is full)."
+  Your own CPF is left out until you enter how much you can still top up with relief (S$0 if you have set aside
+  the Full Retirement Sum)."
 - `AGE_55_PLUS_TOPUP` — "From age 55, cash top-ups go to your Retirement Account and earn relief only up to the
   Full Retirement Sum ({FRS} in {year}). The plan uses the room you entered ({roomToLimit}); check it against your
   CPF Retirement dashboard."
@@ -686,7 +686,7 @@ deadline-passed state (past tense, no instruction to transfer, an offer to plan 
      labels state a figure, not a judgement ("worth it").
    - *Cash limit*: optional maximum to lock away this year. Because it decides whether the answer is one the person
      can afford, it is asked near the top ("How much cash can you spare this year?"), not at the end of the form.
-   - *Which first?* **Flexibility first** (SRS → CPF self → family) *(default)*, **CPF interest first**
+   - *Which first?* **Flexibility first** (SRS → CPF self → family) *(default)*, **Guaranteed interest first**
      (CPF self → SRS → family), **Family first** (family → SRS → CPF self). One-line explanation of each. No option
      is named for a guarantee: the CPF floor rate is stated with the date it runs to (§5.4).
 
@@ -707,8 +707,7 @@ tagged "Example value", and the panel names which example figures are still in u
    S$12,400 of your income is still taxed at 11.5%." / "You have reached the S$80,000 overall relief cap.").
    When the recommendation is S$0, the card explains why and offers the *Every tax dollar* view.
    The card also says **how long** the cash is locked, from `lockUpHorizon` (§7): "SRS: locked until 64, about 29
-   years. CPF: paid out monthly from 65, about 30 years. A MediSave top-up is not paid out: it can only pay for
-   healthcare." for a 35-year-old, only for schemes in the plan. The age
+   years. CPF: paid out monthly from 65, about 30 years" for a 35-year-old, only for schemes in the plan. The age
    is the one a first SRS contribution made this year locks in, so the card adds "If you have paid into SRS
    before, your SRS age was set by your first contribution and may be lower than 64.", and for a foreigner the SRS
    line ends "or until you can use the 10-year rule for foreigners if that comes first". When a foreigner's S$0
