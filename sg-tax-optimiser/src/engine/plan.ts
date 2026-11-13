@@ -34,6 +34,7 @@ export function planFor(input: SanitisedInput, rules: YearRules): PlannerResult 
   const optimisation = optimise(ctx);
   const { plan } = optimisation;
   const monthlyPlan = buildMonthlyPlan(ctx.input.today, rules, plan.contributions);
+  const ladder = buildLadder(ctx, plan.totalContribution);
 
   return {
     rules,
@@ -44,10 +45,10 @@ export function planFor(input: SanitisedInput, rules: YearRules): PlannerResult 
     levers: ctx.levers,
     reliefCapRoom: ctx.reliefCapRoom,
     plan,
-    ladder: buildLadder(ctx, plan.totalContribution),
+    ladder,
     simulator: buildSimulator(ctx, plan.totalContribution),
     scenarios: buildScenarios(ctx, plan),
     monthlyPlan,
-    warnings: buildWarnings(ctx, optimisation, monthlyPlan),
+    warnings: buildWarnings(ctx, optimisation, monthlyPlan, ladder),
   };
 }

@@ -23,6 +23,8 @@ Arithmetic
 Usage
 -----
     python3 sgtax_reference.py inputs.json      # JSON array in, JSON array out
+    python3 sgtax_reference.py --warning-order=table inputs.json
+                                                # warnings in the order of the SPEC 6.11 table
 
 Standard library only.
 """
@@ -38,6 +40,7 @@ from fractions import Fraction
 __all__ = [
     "SUPPORTED_INCOME_YEARS",
     "LEVER_IDS",
+    "WARNING_TABLE",
     "UnsupportedIncomeYear",
     "get_rules",
     "sanitise_input",
@@ -133,7 +136,7 @@ _PR_YEAR2_RATES = (
 )
 
 
-def _year(income_year, status, ow_ceiling, full_rates, frs, ers, bhs):
+def _year(income_year, status, ow_ceiling, full_rates, frs, ers, bhs, matched_medisave):
     return {
         "incomeYear": income_year,
         "ya": income_year + 1,
@@ -164,16 +167,23 @@ def _year(income_year, status, ow_ceiling, full_rates, frs, ers, bhs):
             "fullRetirementSum": frs,          # informational
             "enhancedRetirementSum": ers,      # informational
             "basicHealthcareSum": bhs,         # informational
+            # SPEC 5.4: the part of a top-up that the Government matches earns the giver no relief -
+            # the first S$2,000 a year under the Matched Retirement Savings Scheme, and (top-ups from
+            # 2026) the first S$1,000 a year to MediSave under the Matched MediSave Scheme.  Wording
+            # only: every top-up amount in the model already means the part that is not matched (6.3).
+            "matchedTopUps": {"retirementAnnualCap": 2_000, "mediSaveAnnualCap": matched_medisave},
+            "payoutEligibilityAge": 65,        # informational
         },
         "contributionDeadline": "%04d-12-31" % income_year,
     }
 
 
 RULES = {
-    2025: _year(2025, "final", 7_400, _FULL_RATES_2025, 213_000, 426_000, 75_500),
-    2026: _year(2026, "final", 8_000, _FULL_RATES_2026, 220_400, 440_800, 79_000),
+    # 2025: the Matched MediSave Scheme does not apply yet (SPEC 5.4: "not applicable").
+    2025: _year(2025, "final", 7_400, _FULL_RATES_2025, 213_000, 426_000, 75_500, None),
+    2026: _year(2026, "final", 8_000, _FULL_RATES_2026, 220_400, 440_800, 79_000, 1_000),
     # 2027: BHS not yet announced, the 2026 figure is carried forward (SPEC 5.4).
-    2027: _year(2027, "projected", 8_000, _FULL_RATES_2027, 228_200, 456_400, 79_000),
+    2027: _year(2027, "projected", 8_000, _FULL_RATES_2027, 228_200, 456_400, 79_000, 1_000),
 }
 
 SUPPORTED_INCOME_YEARS = tuple(sorted(RULES))
@@ -382,6 +392,8 @@ def sanitise_input(raw):
             "prYear": pr_year,
             "ageAtYearEnd": _clamped_int(profile.get("ageAtYearEnd"), 0, 120, 0),
             "birthMonth": _clamped_int(profile.get("birthMonth"), 1, 12, 12),
+            # SPEC 6.0: true only for the boolean true (1, "true", missing ... are all false).
+            "hasUnusedParenthoodTaxRebate": profile.get("hasUnusedParenthoodTaxRebate") is True,
         },
         "income": {
             "monthlyOrdinaryWage": _money(income.get("monthlyOrdinaryWage")),
@@ -618,6 +630,11 @@ def compute_cpf(input, rules=None):
 # SPEC 6.5 - levers: eligibility, caps and room
 # ---------------------------------------------------------------------------
 
+# SPEC 6.5: the age (on 31 December of the income year) from which the room for a top-up to one's
+# own CPF must be entered - the age at which the Retirement Account exists.
+_ROOM_CONFIRMATION_AGE = 55
+
+
 def _lever_rooms(s, rules):
     """Returns (levers dict incl. private `roomIfEnabled`, existing_exceeds_cap)."""
     prof = s["profile"]
@@ -649,6 +666,11 @@ def _lever_rooms(s, rules):
         room_if_enabled = max(0, cap - used)
         if user_limit[lever] is not None:
             room_if_enabled = min(room_if_enabled, user_limit[lever])
+        elif lever == "cpfSelf" and prof["ageAtYearEnd"] >= _ROOM_CONFIRMATION_AGE:
+            # SPEC 6.5 "Room must be confirmed from age 55": from 55 the CPF Board takes cash up to
+            # the Enhanced Retirement Sum while relief stops at the Full Retirement Sum, so a blank
+            # roomToLimit means "not confirmed", not "unlimited" - the lever has no room at all.
+            room_if_enabled = 0
         enabled = s["levers"][lever]["enabled"]
         out[lever] = {
             "statutoryCap": cap,
@@ -769,29 +791,39 @@ def _allocate(total, rooms, priority):
     return out
 
 
-_SEVERITY = {
-    "NO_TAX_PAYABLE": "info",
-    "RELIEF_CAP_EXCEEDED_BASELINE": "caution",
-    "RELIEF_CAP_LIMITS_PLAN": "caution",
-    "BELOW_MIN_SAVING_RATE": "info",
-    "BUDGET_LIMITS_PLAN": "info",
-    "LEVER_LIMITS_PLAN": "info",
-    "EXISTING_EXCEEDS_CAP": "caution",
-    "CPF_OVERRIDE_ABOVE_MAX": "caution",
-    "FOREIGNER_NO_CPF": "info",
-    "PR_GRADUATED_RATES": "info",
-    "AGE_55_PLUS_TOPUP": "info",
-    "SRS_UNDER_18": "caution",
-    "DEADLINE_PASSED": "blocker",
-    "DEADLINE_SOON": "caution",
-    "PROJECTED_RULES": "caution",
-    "PIT_REBATE_APPLIED": "info",
-}
+# SPEC 6.11 - the warnings table: (code, severity), in the order of the table.  "At most one
+# warning is emitted per code, in the order of the table."
+WARNING_TABLE = (
+    ("NO_TAX_PAYABLE", "info"),
+    ("RELIEF_CAP_EXCEEDED_BASELINE", "caution"),
+    ("RELIEF_CAP_LIMITS_PLAN", "caution"),
+    ("BELOW_MIN_SAVING_RATE", "info"),
+    ("BUDGET_LIMITS_PLAN", "info"),
+    ("LEVER_LIMITS_PLAN", "info"),
+    ("EXISTING_EXCEEDS_CAP", "caution"),
+    ("CPF_OVERRIDE_ABOVE_MAX", "caution"),
+    ("FOREIGNER_NO_CPF", "info"),
+    ("TAX_RESIDENCY_CHECK", "caution"),
+    ("SRS_NON_RESIDENT_WITHDRAWAL", "caution"),
+    ("PR_GRADUATED_RATES", "info"),
+    ("CPF_SELF_ROOM_UNCONFIRMED", "caution"),
+    ("AGE_55_PLUS_TOPUP", "info"),
+    ("FAMILY_TOPUP_CHECKS", "caution"),
+    ("PARENTHOOD_TAX_REBATE", "caution"),
+    ("SRS_UNDER_18", "caution"),
+    ("DEADLINE_PASSED", "blocker"),
+    ("DEADLINE_SOON", "caution"),
+    ("PROJECTED_RULES", "caution"),
+    ("PIT_REBATE_APPLIED", "info"),
+)
+
+# SPEC 6.11: a foreigner who worked this many months or fewer is asked to check tax residency.
+_RESIDENCY_CHECK_MONTHS = 6
 
 
 def plan(input):
     """Everything in one call (SPEC 6).  Mirrors PlannerResult without `rules` and `input`;
-    warnings are {"code", "severity"} only, sorted by code."""
+    warnings are {"code", "severity"} only, one per code, in the order of the SPEC 6.11 table."""
     p = _Profile(input)
     s = p.s
     rules = p.rules
@@ -992,6 +1024,16 @@ def plan(input):
 
     # --- 6.11 warnings -----------------------------------------------------
     prof = s["profile"]
+    foreigner = prof["residency"] == "foreigner"
+    lev_srs = p.levers["srs"]
+    lev_self = p.levers["cpfSelf"]
+    lev_family = p.levers["cpfFamily"]
+    # "roomToLimit provided" = it is a number after 6.0 sanitising (NaN, +/-Infinity and negative
+    # numbers are numbers: a limit of 0, which confirms a room of nothing).
+    room_provided = s["levers"]["cpfSelf"]["roomToLimit"] is not None
+    self_top_up_from_55 = (prof["ageAtYearEnd"] >= _ROOM_CONFIRMATION_AGE
+                           and lev_self["enabled"] and lev_self["eligible"])
+
     codes = set()
     if base_tax == 0:
         codes.add("NO_TAX_PAYABLE")
@@ -1009,12 +1051,22 @@ def plan(input):
         codes.add("EXISTING_EXCEEDS_CAP")
     if p.override_exceeded:
         codes.add("CPF_OVERRIDE_ABOVE_MAX")
-    if prof["residency"] == "foreigner":
+    if foreigner:
         codes.add("FOREIGNER_NO_CPF")
+    if foreigner and s["income"]["monthsWorked"] <= _RESIDENCY_CHECK_MONTHS:
+        codes.add("TAX_RESIDENCY_CHECK")
+    if foreigner and lev_srs["enabled"] and lev_srs["eligible"]:
+        codes.add("SRS_NON_RESIDENT_WITHDRAWAL")
     if prof["residency"] == "pr" and prof["prYear"] < 3:
         codes.add("PR_GRADUATED_RATES")
-    if prof["ageAtYearEnd"] >= 55 and p.levers["cpfSelf"]["enabled"] and p.levers["cpfSelf"]["eligible"]:
+    if self_top_up_from_55 and not room_provided:
+        codes.add("CPF_SELF_ROOM_UNCONFIRMED")
+    if self_top_up_from_55 and room_provided:
         codes.add("AGE_55_PLUS_TOPUP")
+    if lev_family["eligible"] and (contributions["cpfFamily"] > 0 or s["existing"]["cpfTopUpFamily"] > 0):
+        codes.add("FAMILY_TOPUP_CHECKS")
+    if prof["hasUnusedParenthoodTaxRebate"]:
+        codes.add("PARENTHOOD_TAX_REBATE")
     if prof["ageAtYearEnd"] < 18:
         codes.add("SRS_UNDER_18")
     if days_to_deadline < 0:
@@ -1025,7 +1077,7 @@ def plan(input):
         codes.add("PROJECTED_RULES")
     if baseline["pitRebate"] > 0:
         codes.add("PIT_REBATE_APPLIED")
-    warnings = [{"code": code, "severity": _SEVERITY[code]} for code in sorted(codes)]
+    warnings = [{"code": code, "severity": severity} for code, severity in WARNING_TABLE if code in codes]
 
     levers_out = {
         lever: {key: value for key, value in p.levers[lever].items() if not key.startswith("_")}
@@ -1072,7 +1124,13 @@ def default_input(today):
     return {
         "incomeYear": default_income_year(today),
         "today": today,
-        "profile": {"residency": "citizen", "prYear": 3, "ageAtYearEnd": 35, "birthMonth": 12},
+        "profile": {
+            "residency": "citizen",
+            "prYear": 3,
+            "ageAtYearEnd": 35,
+            "birthMonth": 12,
+            "hasUnusedParenthoodTaxRebate": False,
+        },
         "income": {
             "monthlyOrdinaryWage": 10_000,
             "monthsWorked": 12,
@@ -1102,14 +1160,26 @@ def default_input(today):
 # CLI
 # ---------------------------------------------------------------------------
 
-def run_batch(inputs):
-    """plan() for each input; errors become {"error": ...} elements."""
+WARNING_ORDERS = ("code", "table")
+
+
+def run_batch(inputs, warning_order="table"):
+    """plan() for each input; errors become {"error": ...} elements.
+
+    `warning_order` "table" leaves the warnings as plan() returns them, in the order of the SPEC 6.11
+    table; "code" sorts them by code (what the command line prints unless told otherwise).
+    """
+    if warning_order not in WARNING_ORDERS:
+        raise ValueError("warning_order must be one of %s" % ", ".join(WARNING_ORDERS))
     if isinstance(inputs, dict):
         inputs = [inputs]
     results = []
     for item in inputs:
         try:
-            results.append(plan(item))
+            result = plan(item)
+            if warning_order == "code":
+                result["warnings"] = sorted(result["warnings"], key=lambda warning: warning["code"])
+            results.append(result)
         except UnsupportedIncomeYear:
             results.append({"error": "unsupported incomeYear"})
         except (ValueError, OverflowError) as exc:
@@ -1118,17 +1188,32 @@ def run_batch(inputs):
     return results
 
 
+_USAGE = ("usage: python3 sgtax_reference.py [--warning-order=code|table] <inputs.json>   ('-' reads stdin)\n"
+          "       warnings are printed sorted by code unless --warning-order=table is given, which keeps\n"
+          "       the order of the SPEC 6.11 table\n")
+
+
 def main(argv=None):
     argv = sys.argv if argv is None else argv
-    if len(argv) != 2:
-        sys.stderr.write("usage: python3 sgtax_reference.py <inputs.json>   ('-' reads stdin)\n")
+    warning_order = "code"
+    paths = []
+    for argument in argv[1:]:
+        if argument.startswith("--warning-order="):
+            warning_order = argument[len("--warning-order="):]
+        elif argument.startswith("--"):
+            paths = []
+            break
+        else:
+            paths.append(argument)
+    if len(paths) != 1 or warning_order not in WARNING_ORDERS:
+        sys.stderr.write(_USAGE)
         return 2
-    if argv[1] == "-":
+    if paths[0] == "-":
         inputs = json.load(sys.stdin)
     else:
-        with open(argv[1], "r", encoding="utf-8") as handle:
+        with open(paths[0], "r", encoding="utf-8") as handle:
             inputs = json.load(handle)
-    json.dump(run_batch(inputs), sys.stdout, allow_nan=False)
+    json.dump(run_batch(inputs, warning_order), sys.stdout, allow_nan=False)
     sys.stdout.write("\n")
     return 0
 

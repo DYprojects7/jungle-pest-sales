@@ -10,6 +10,7 @@ Every expected number in this file was worked out by hand from SPEC.md
 the implementation's output.
 """
 
+import collections
 import copy
 import json
 import math
@@ -62,6 +63,43 @@ def make(changes=None):
 
 def codes(result):
     return [w["code"] for w in result["warnings"]]
+
+
+# SPEC 6.11, typed from the table a second time (the reference holds its own copy): code, severity.
+SPEC_WARNING_TABLE = [
+    ("NO_TAX_PAYABLE", "info"),
+    ("RELIEF_CAP_EXCEEDED_BASELINE", "caution"),
+    ("RELIEF_CAP_LIMITS_PLAN", "caution"),
+    ("BELOW_MIN_SAVING_RATE", "info"),
+    ("BUDGET_LIMITS_PLAN", "info"),
+    ("LEVER_LIMITS_PLAN", "info"),
+    ("EXISTING_EXCEEDS_CAP", "caution"),
+    ("CPF_OVERRIDE_ABOVE_MAX", "caution"),
+    ("FOREIGNER_NO_CPF", "info"),
+    ("TAX_RESIDENCY_CHECK", "caution"),
+    ("SRS_NON_RESIDENT_WITHDRAWAL", "caution"),
+    ("PR_GRADUATED_RATES", "info"),
+    ("CPF_SELF_ROOM_UNCONFIRMED", "caution"),
+    ("AGE_55_PLUS_TOPUP", "info"),
+    ("FAMILY_TOPUP_CHECKS", "caution"),
+    ("PARENTHOOD_TAX_REBATE", "caution"),
+    ("SRS_UNDER_18", "caution"),
+    ("DEADLINE_PASSED", "blocker"),
+    ("DEADLINE_SOON", "caution"),
+    ("PROJECTED_RULES", "caution"),
+    ("PIT_REBATE_APPLIED", "info"),
+]
+SPEC_SEVERITY = dict(SPEC_WARNING_TABLE)
+SPEC_WARNING_ORDER = [code for code, _severity in SPEC_WARNING_TABLE]
+
+
+def warned(codes_in_order):
+    """The warnings list for these codes, with the severities of the SPEC 6.11 table."""
+    return [{"code": code, "severity": SPEC_SEVERITY[code]} for code in codes_in_order]
+
+
+def without_warnings(result):
+    return {key: value for key, value in result.items() if key != "warnings"}
 
 
 def scenario(result, scenario_id):
@@ -241,7 +279,8 @@ class AppendixA1(MoneyAssertions):
 # Appendix A.2
 # ---------------------------------------------------------------------------
 
-def a2_input():
+def a2b_input():
+    """Appendix A.2b: the A.2 person with the CPF (self) room left blank."""
     return make({
         "profile.residency": "pr",
         "profile.prYear": 3,
@@ -257,6 +296,13 @@ def a2_input():
         "preferences.minSavingRate": 0,
         "preferences.priority": ["cpfSelf", "srs", "cpfFamily"],
     })
+
+
+def a2_input():
+    """Appendix A.2: at 57 the room must be entered (SPEC 6.5) - roomToLimit 50,000."""
+    inp = a2b_input()
+    inp["levers"]["cpfSelf"]["roomToLimit"] = 50000
+    return inp
 
 
 class AppendixA2(MoneyAssertions):
@@ -295,8 +341,9 @@ class AppendixA2(MoneyAssertions):
         lev = self.r["levers"]
         self.assertEqual(lev["srs"]["used"], 5000)
         self.assertEqual(lev["srs"]["room"], 10300)
-        self.assertEqual(lev["cpfSelf"]["room"], 8000)
+        self.assertEqual(lev["cpfSelf"]["room"], 8000)      # min(8,000 cap, the 50,000 entered)
         self.assertEqual(lev["cpfFamily"]["room"], 8000)
+        self.assertEqual(sum(lev[k]["room"] for k in ref.LEVER_IDS), 26300)   # L
 
     def test_u_c_l_b_and_binding(self):
         self.assertEqual(self.r["reliefCapRoom"], 20640)
@@ -358,10 +405,133 @@ class AppendixA2(MoneyAssertions):
         ])
 
     def test_warnings(self):
+        # "Warnings (in order)": BUDGET_LIMITS_PLAN, AGE_55_PLUS_TOPUP, FAMILY_TOPUP_CHECKS
         self.assertEqual(self.r["warnings"], [
-            {"code": "AGE_55_PLUS_TOPUP", "severity": "info"},
             {"code": "BUDGET_LIMITS_PLAN", "severity": "info"},
+            {"code": "AGE_55_PLUS_TOPUP", "severity": "info"},
+            {"code": "FAMILY_TOPUP_CHECKS", "severity": "caution"},
         ])
+
+
+# ---------------------------------------------------------------------------
+# Appendix A.2b - the same person with the CPF room left blank
+# ---------------------------------------------------------------------------
+
+class AppendixA2b(MoneyAssertions):
+    @classmethod
+    def setUpClass(cls):
+        cls.r = ref.plan(a2b_input())
+
+    def test_the_baseline_is_that_of_a2(self):
+        a2 = ref.plan(a2_input())
+        self.assertEqual(self.r["cpf"], a2["cpf"])
+        self.assertEqual(self.r["baseline"], a2["baseline"])
+        self.assertEqual(self.r["cpf"]["employeeContribution"], 18360)
+        self.assertEqual(self.r["baseline"]["reliefs"]["totalBeforeCap"], 59360)
+        self.assertEqual(self.r["baseline"]["chargeableIncome"], 148640)
+        self.assertMoney(self.r["baseline"]["taxPayable"], 12246.00)
+        self.assertEqual(self.r["reliefCapRoom"], 20640)
+
+    def test_cpf_self_room_is_zero(self):
+        lev = self.r["levers"]
+        self.assertEqual(lev["cpfSelf"], {"statutoryCap": 8000, "used": 0, "room": 0, "eligible": True, "enabled": True})
+        self.assertEqual(lev["srs"]["room"], 10300)
+        self.assertEqual(lev["cpfFamily"]["room"], 8000)
+        self.assertEqual(sum(lev[k]["room"] for k in ref.LEVER_IDS), 18300)   # L = 10,300 + 0 + 8,000
+
+    def test_x_and_binding(self):
+        # X = min(U 128,640, C 20,640, L 18,300, B 20,000) = 18,300, binding leverLimits
+        self.assertEqual(self.r["plan"]["totalContribution"], 18300)
+        self.assertEqual(self.r["plan"]["bindingConstraint"], "leverLimits")
+
+    def test_plan_split(self):
+        self.assertEqual(self.r["plan"]["contributions"], {"srs": 10300, "cpfSelf": 0, "cpfFamily": 8000})
+
+    def test_tax_after(self):
+        plan = self.r["plan"]
+        self.assertEqual(plan["chargeableIncomeAfter"], 130340)
+        self.assertMoney(plan["taxBefore"], 12246.00)
+        self.assertMoney(plan["taxAfter"], 9501.00)        # 7,950 + 15% x 10,340
+        self.assertMoney(plan["taxSaved"], 2745.00)
+        self.assertAlmostEqual(plan["savingRate"], 0.15, places=12)
+        self.assertEqual(plan["marginalRateBefore"], 0.15)
+        self.assertEqual(plan["marginalRateAfter"], 0.15)
+        opt = self.r["optimised"]["reliefs"]
+        self.assertEqual((opt["srs"], opt["cpfTopUpSelf"], opt["cpfTopUpFamily"]), (15300, 0, 8000))
+        self.assertEqual(opt["totalBeforeCap"], 59360 + 18300)
+
+    def test_unrealised_saving(self):
+        # N(X) - N(min(U, C)) = tax(130,340) - tax(148,640 - 20,640 = 128,000) = 9,501.00 - 9,150.00
+        self.assertMoney(self.r["plan"]["unrealisedSaving"], 351.00)
+
+    def test_ladder(self):
+        # L = 18,300 is inside the relief-cap room (20,640) and inside the 15% bracket: one tier.
+        self.assertEqual(len(self.r["ladder"]), 1)
+        tier = self.r["ladder"][0]
+        self.assertEqual((tier["fromContribution"], tier["toContribution"], tier["amount"]), (0, 18300, 18300))
+        self.assertEqual(tier["rate"], 0.15)
+        self.assertMoney(tier["taxSaved"], 2745.00)
+        self.assertMoney(tier["cumulativeTaxSaved"], 2745.00)
+        self.assertEqual(tier["usedByPlan"], 18300)
+        self.assertNotIn("zeroReason", tier)
+
+    def test_simulator(self):
+        sim = self.r["simulator"]
+        self.assertEqual([row["contribution"] for row in sim], [i * 1000 for i in range(19)] + [18300])
+        # priority cpfSelf -> srs -> cpfFamily, with nothing for cpfSelf at any step
+        self.assertTrue(all(row["split"]["cpfSelf"] == 0 for row in sim))
+        self.assertEqual(sim[10]["split"], {"srs": 10000, "cpfSelf": 0, "cpfFamily": 0})
+        self.assertEqual(sim[11]["split"], {"srs": 10300, "cpfSelf": 0, "cpfFamily": 700})
+        self.assertEqual(sim[19]["split"], {"srs": 10300, "cpfSelf": 0, "cpfFamily": 8000})
+        self.assertMoney(sim[1]["taxSaved"], 150.00)
+        self.assertMoney(sim[19]["taxSaved"], 2745.00)
+        self.assertMoney(sim[19]["stepSaving"], 45.00)     # 15% x the last 300
+        self.assertTrue(all(row["withinPlan"] for row in sim))
+
+    def test_scenarios(self):
+        # roomIfEnabled(cpfSelf) = 0, so "CPF only" has nothing in it and "SRS + CPF" is SRS alone.
+        own = scenario(self.r, "cpfSelfOnly")
+        self.assertEqual(own["contributions"], {"srs": 0, "cpfSelf": 0, "cpfFamily": 0})
+        self.assertEqual(own["totalContribution"], 0)
+        self.assertMoney(own["taxPayable"], 12246.00)
+        self.assertMoney(own["taxSaved"], 0)
+        self.assertEqual(own["savingRate"], 0)
+        self.assertEqual(own["wastedContribution"], 0)
+        # 148,640 - 10,300 = 138,340 -> 7,950 + 15% x 18,340 = 10,701.00
+        for sid in ("srsOnly", "srsPlusCpfSelf"):
+            s = scenario(self.r, sid)
+            self.assertEqual(s["contributions"], {"srs": 10300, "cpfSelf": 0, "cpfFamily": 0}, sid)
+            self.assertMoney(s["taxPayable"], 10701.00, sid)
+            self.assertMoney(s["taxSaved"], 1545.00, sid)
+            self.assertEqual(s["wastedContribution"], 0, sid)
+        for sid in ("maxAll", "recommended"):
+            s = scenario(self.r, sid)
+            self.assertEqual(s["contributions"], {"srs": 10300, "cpfSelf": 0, "cpfFamily": 8000}, sid)
+            self.assertEqual(s["totalContribution"], 18300, sid)
+            self.assertMoney(s["taxSaved"], 2745.00, sid)
+            self.assertEqual(s["wastedContribution"], 0, sid)     # 18,300 is within U(0) and C
+
+    def test_monthly_plan(self):
+        mp = self.r["monthlyPlan"]
+        self.assertEqual(mp["schedule"], [
+            {"month": "2026-11", "amounts": {"srs": 5150, "cpfSelf": 0, "cpfFamily": 4000}, "total": 9150},
+            {"month": "2026-12", "amounts": {"srs": 5150, "cpfSelf": 0, "cpfFamily": 4000}, "total": 9150},
+        ])
+        # ceil(10,300 / 12) = 859; ceil(8,000 / 12) = 667
+        self.assertEqual(mp["fullYearMonthly"], {"srs": 859, "cpfSelf": 0, "cpfFamily": 667, "total": 1526})
+
+    def test_warnings(self):
+        # "Warnings (in order)": LEVER_LIMITS_PLAN, CPF_SELF_ROOM_UNCONFIRMED, FAMILY_TOPUP_CHECKS
+        self.assertEqual(self.r["warnings"], [
+            {"code": "LEVER_LIMITS_PLAN", "severity": "info"},
+            {"code": "CPF_SELF_ROOM_UNCONFIRMED", "severity": "caution"},
+            {"code": "FAMILY_TOPUP_CHECKS", "severity": "caution"},
+        ])
+
+    def test_explicit_null_is_the_same_as_missing(self):
+        inp = a2b_input()
+        inp["levers"]["cpfSelf"]["roomToLimit"] = None
+        self.assertEqual(ref.plan(inp), self.r)
 
 
 # ---------------------------------------------------------------------------
@@ -625,6 +795,15 @@ class TaxTable(MoneyAssertions):
             self.assertEqual(rules["cpf"]["annualWageCeiling"], 102000)
             self.assertEqual(rules["contributionDeadline"], "%d-12-31" % y)
             self.assertEqual(rules["srs"], {"capCitizenPr": 15300, "capForeigner": 35700, "minAge": 18})
+            # SPEC 5.4: matched part of a top-up (no relief) and the payout eligibility age
+            self.assertEqual(rules["cpfTopUp"]["matchedTopUps"]["retirementAnnualCap"], 2000)
+            self.assertEqual(rules["cpfTopUp"]["payoutEligibilityAge"], 65)
+        self.assertEqual([ref.get_rules(y)["cpfTopUp"]["matchedTopUps"]["mediSaveAnnualCap"] for y in (2025, 2026, 2027)],
+                         [None, 1000, 1000])
+        self.assertEqual([ref.get_rules(y)["cpfTopUp"]["fullRetirementSum"] for y in (2025, 2026, 2027)],
+                         [213000, 220400, 228200])
+        self.assertEqual([ref.get_rules(y)["cpfTopUp"]["enhancedRetirementSum"] for y in (2025, 2026, 2027)],
+                         [426000, 440800, 456400])
         with self.assertRaises(ref.UnsupportedIncomeYear):
             ref.get_rules(2024)
         with self.assertRaises(ref.UnsupportedIncomeYear):
@@ -934,7 +1113,8 @@ class PlanEdgeCases(MoneyAssertions):
         self.assertAlmostEqual(plan["savingRate"], 5925.0 / 35700, places=12)
         # min(U, C) = min(139,000, 79,000) -> CI 100,000 -> 3,350 + 11.5% x 20,000 = 5,650
         self.assertMoney(plan["unrealisedSaving"], 11445.00 - 5650.00)
-        self.assertEqual(codes(r), ["FOREIGNER_NO_CPF", "LEVER_LIMITS_PLAN"])
+        # table order; SRS is on for a foreigner of 40, who worked all 12 months
+        self.assertEqual(codes(r), ["LEVER_LIMITS_PLAN", "FOREIGNER_NO_CPF", "SRS_NON_RESIDENT_WITHDRAWAL"])
         # scenarios respect eligibility: cpfSelfOnly contributes nothing
         self.assertEqual(scenario(r, "cpfSelfOnly")["totalContribution"], 0)
         self.assertEqual(scenario(r, "srsPlusCpfSelf")["totalContribution"], 35700)
@@ -965,7 +1145,8 @@ class PlanEdgeCases(MoneyAssertions):
         self.assertEqual(r["plan"]["contributions"], {"srs": 0, "cpfSelf": 0, "cpfFamily": 0})
         self.assertEqual(r["plan"]["bindingConstraint"], "leverLimits")     # tax payable, L = 0
         self.assertMoney(r["plan"]["taxSaved"], 0)
-        self.assertEqual(codes(r), ["FOREIGNER_NO_CPF", "LEVER_LIMITS_PLAN"])
+        # SRS is off (no SRS caution) and the family lever is not open to a foreigner (no family caution)
+        self.assertEqual(codes(r), ["LEVER_LIMITS_PLAN", "FOREIGNER_NO_CPF"])
         self.assertEqual(scenario(r, "maxAll")["contributions"], {"srs": 35700, "cpfSelf": 0, "cpfFamily": 0})
         self.assertEqual(r["ladder"], [])
         self.assertEqual(len(r["simulator"]), 1)
@@ -1013,7 +1194,7 @@ class PlanEdgeCases(MoneyAssertions):
         self.assertEqual([(t["fromContribution"], t["toContribution"], t["rate"]) for t in r["ladder"]],
                          [(0, 10000, 0.18), (10000, 35700, 0.15)])
         self.assertMoney(r["ladder"][1]["taxSaved"], 3855.00)
-        self.assertEqual(codes(r), ["FOREIGNER_NO_CPF"])
+        self.assertEqual(codes(r), ["FOREIGNER_NO_CPF", "SRS_NON_RESIDENT_WITHDRAWAL"])
         # exactly at the bracket rate the bracket still qualifies (rate >= r)
         inp["preferences"]["minSavingRate"] = 0.18
         self.assertEqual(ref.plan(inp)["plan"]["totalContribution"], 10000)
@@ -1096,7 +1277,7 @@ class PlanEdgeCases(MoneyAssertions):
         self.assertEqual(r["baseline"]["chargeableIncome"], 93300)
         self.assertMoney(r["baseline"]["taxPayable"], 4879.50)
         self.assertEqual(r["plan"]["contributions"], {"srs": 0, "cpfSelf": 8000, "cpfFamily": 0})
-        self.assertEqual(codes(r), ["EXISTING_EXCEEDS_CAP", "LEVER_LIMITS_PLAN"])
+        self.assertEqual(codes(r), ["LEVER_LIMITS_PLAN", "EXISTING_EXCEEDS_CAP"])
         self.assertIn({"code": "EXISTING_EXCEEDS_CAP", "severity": "caution"}, r["warnings"])
         # exactly at the cap is not "exceeds"
         self.assertNotIn("EXISTING_EXCEEDS_CAP", codes(ref.plan(make({"existing.srs": 15300}))))
@@ -1140,15 +1321,6 @@ class PlanEdgeCases(MoneyAssertions):
         self.assertEqual(r["ladder"][0]["zeroReason"], "belowTaxThreshold")
         self.assertEqual(r["ladder"][0]["toContribution"], 23300)
         self.assertEqual(scenario(r, "maxAll")["wastedContribution"], 23300)
-
-    def test_age_55_plus_top_up_warning(self):
-        self.assertIn({"code": "AGE_55_PLUS_TOPUP", "severity": "info"},
-                      ref.plan(make({"profile.ageAtYearEnd": 55}))["warnings"])
-        self.assertNotIn("AGE_55_PLUS_TOPUP", codes(ref.plan(make({"profile.ageAtYearEnd": 54}))))
-        self.assertNotIn("AGE_55_PLUS_TOPUP",
-                         codes(ref.plan(make({"profile.ageAtYearEnd": 60, "levers.cpfSelf.enabled": False}))))
-        self.assertNotIn("AGE_55_PLUS_TOPUP",
-                         codes(ref.plan(make({"profile.ageAtYearEnd": 60, "profile.residency": "foreigner"}))))
 
     def test_earned_income_relief(self):
         for age, amount in ((54, 1000), (55, 6000), (59, 6000), (60, 8000), (75, 8000)):
@@ -1231,6 +1403,393 @@ class PlanEdgeCases(MoneyAssertions):
 
 
 # ---------------------------------------------------------------------------
+# SPEC 6.5 - the room for a top-up to one's own CPF must be confirmed from age 55
+# ---------------------------------------------------------------------------
+
+class RoomFromAge55(MoneyAssertions):
+    """The Appendix A.1 person (S$10,000 x 12 + S$15,000, other reliefs 5,000, SRS and CPF self on) at 54 and 55.
+
+    Birth month 12 (the default), so at 55 the CPF rate is still 20% all year: CPF relief 20,400 at both ages.
+    Age 54: Earned Income Relief 1,000 -> the A.1 figures (chargeable income 108,600, tax 6,639.00).
+    Age 55: Earned Income Relief 6,000 -> reliefs 31,400, chargeable income 103,600,
+            tax 3,350 + 11.5% x 23,600 = 6,064.00; U(7%) = 63,600, C = 48,600.
+    """
+
+    def at(self, age, changes=None):
+        merged = {"profile.ageAtYearEnd": age}
+        merged.update(changes or {})
+        return ref.plan(make(merged))
+
+    def test_age_54_without_a_room_the_limit_does_not_bind(self):
+        r = self.at(54)
+        self.assertEqual(r["baseline"]["chargeableIncome"], 108600)
+        self.assertEqual(r["levers"]["cpfSelf"], {"statutoryCap": 8000, "used": 0, "room": 8000,
+                                                  "eligible": True, "enabled": True})
+        self.assertEqual(r["plan"]["contributions"], {"srs": 15300, "cpfSelf": 8000, "cpfFamily": 0})
+        self.assertMoney(r["plan"]["taxSaved"], 2679.50)
+        self.assertEqual(r["warnings"], warned(["LEVER_LIMITS_PLAN"]))
+        self.assertEqual(scenario(r, "cpfSelfOnly")["totalContribution"], 8000)
+
+    def test_age_55_without_a_room_nothing_goes_into_own_cpf(self):
+        r = self.at(55)
+        self.assertEqual(r["cpf"]["employeeContribution"], 20400)
+        self.assertEqual(r["baseline"]["reliefs"]["earnedIncome"], 6000)
+        self.assertEqual(r["baseline"]["reliefs"]["totalBeforeCap"], 31400)
+        self.assertEqual(r["baseline"]["chargeableIncome"], 103600)
+        self.assertMoney(r["baseline"]["taxPayable"], 6064.00)
+        self.assertEqual(r["levers"]["cpfSelf"], {"statutoryCap": 8000, "used": 0, "room": 0,
+                                                  "eligible": True, "enabled": True})
+        self.assertEqual(r["levers"]["srs"]["room"], 15300)
+        plan = r["plan"]
+        self.assertEqual(plan["contributions"], {"srs": 15300, "cpfSelf": 0, "cpfFamily": 0})
+        self.assertEqual(plan["totalContribution"], 15300)             # min(U 63,600, C 48,600, L 15,300)
+        self.assertEqual(plan["bindingConstraint"], "leverLimits")
+        self.assertEqual(plan["chargeableIncomeAfter"], 88300)
+        self.assertMoney(plan["taxAfter"], 4304.50)                    # 3,350 + 11.5% x 8,300
+        self.assertMoney(plan["taxSaved"], 1759.50)
+        # N(15,300) - N(min(U, C) = 48,600) = 4,304.50 - tax(55,000) = 4,304.50 - 1,600.00
+        self.assertMoney(plan["unrealisedSaving"], 2704.50)
+        self.assertEqual(r["warnings"], warned(["LEVER_LIMITS_PLAN", "CPF_SELF_ROOM_UNCONFIRMED"]))
+        self.assertEqual(r["warnings"][1]["severity"], "caution")
+        # everything that uses the room follows: ladder, simulator, scenarios, monthly plan
+        self.assertEqual([(t["fromContribution"], t["toContribution"], t["rate"]) for t in r["ladder"]],
+                         [(0, 15300, 0.115)])
+        self.assertMoney(r["ladder"][0]["taxSaved"], 1759.50)
+        self.assertEqual(len(r["simulator"]), 17)                       # 0, 1,000 ... 15,000, 15,300
+        self.assertEqual(r["simulator"][-1]["split"], {"srs": 15300, "cpfSelf": 0, "cpfFamily": 0})
+        self.assertEqual(scenario(r, "cpfSelfOnly")["totalContribution"], 0)
+        self.assertMoney(scenario(r, "cpfSelfOnly")["taxSaved"], 0)
+        self.assertEqual(scenario(r, "srsPlusCpfSelf")["contributions"], {"srs": 15300, "cpfSelf": 0, "cpfFamily": 0})
+        self.assertEqual(scenario(r, "maxAll")["contributions"], {"srs": 15300, "cpfSelf": 0, "cpfFamily": 0})
+        self.assertEqual([row["amounts"]["cpfSelf"] for row in r["monthlyPlan"]["schedule"]], [0, 0])
+        self.assertEqual(r["monthlyPlan"]["fullYearMonthly"], {"srs": 1275, "cpfSelf": 0, "cpfFamily": 0, "total": 1275})
+
+    def test_age_55_with_a_room_the_room_is_used(self):
+        r = self.at(55, {"levers.cpfSelf.roomToLimit": 8000})
+        self.assertEqual(r["levers"]["cpfSelf"]["room"], 8000)
+        self.assertEqual(r["plan"]["contributions"], {"srs": 15300, "cpfSelf": 8000, "cpfFamily": 0})
+        self.assertEqual(r["plan"]["chargeableIncomeAfter"], 80300)
+        self.assertMoney(r["plan"]["taxAfter"], 3384.50)               # 3,350 + 11.5% x 300
+        self.assertMoney(r["plan"]["taxSaved"], 2679.50)
+        self.assertEqual(r["warnings"], warned(["LEVER_LIMITS_PLAN", "AGE_55_PLUS_TOPUP"]))
+        self.assertEqual(r["warnings"][1]["severity"], "info")
+        self.assertEqual(scenario(r, "cpfSelfOnly")["totalContribution"], 8000)
+
+        r = self.at(55, {"levers.cpfSelf.roomToLimit": 3000})
+        self.assertEqual(r["levers"]["cpfSelf"]["room"], 3000)
+        self.assertEqual(r["plan"]["contributions"], {"srs": 15300, "cpfSelf": 3000, "cpfFamily": 0})
+        self.assertMoney(r["plan"]["taxAfter"], 3959.50)               # 85,300 -> 3,350 + 11.5% x 5,300
+        self.assertMoney(r["plan"]["taxSaved"], 2104.50)
+        self.assertEqual(codes(r), ["LEVER_LIMITS_PLAN", "AGE_55_PLUS_TOPUP"])
+
+    def test_any_number_confirms_the_room_and_the_cap_still_applies(self):
+        # "Entering any number - including one at or above S$8,000 - confirms it."
+        at_cap = self.at(55, {"levers.cpfSelf.roomToLimit": 8000})
+        for room in (8001, 20000, 50000, 10**9):
+            r = self.at(55, {"levers.cpfSelf.roomToLimit": room})
+            self.assertEqual(r, at_cap, room)
+        # cap - existing binds before the entered room: 8,000 - 6,000 = 2,000 < 5,000
+        r = self.at(55, {"levers.cpfSelf.roomToLimit": 5000, "existing.cpfTopUpSelf": 6000})
+        self.assertEqual(r["levers"]["cpfSelf"], {"statutoryCap": 8000, "used": 6000, "room": 2000,
+                                                  "eligible": True, "enabled": True})
+        self.assertEqual(r["plan"]["contributions"]["cpfSelf"], 2000)
+        # ... and the entered room binds before cap - existing: 1,500 < 2,000
+        r = self.at(55, {"levers.cpfSelf.roomToLimit": 1500, "existing.cpfTopUpSelf": 6000})
+        self.assertEqual(r["levers"]["cpfSelf"]["room"], 1500)
+        # with the room blank, what was already topped up still earns relief but nothing more is planned
+        r = self.at(55, {"existing.cpfTopUpSelf": 6000})
+        self.assertEqual(r["baseline"]["reliefs"]["cpfTopUpSelf"], 6000)
+        self.assertEqual(r["levers"]["cpfSelf"], {"statutoryCap": 8000, "used": 6000, "room": 0,
+                                                  "eligible": True, "enabled": True})
+        self.assertEqual(r["plan"]["contributions"]["cpfSelf"], 0)
+
+    def test_a_room_of_zero_is_a_confirmed_room(self):
+        blank = self.at(55)
+        zero = self.at(55, {"levers.cpfSelf.roomToLimit": 0})
+        self.assertEqual(zero["levers"]["cpfSelf"]["room"], 0)
+        self.assertEqual(without_warnings(zero), without_warnings(blank))      # the same plan to the cent
+        self.assertEqual(codes(zero), ["LEVER_LIMITS_PLAN", "AGE_55_PLUS_TOPUP"])
+        self.assertEqual(codes(blank), ["LEVER_LIMITS_PLAN", "CPF_SELF_ROOM_UNCONFIRMED"])
+
+    def test_what_counts_as_provided(self):
+        # SPEC 6.0: an optional limit applies only when it is a number.  Text, booleans, lists and
+        # objects are "not provided": at 55 that is a room of 0 and the request for the figure.
+        for junk in ("8000", "", True, False, [], [8000], {"amount": 8000}, None):
+            r = self.at(55, {"levers.cpfSelf.roomToLimit": junk})
+            self.assertEqual(r["levers"]["cpfSelf"]["room"], 0, repr(junk))
+            self.assertEqual(r["plan"]["contributions"]["cpfSelf"], 0, repr(junk))
+            self.assertEqual(codes(r), ["LEVER_LIMITS_PLAN", "CPF_SELF_ROOM_UNCONFIRMED"], repr(junk))
+        # NaN, +/-Infinity and negative numbers ARE numbers: a limit of 0, which counts as provided.
+        for number in (float("nan"), float("inf"), float("-inf"), -1, -0.5, 0.9):
+            r = self.at(55, {"levers.cpfSelf.roomToLimit": number})
+            self.assertEqual(r["levers"]["cpfSelf"]["room"], 0, repr(number))
+            self.assertEqual(codes(r), ["LEVER_LIMITS_PLAN", "AGE_55_PLUS_TOPUP"], repr(number))
+        # below 55 none of this matters: junk is "no limit"
+        for junk in ("8000", True, [], None):
+            r = self.at(54, {"levers.cpfSelf.roomToLimit": junk})
+            self.assertEqual(r["levers"]["cpfSelf"]["room"], 8000, repr(junk))
+            self.assertEqual(codes(r), ["LEVER_LIMITS_PLAN"], repr(junk))
+
+    def test_the_boundary_is_age_55_at_year_end(self):
+        for age, room in ((18, 8000), (53, 8000), (54, 8000), (55, 0), (56, 0), (59, 0), (60, 0), (65, 0), (99, 0), (120, 0)):
+            r = self.at(age)
+            self.assertEqual(r["levers"]["cpfSelf"]["room"], room, age)
+            self.assertEqual(r["plan"]["contributions"]["cpfSelf"], room, age)
+            self.assertEqual("CPF_SELF_ROOM_UNCONFIRMED" in codes(r), age >= 55, age)
+            self.assertNotIn("AGE_55_PLUS_TOPUP", codes(r), age)
+            given = self.at(age, {"levers.cpfSelf.roomToLimit": 2500})
+            self.assertEqual(given["levers"]["cpfSelf"]["room"], 2500, age)
+            self.assertEqual(given["plan"]["contributions"]["cpfSelf"], 2500, age)
+            self.assertEqual("AGE_55_PLUS_TOPUP" in codes(given), age >= 55, age)
+            self.assertNotIn("CPF_SELF_ROOM_UNCONFIRMED", codes(given), age)
+        # the age is the sanitised one: 54.99 is 54, 55.01 is 55
+        self.assertEqual(self.at(54.99)["levers"]["cpfSelf"]["room"], 8000)
+        self.assertEqual(self.at(55.01)["levers"]["cpfSelf"]["room"], 0)
+        # the birth month moves the CPF rate, not the room rule (it goes by the age at year end)
+        self.assertEqual(self.at(55, {"profile.birthMonth": 1})["levers"]["cpfSelf"]["room"], 0)
+        self.assertEqual(self.at(54, {"profile.birthMonth": 1})["levers"]["cpfSelf"]["room"], 8000)
+
+    def test_lever_switched_off(self):
+        # Neither caution: nothing is being recommended for the person's own CPF.  The scenarios ignore
+        # the enabled flag but not the room rule (SPEC 6.9: roomIfEnabled).
+        r = self.at(55, {"levers.cpfSelf.enabled": False})
+        self.assertEqual(r["levers"]["cpfSelf"], {"statutoryCap": 8000, "used": 0, "room": 0,
+                                                  "eligible": True, "enabled": False})
+        self.assertEqual(codes(r), ["LEVER_LIMITS_PLAN"])
+        self.assertEqual(scenario(r, "cpfSelfOnly")["totalContribution"], 0)
+        self.assertEqual(scenario(r, "srsPlusCpfSelf")["totalContribution"], 15300)
+        r = self.at(55, {"levers.cpfSelf.enabled": False, "levers.cpfSelf.roomToLimit": 4000})
+        self.assertEqual(codes(r), ["LEVER_LIMITS_PLAN"])
+        self.assertEqual(r["levers"]["cpfSelf"]["room"], 0)
+        self.assertEqual(scenario(r, "cpfSelfOnly")["totalContribution"], 4000)
+        self.assertEqual(scenario(r, "srsPlusCpfSelf")["totalContribution"], 19300)
+        r = self.at(54, {"levers.cpfSelf.enabled": False})
+        self.assertEqual(scenario(r, "cpfSelfOnly")["totalContribution"], 8000)
+        self.assertEqual(scenario(r, "srsPlusCpfSelf")["totalContribution"], 23300)
+
+    def test_foreigners_have_no_cpf_lever_at_any_age(self):
+        for changes in ({}, {"levers.cpfSelf.roomToLimit": 8000}):
+            merged = {"profile.residency": "foreigner"}
+            merged.update(changes)
+            r = self.at(60, merged)
+            self.assertEqual(r["levers"]["cpfSelf"], {"statutoryCap": 0, "used": 0, "room": 0,
+                                                      "eligible": False, "enabled": True})
+            self.assertNotIn("CPF_SELF_ROOM_UNCONFIRMED", codes(r))
+            self.assertNotIn("AGE_55_PLUS_TOPUP", codes(r))
+
+    def test_own_cpf_as_the_only_scheme(self):
+        # Age 55, only CPF (self) on, room blank: nothing can be recommended.  Tax 6,064.00 stays.
+        r = self.at(55, {"levers.srs.enabled": False})
+        self.assertEqual(r["plan"]["totalContribution"], 0)
+        self.assertEqual(r["plan"]["bindingConstraint"], "leverLimits")
+        self.assertMoney(r["plan"]["taxAfter"], 6064.00)
+        self.assertMoney(r["plan"]["unrealisedSaving"], 6064.00 - 1600.00)     # down to 55,000
+        self.assertEqual(r["ladder"], [])
+        self.assertEqual(len(r["simulator"]), 1)
+        self.assertEqual(r["monthlyPlan"]["schedule"], [])
+        self.assertEqual(codes(r), ["LEVER_LIMITS_PLAN", "CPF_SELF_ROOM_UNCONFIRMED"])
+        # 11 days before the deadline there is nothing to hurry for: no DEADLINE_SOON
+        soon = self.at(55, {"levers.srs.enabled": False, "today": "2026-12-20"})
+        self.assertEqual(codes(soon), ["LEVER_LIMITS_PLAN", "CPF_SELF_ROOM_UNCONFIRMED"])
+
+    def test_the_two_age_55_warnings_never_come_together(self):
+        for age in (54, 55, 70):
+            for enabled in (True, False):
+                for residency in ("citizen", "pr", "foreigner"):
+                    for room in ("absent", None, 0, 1, 8000, "8000"):
+                        changes = {"levers.cpfSelf.enabled": enabled, "profile.residency": residency}
+                        if room != "absent":
+                            changes["levers.cpfSelf.roomToLimit"] = room
+                        got = codes(self.at(age, changes))
+                        label = (age, enabled, residency, room)
+                        applies = age >= 55 and enabled and residency != "foreigner"
+                        provided = isinstance(room, int)
+                        self.assertEqual("CPF_SELF_ROOM_UNCONFIRMED" in got, applies and not provided, label)
+                        self.assertEqual("AGE_55_PLUS_TOPUP" in got, applies and provided, label)
+
+
+# ---------------------------------------------------------------------------
+# SPEC 6.11 - the cautions that cover what the tool cannot see
+# ---------------------------------------------------------------------------
+
+class CautionWarnings(MoneyAssertions):
+    def test_table_and_severities(self):
+        self.assertEqual(list(ref.WARNING_TABLE), SPEC_WARNING_TABLE)
+        self.assertEqual(len(set(SPEC_WARNING_ORDER)), 21)
+
+    def test_tax_residency_check(self):
+        # Foreigner on S$15,000 a month for 6 months: income 90,000, chargeable income 89,000,
+        # tax 3,350 + 11.5% x 9,000 = 4,385.00; U(7%) 49,000, C 79,000, L 35,700 -> X = 35,700.
+        inp = foreigner_input(15000)
+        inp["income"]["monthsWorked"] = 6
+        r = ref.plan(inp)
+        self.assertEqual(r["baseline"]["chargeableIncome"], 89000)
+        self.assertMoney(r["baseline"]["taxPayable"], 4385.00)
+        self.assertEqual(r["plan"]["totalContribution"], 35700)
+        self.assertEqual(r["warnings"], warned(["LEVER_LIMITS_PLAN", "FOREIGNER_NO_CPF", "TAX_RESIDENCY_CHECK",
+                                                "SRS_NON_RESIDENT_WITHDRAWAL"]))
+        self.assertIn({"code": "TAX_RESIDENCY_CHECK", "severity": "caution"}, r["warnings"])
+        # both sides of "monthsWorked <= 6" - on the sanitised figure (floored, clamped to 1...12, default 12)
+        for months, expected in ((1, True), (5, True), (6, True), (6.9, True), (7, False), (7.5, False), (12, False),
+                                 (0, True), (-3, True), (float("nan"), True), (13, False), (None, False), ("6", False)):
+            inp = foreigner_input(15000)
+            inp["income"]["monthsWorked"] = months
+            self.assertEqual("TAX_RESIDENCY_CHECK" in codes(ref.plan(inp)), expected, repr(months))
+        inp = foreigner_input(15000)
+        del inp["income"]["monthsWorked"]
+        self.assertNotIn("TAX_RESIDENCY_CHECK", codes(ref.plan(inp)))
+        # only foreigners are asked
+        for residency in ("citizen", "pr"):
+            r = ref.plan(make({"profile.residency": residency, "income.monthsWorked": 3}))
+            self.assertNotIn("TAX_RESIDENCY_CHECK", codes(r), residency)
+        # it does not depend on the SRS lever
+        inp = foreigner_input(15000)
+        inp["income"]["monthsWorked"] = 6
+        inp["levers"]["srs"]["enabled"] = False
+        self.assertEqual(codes(ref.plan(inp)), ["LEVER_LIMITS_PLAN", "FOREIGNER_NO_CPF", "TAX_RESIDENCY_CHECK"])
+
+    def test_srs_non_resident_withdrawal(self):
+        r = ref.plan(foreigner_input(15000))
+        self.assertIn({"code": "SRS_NON_RESIDENT_WITHDRAWAL", "severity": "caution"}, r["warnings"])
+        # SRS switched off
+        inp = foreigner_input(15000)
+        inp["levers"]["srs"]["enabled"] = False
+        self.assertNotIn("SRS_NON_RESIDENT_WITHDRAWAL", codes(ref.plan(inp)))
+        # "enabled" means the boolean true
+        inp["levers"]["srs"]["enabled"] = 1
+        self.assertNotIn("SRS_NON_RESIDENT_WITHDRAWAL", codes(ref.plan(inp)))
+        # not eligible: under 18 (and the under-18 caution comes later in the table)
+        inp = foreigner_input(15000)
+        inp["profile"]["ageAtYearEnd"] = 17
+        self.assertEqual(codes(ref.plan(inp)), ["LEVER_LIMITS_PLAN", "FOREIGNER_NO_CPF", "SRS_UNDER_18"])
+        inp["profile"]["ageAtYearEnd"] = 18
+        self.assertEqual(codes(ref.plan(inp)), ["LEVER_LIMITS_PLAN", "FOREIGNER_NO_CPF", "SRS_NON_RESIDENT_WITHDRAWAL"])
+        # citizens and PRs
+        for residency in ("citizen", "pr"):
+            self.assertNotIn("SRS_NON_RESIDENT_WITHDRAWAL", codes(ref.plan(make({"profile.residency": residency}))))
+        # it is about the scheme being on, not about money going in: S$35,700 already contributed, room 0
+        inp = foreigner_input(15000)
+        inp["existing"]["srs"] = 35700
+        r = ref.plan(inp)
+        self.assertEqual(r["plan"]["totalContribution"], 0)
+        self.assertIn("SRS_NON_RESIDENT_WITHDRAWAL", codes(r))
+
+    def test_family_top_up_checks(self):
+        # A.1 with the family lever on: L = 31,300 < U 68,600 and C 53,600, so 8,000 goes to family.
+        r = ref.plan(make({"levers.cpfFamily.enabled": True}))
+        self.assertEqual(r["plan"]["contributions"], {"srs": 15300, "cpfSelf": 8000, "cpfFamily": 8000})
+        self.assertEqual(r["warnings"], warned(["LEVER_LIMITS_PLAN", "FAMILY_TOPUP_CHECKS"]))
+        self.assertIn({"code": "FAMILY_TOPUP_CHECKS", "severity": "caution"}, r["warnings"])
+        # on, but the budget runs out before the family's turn (priority SRS first): nothing planned
+        r = ref.plan(make({"levers.cpfFamily.enabled": True, "preferences.cashBudget": 10000}))
+        self.assertEqual(r["plan"]["contributions"]["cpfFamily"], 0)
+        self.assertEqual(codes(r), ["BUDGET_LIMITS_PLAN"])
+        # one dollar for the family is enough
+        r = ref.plan(make({"levers.cpfFamily.enabled": True, "preferences.cashBudget": 23301}))
+        self.assertEqual(r["plan"]["contributions"]["cpfFamily"], 1)
+        self.assertEqual(codes(r), ["BUDGET_LIMITS_PLAN", "FAMILY_TOPUP_CHECKS"])
+        # on, with "most I would give" 0
+        r = ref.plan(make({"levers.cpfFamily.enabled": True, "levers.cpfFamily.maxAmount": 0}))
+        self.assertEqual(codes(r), ["LEVER_LIMITS_PLAN"])
+        # an existing family top-up is enough, lever on or off, even S$1
+        r = ref.plan(make({"existing.cpfTopUpFamily": 1}))
+        self.assertEqual(r["plan"]["contributions"]["cpfFamily"], 0)
+        self.assertEqual(codes(r), ["LEVER_LIMITS_PLAN", "FAMILY_TOPUP_CHECKS"])
+        r = ref.plan(make({"existing.cpfTopUpFamily": 8000, "levers.cpfFamily.enabled": True}))
+        self.assertEqual(r["levers"]["cpfFamily"]["room"], 0)
+        self.assertEqual(codes(r), ["LEVER_LIMITS_PLAN", "FAMILY_TOPUP_CHECKS"])
+        # the existing amount is the sanitised one
+        for nothing in (0, -5, 0.9, "8000", None):
+            r = ref.plan(make({"existing.cpfTopUpFamily": nothing}))
+            self.assertNotIn("FAMILY_TOPUP_CHECKS", codes(r), repr(nothing))
+        # PRs are eligible givers; foreigners are not (their top-up earns no relief at all)
+        r = ref.plan(make({"profile.residency": "pr", "existing.cpfTopUpFamily": 500}))
+        self.assertIn("FAMILY_TOPUP_CHECKS", codes(r))
+        r = ref.plan(make({"profile.residency": "foreigner", "existing.cpfTopUpFamily": 9000,
+                           "levers.cpfFamily.enabled": True}))
+        self.assertNotIn("FAMILY_TOPUP_CHECKS", codes(r))
+        # nothing recommended at all (A.3 at 7%): no caution
+        inp = a3_input(0.07)
+        inp["levers"]["cpfFamily"]["enabled"] = True
+        self.assertEqual(codes(ref.plan(inp)), ["BELOW_MIN_SAVING_RATE"])
+
+    def test_parenthood_tax_rebate(self):
+        base = ref.plan(base_input())
+        r = ref.plan(make({"profile.hasUnusedParenthoodTaxRebate": True}))
+        self.assertEqual(r["warnings"], warned(["LEVER_LIMITS_PLAN", "PARENTHOOD_TAX_REBATE"]))
+        self.assertIn({"code": "PARENTHOOD_TAX_REBATE", "severity": "caution"}, r["warnings"])
+        # the tick changes no figure (SPEC 1, 6.4): tax 6,639.00 -> 3,959.50 as in Appendix A.1
+        self.assertEqual(without_warnings(r), without_warnings(base))
+        self.assertMoney(r["plan"]["taxAfter"], 3959.50)
+        # true only for the boolean true
+        for value in (False, None, 1, 0, "true", "yes", "", [True], {"value": True}, 1.0):
+            r = ref.plan(make({"profile.hasUnusedParenthoodTaxRebate": value}))
+            self.assertEqual(r, base, repr(value))
+        # with no tax payable both messages are due, in table order
+        r = ref.plan(make({"profile.ageAtYearEnd": 25, "income.monthlyOrdinaryWage": 1500, "income.additionalWages": 0,
+                           "otherReliefs": 0, "profile.hasUnusedParenthoodTaxRebate": True}))
+        self.assertEqual(codes(r), ["NO_TAX_PAYABLE", "PARENTHOOD_TAX_REBATE"])
+
+    def test_order_foreigner_with_everything_wrong(self):
+        # Foreigner, 40, income year 2027 (projected), today 5 January 2028 (deadline passed), S$30,000 a
+        # month for 6 months = 180,000; S$40,000 already in SRS (cap 35,700); other reliefs 90,000; PTR ticked.
+        # Reliefs 1,000 + 35,700 + 90,000 = 126,700 -> 80,000 allowed, 46,700 lost; chargeable income 100,000;
+        # tax 3,350 + 11.5% x 20,000 = 5,650.00.  U(7%) 60,000, C 0, L 0 -> X 0; C and L tie at 0 -> reliefCap.
+        r = ref.plan(make({
+            "incomeYear": 2027, "today": "2028-01-05",
+            "profile.residency": "foreigner", "profile.ageAtYearEnd": 40, "profile.hasUnusedParenthoodTaxRebate": True,
+            "income.monthlyOrdinaryWage": 30000, "income.monthsWorked": 6, "income.additionalWages": 0,
+            "existing.srs": 40000, "otherReliefs": 90000,
+        }))
+        self.assertEqual(r["baseline"]["reliefs"]["lostToCap"], 46700)
+        self.assertEqual(r["baseline"]["chargeableIncome"], 100000)
+        self.assertMoney(r["baseline"]["taxPayable"], 5650.00)
+        self.assertEqual(r["plan"]["bindingConstraint"], "reliefCap")
+        self.assertEqual(r["warnings"], warned([
+            "RELIEF_CAP_EXCEEDED_BASELINE", "RELIEF_CAP_LIMITS_PLAN", "EXISTING_EXCEEDS_CAP", "FOREIGNER_NO_CPF",
+            "TAX_RESIDENCY_CHECK", "SRS_NON_RESIDENT_WITHDRAWAL", "PARENTHOOD_TAX_REBATE", "DEADLINE_PASSED",
+            "PROJECTED_RULES",
+        ]))
+
+    def test_order_second_year_pr_of_60(self):
+        # PR in the second year, 60 (birth month 12: still "above 55 to 60" all year), income year 2027,
+        # today 20 December 2027 (11 days left).  A.1 pay; CPF override 30,000 (above the 20,400 maximum);
+        # S$1,000 already given to family, family lever on; own CPF on with the room blank; budget 1,000; PTR.
+        # Reliefs 8,000 + 20,400 + 1,000 + 5,000 = 34,400; chargeable income 100,600;
+        # tax 3,350 + 11.5% x 20,600 = 5,719.00.  U 60,600, C 45,600, L 15,300 + 0 + 7,000 = 22,300, B 1,000.
+        r = ref.plan(make({
+            "incomeYear": 2027, "today": "2027-12-20",
+            "profile.residency": "pr", "profile.prYear": 2, "profile.ageAtYearEnd": 60,
+            "profile.hasUnusedParenthoodTaxRebate": True,
+            "income.employeeCpfOverride": 30000,
+            "existing.cpfTopUpFamily": 1000, "levers.cpfFamily.enabled": True,
+            "preferences.cashBudget": 1000,
+        }))
+        self.assertEqual(r["cpf"]["monthlyEmployeeRates"], [0.125] * 12)
+        self.assertEqual(r["baseline"]["reliefs"]["totalBeforeCap"], 34400)
+        self.assertEqual(r["baseline"]["chargeableIncome"], 100600)
+        self.assertMoney(r["baseline"]["taxPayable"], 5719.00)
+        self.assertEqual([r["levers"][k]["room"] for k in ref.LEVER_IDS], [15300, 0, 7000])
+        self.assertEqual(r["plan"]["contributions"], {"srs": 1000, "cpfSelf": 0, "cpfFamily": 0})
+        self.assertEqual(r["plan"]["bindingConstraint"], "cashBudget")
+        self.assertEqual(r["monthlyPlan"]["daysToDeadline"], 11)
+        self.assertEqual(r["warnings"], warned([
+            "BUDGET_LIMITS_PLAN", "CPF_OVERRIDE_ABOVE_MAX", "PR_GRADUATED_RATES", "CPF_SELF_ROOM_UNCONFIRMED",
+            "FAMILY_TOPUP_CHECKS", "PARENTHOOD_TAX_REBATE", "DEADLINE_SOON", "PROJECTED_RULES",
+        ]))
+        self.assertEqual([w["severity"] for w in r["warnings"]],
+                         ["info", "caution", "info", "caution", "caution", "caution", "caution", "caution"])
+
+    def test_order_under_18(self):
+        # The A.1 pay at 17 (no SRS), PTR ticked, looked at on 5 January 2027: CPF self 8,000 is all there is.
+        r = ref.plan(make({"profile.ageAtYearEnd": 17, "profile.hasUnusedParenthoodTaxRebate": True,
+                           "today": "2027-01-05"}))
+        self.assertEqual(r["plan"]["contributions"], {"srs": 0, "cpfSelf": 8000, "cpfFamily": 0})
+        self.assertEqual(r["warnings"], warned(["LEVER_LIMITS_PLAN", "PARENTHOOD_TAX_REBATE", "SRS_UNDER_18",
+                                                "DEADLINE_PASSED"]))
+
+
+# ---------------------------------------------------------------------------
 # Monthly plan and deadline
 # ---------------------------------------------------------------------------
 
@@ -1244,8 +1803,8 @@ class MonthlyPlanAndDeadline(MoneyAssertions):
         self.assertEqual(mp["fullYearMonthly"], {"srs": 1275, "cpfSelf": 667, "cpfFamily": 0, "total": 1942})
         self.assertEqual(r["plan"]["totalContribution"], 23300)   # the tax arithmetic does not change
         self.assertEqual(r["warnings"], [
-            {"code": "DEADLINE_PASSED", "severity": "blocker"},
             {"code": "LEVER_LIMITS_PLAN", "severity": "info"},
+            {"code": "DEADLINE_PASSED", "severity": "blocker"},
         ])
 
     def test_deadline_soon(self):
@@ -1328,7 +1887,8 @@ class Sanitising(unittest.TestCase):
 
     def test_defaults(self):
         s = ref.sanitise_input({"incomeYear": 2026, "today": TODAY})
-        self.assertEqual(s["profile"], {"residency": "citizen", "prYear": 3, "ageAtYearEnd": 0, "birthMonth": 12})
+        self.assertEqual(s["profile"], {"residency": "citizen", "prYear": 3, "ageAtYearEnd": 0, "birthMonth": 12,
+                                        "hasUnusedParenthoodTaxRebate": False})
         self.assertEqual(s["income"]["monthsWorked"], 12)
         self.assertIsNone(s["income"]["employeeCpfOverride"])
         self.assertIsNone(s["levers"]["cpfSelf"]["roomToLimit"])
@@ -1468,6 +2028,34 @@ class Sanitising(unittest.TestCase):
         self.assertEqual(round(r["plan"]["taxAfter"] * 100), 663_900)
         self.assertEqual([r["levers"][lever]["room"] for lever in ref.LEVER_IDS], [0, 0, 0])
 
+    def test_parenthood_tax_rebate_flag_is_true_only_for_the_boolean_true(self):
+        # SPEC 6.0: `profile.hasUnusedParenthoodTaxRebate` is true only for the boolean true, otherwise false.
+        def flag(value):
+            return ref.sanitise_input(make({"profile.hasUnusedParenthoodTaxRebate": value}))["profile"]["hasUnusedParenthoodTaxRebate"]
+        self.assertIs(flag(True), True)
+        for value in (False, None, 1, 0, 1.0, "true", "True", "yes", "", [True], [], {}, {"value": True}):
+            self.assertIs(flag(value), False, repr(value))
+        self.assertIs(ref.sanitise_input(base_input())["profile"]["hasUnusedParenthoodTaxRebate"], False)   # missing
+        self.assertIs(ref.sanitise_input({"incomeYear": 2026})["profile"]["hasUnusedParenthoodTaxRebate"], False)
+        self.assertIs(ref.sanitise_input({"incomeYear": 2026, "profile": "x"})["profile"]["hasUnusedParenthoodTaxRebate"], False)
+        # reported like the other profile fields, and stable under a second pass
+        once = ref.sanitise_input(make({"profile.hasUnusedParenthoodTaxRebate": True}))
+        self.assertEqual(once["profile"], {"residency": "citizen", "prYear": 3, "ageAtYearEnd": 35, "birthMonth": 12,
+                                           "hasUnusedParenthoodTaxRebate": True})
+        self.assertEqual(ref.sanitise_input(once), once)
+        self.assertIs(ref.default_input(TODAY)["profile"]["hasUnusedParenthoodTaxRebate"], False)
+
+    def test_room_to_limit_is_null_unless_it_is_a_number(self):
+        # What SPEC 6.5 and 6.11 call "provided": a number after sanitising.
+        def room(value):
+            return ref.sanitise_input(make({"levers.cpfSelf.roomToLimit": value}))["levers"]["cpfSelf"]["roomToLimit"]
+        for value in (None, "8000", "", True, False, [], {}):
+            self.assertIsNone(room(value), repr(value))
+        self.assertIsNone(ref.sanitise_input(base_input())["levers"]["cpfSelf"]["roomToLimit"])
+        for value, expected in ((0, 0), (1, 1), (7999.9, 7999), (50000, 50000), (-1, 0), (float("nan"), 0),
+                                (float("inf"), 0), (float("-inf"), 0)):
+            self.assertEqual(room(value), expected, repr(value))
+
 
 # ---------------------------------------------------------------------------
 # `today` (SPEC 6.0, 6.10)
@@ -1593,15 +2181,17 @@ class PublicTaxFunctions(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 class Cli(unittest.TestCase):
-    def test_cli_round_trip(self):
-        inputs = [base_input(), make({"incomeYear": 2030}), a2_input(), make({"incomeYear": 2024})]
+    def run_cli(self, inputs, *options, check=True):
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "inputs.json")
             with open(path, "w", encoding="utf-8") as handle:
                 json.dump(inputs, handle)
-            proc = subprocess.run([sys.executable, os.path.join(HERE, "sgtax_reference.py"), path],
-                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
-        out = json.loads(proc.stdout.decode("utf-8"))
+            return subprocess.run([sys.executable, os.path.join(HERE, "sgtax_reference.py"), *options, path],
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=check)
+
+    def test_cli_round_trip(self):
+        inputs = [base_input(), make({"incomeYear": 2030}), a2_input(), make({"incomeYear": 2024})]
+        out = json.loads(self.run_cli(inputs).stdout.decode("utf-8"))
         self.assertEqual(len(out), 4)
         self.assertEqual(out[1], {"error": "unsupported incomeYear"})
         self.assertEqual(out[3], {"error": "unsupported incomeYear"})
@@ -1609,6 +2199,45 @@ class Cli(unittest.TestCase):
         self.assertEqual(out[2]["plan"]["contributions"], {"cpfSelf": 8000, "srs": 10300, "cpfFamily": 1700})
         self.assertNotIn("rules", out[0])
         self.assertNotIn("input", out[0])
+
+    def test_cli_warning_order(self):
+        inputs = [a2_input(), a2b_input(), make({"incomeYear": 2030})]
+        in_table_order = [["BUDGET_LIMITS_PLAN", "AGE_55_PLUS_TOPUP", "FAMILY_TOPUP_CHECKS"],
+                          ["LEVER_LIMITS_PLAN", "CPF_SELF_ROOM_UNCONFIRMED", "FAMILY_TOPUP_CHECKS"]]
+        # --warning-order=table: exactly what plan() returns, the order of the SPEC 6.11 table
+        out = json.loads(self.run_cli(inputs, "--warning-order=table").stdout.decode("utf-8"))
+        self.assertEqual([codes(result) for result in out[:2]], in_table_order)
+        self.assertEqual(out[0], json.loads(json.dumps(ref.plan(a2_input()))))
+        self.assertEqual(out[2], {"error": "unsupported incomeYear"})
+        self.assertEqual(out, json.loads(json.dumps(ref.run_batch(inputs))))
+        # the flag may also follow the file name
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "inputs.json")
+            with open(path, "w", encoding="utf-8") as handle:
+                json.dump(inputs, handle)
+            proc = subprocess.run([sys.executable, os.path.join(HERE, "sgtax_reference.py"), path, "--warning-order=table"],
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+        self.assertEqual(json.loads(proc.stdout.decode("utf-8")), out)
+        # default (and --warning-order=code): the same warnings sorted by code, nothing else different
+        for options in ((), ("--warning-order=code",)):
+            by_code = json.loads(self.run_cli(inputs, *options).stdout.decode("utf-8"))
+            self.assertEqual([codes(result) for result in by_code[:2]], [sorted(order) for order in in_table_order])
+            for sorted_result, table_result in zip(by_code[:2], out[:2]):
+                self.assertEqual(without_warnings(sorted_result), without_warnings(table_result))
+                self.assertEqual(sorted(sorted_result["warnings"], key=lambda w: w["code"]),
+                                 sorted(table_result["warnings"], key=lambda w: w["code"]))
+        self.assertEqual(ref.run_batch(inputs, "code"), ref.run_batch(inputs, warning_order="code"))
+        self.assertEqual([codes(result) for result in ref.run_batch(inputs, "code")[:2]],
+                         [sorted(order) for order in in_table_order])
+
+    def test_cli_usage_errors(self):
+        for options in (("--warning-order=alphabetical",), ("--no-such-option",), ("extra-file.json",)):
+            proc = self.run_cli([base_input()], *options, check=False)
+            self.assertEqual(proc.returncode, 2, options)
+            self.assertIn(b"usage", proc.stderr, options)
+            self.assertEqual(proc.stdout, b"", options)
+        with self.assertRaises(ValueError):
+            ref.run_batch([base_input()], "alphabetical")
 
     def test_json_null_optionals(self):
         text = json.dumps(make({"preferences.cashBudget": None, "levers.cpfSelf.roomToLimit": None,
@@ -1640,10 +2269,11 @@ def random_input(rng):
             "prYear": rng.choice([1, 2, 3]),
             "ageAtYearEnd": rng.choice([16, 17, 18, 30, 54, 55, 56, 59, 60, 61, 64, 65, 66, 69, 70, 71, 80]),
             "birthMonth": rng.randrange(1, 13),
+            "hasUnusedParenthoodTaxRebate": rng.choice([True, False, False, None, 1]),
         },
         "income": {
             "monthlyOrdinaryWage": wage,
-            "monthsWorked": rng.choice([12, 12, 12, 1, 5, 9]),
+            "monthsWorked": rng.choice([12, 12, 12, 1, 5, 6, 7, 9]),
             "additionalWages": rng.choice([0, 0, 3000, 25000, 120000]) + rng.randrange(0, 999),
             "otherTaxableIncome": rng.choice([0, 0, 0, 12345, 400000]),
             "employmentExpenses": rng.choice([0, 0, 0, 1500]),
@@ -1653,7 +2283,7 @@ def random_input(rng):
         "existing": {
             "srs": rng.choice([0, 0, 5000, 15300, 40000]),
             "cpfTopUpSelf": rng.choice([0, 0, 3000, 9000]),
-            "cpfTopUpFamily": rng.choice([0, 0, 8000]),
+            "cpfTopUpFamily": rng.choice([0, 0, 0, 1, 8000]),
         },
         "otherReliefs": rng.choice([0, 0, 5000, 30000, 60000, 90000]),
         "levers": {
@@ -1674,6 +2304,7 @@ class Invariants(MoneyAssertions):
     def test_random_inputs(self):
         rng = random.Random(8675309)
         brute_force_budget = 30
+        seen = collections.Counter()
         for case in range(600):
             inp = random_input(rng)
             r = ref.plan(inp)
@@ -1785,8 +2416,51 @@ class Invariants(MoneyAssertions):
                 self.assertTrue(x == 0 or mp["monthsRemaining"] == 0, label)
             self.assertEqual(mp["daysToDeadline"] < 0, "DEADLINE_PASSED" in codes(r), label)
 
-            # warnings are sorted and unique
-            self.assertEqual(codes(r), sorted(set(codes(r))), label)
+            # warnings: one per code, in the order of the SPEC 6.11 table, with the table's severities
+            got = codes(r)
+            self.assertEqual(len(set(got)), len(got), label)
+            self.assertEqual(got, [code for code in SPEC_WARNING_ORDER if code in set(got)], label)
+            self.assertEqual(r["warnings"], warned(got), label)
+
+            # SPEC 6.5: from 55 the room for one's own CPF must be entered; a room entered is never exceeded
+            age = inp["profile"]["ageAtYearEnd"]
+            residency = inp["profile"]["residency"]
+            citizen_or_pr = residency != "foreigner"
+            entered = inp["levers"]["cpfSelf"]["roomToLimit"]
+            self_on = inp["levers"]["cpfSelf"]["enabled"]
+            cap_left = max(0, 8000 - inp["existing"]["cpfTopUpSelf"]) if citizen_or_pr else 0
+            if entered is None:
+                expected_room = 0 if age >= 55 else cap_left
+            else:
+                expected_room = min(entered, cap_left)
+            seen["age>=55 blank room" if age >= 55 and entered is None else "other"] += 1
+            self.assertEqual(rooms["cpfSelf"], expected_room if self_on else 0, label)
+            self.assertLessEqual(plan["contributions"]["cpfSelf"], expected_room, label)
+            self.assertEqual(by_id["cpfSelfOnly"]["contributions"], {"srs": 0, "cpfSelf": expected_room, "cpfFamily": 0}, label)
+            self.assertEqual(by_id["srsPlusCpfSelf"]["contributions"]["cpfSelf"], expected_room, label)
+            self.assertEqual(by_id["maxAll"]["contributions"]["cpfSelf"], expected_room, label)
+            for row in sim:
+                self.assertLessEqual(row["split"]["cpfSelf"], expected_room, label)
+
+            # SPEC 6.11: the new cautions, each exactly when its condition holds
+            conditions = {
+                "TAX_RESIDENCY_CHECK": residency == "foreigner" and inp["income"]["monthsWorked"] <= 6,
+                "SRS_NON_RESIDENT_WITHDRAWAL": residency == "foreigner" and inp["levers"]["srs"]["enabled"] and age >= 18,
+                "CPF_SELF_ROOM_UNCONFIRMED": age >= 55 and self_on and citizen_or_pr and entered is None,
+                "AGE_55_PLUS_TOPUP": age >= 55 and self_on and citizen_or_pr and entered is not None,
+                "FAMILY_TOPUP_CHECKS": citizen_or_pr and (plan["contributions"]["cpfFamily"] > 0
+                                                          or inp["existing"]["cpfTopUpFamily"] > 0),
+                "PARENTHOOD_TAX_REBATE": inp["profile"]["hasUnusedParenthoodTaxRebate"] is True,
+            }
+            for code, holds in conditions.items():
+                self.assertEqual(code in got, holds, "%s %s" % (code, label))
+                seen[code] += 1 if holds else 0
+            self.assertFalse("CPF_SELF_ROOM_UNCONFIRMED" in got and "AGE_55_PLUS_TOPUP" in got, label)
+
+        # the random inputs do reach every new case
+        for key in ("age>=55 blank room", "TAX_RESIDENCY_CHECK", "SRS_NON_RESIDENT_WITHDRAWAL", "CPF_SELF_ROOM_UNCONFIRMED",
+                    "AGE_55_PLUS_TOPUP", "FAMILY_TOPUP_CHECKS", "PARENTHOOD_TAX_REBATE"):
+            self.assertGreaterEqual(seen[key], 20, key)
 
 
 if __name__ == "__main__":

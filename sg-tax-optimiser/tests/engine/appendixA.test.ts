@@ -249,11 +249,9 @@ describe('Appendix A.1 — the opening example', () => {
   });
 });
 
-describe('Appendix A.2 — older PR with a budget and the relief cap in play', () => {
-  // PR (3rd year onwards), 57 at year end, born in June, S$14,000 x 12, S$40,000 bonus, S$30,000 other reliefs,
-  // S$5,000 already in SRS; all three levers on (family max 8,000), budget 20,000, minSavingRate 0,
-  // priority cpfSelf -> srs -> cpfFamily.
-  const input: PlannerInput = {
+/** The person of Appendix A.2, with the CPF self room given (A.2) or left blank (A.2b). */
+function a2Input(roomToLimit: number | null | undefined): PlannerInput {
+  return {
     incomeYear: 2026,
     today: TODAY,
     profile: { residency: 'pr', prYear: 3, ageAtYearEnd: 57, birthMonth: 6 },
@@ -262,11 +260,18 @@ describe('Appendix A.2 — older PR with a budget and the relief cap in play', (
     otherReliefs: 30_000,
     levers: {
       srs: { enabled: true },
-      cpfSelf: { enabled: true },
+      cpfSelf: roomToLimit === undefined ? { enabled: true } : { enabled: true, roomToLimit },
       cpfFamily: { enabled: true, maxAmount: 8_000 },
     },
     preferences: { cashBudget: 20_000, minSavingRate: 0, priority: ['cpfSelf', 'srs', 'cpfFamily'] },
   };
+}
+
+describe('Appendix A.2 — older PR with a budget and the relief cap in play', () => {
+  // PR (3rd year onwards), 57 at year end, born in June, S$14,000 x 12, S$40,000 bonus, S$30,000 other reliefs,
+  // S$5,000 already in SRS; all three levers on (CPF self roomToLimit 50,000 — at 57 the room must be entered,
+  // §6.5 — and family max 8,000), budget 20,000, minSavingRate 0, priority cpfSelf -> srs -> cpfFamily.
+  const input: PlannerInput = a2Input(50_000);
   const result = plan(input);
 
   it('CPF band: above 55 to 60 all year (employee 18%)', () => {
@@ -308,6 +313,8 @@ describe('Appendix A.2 — older PR with a budget and the relief cap in play', (
   });
 
   it('lever rooms: SRS 10,300, CPF self 8,000, family 8,000 -> L = 26,300', () => {
+    // CPF self: min(8,000 - 0, roomToLimit 50,000) = 8,000. The room entered is above the cap, so the cap rules.
+    expect(result.input.levers.cpfSelf.roomToLimit).toBe(50_000);
     expect(result.levers).toEqual({
       srs: { statutoryCap: 15_300, used: 5_000, room: 10_300, eligible: true, enabled: true },
       cpfSelf: { statutoryCap: 8_000, used: 0, room: 8_000, eligible: true, enabled: true },
@@ -461,14 +468,207 @@ describe('Appendix A.2 — older PR with a budget and the relief cap in play', (
     expect(result.monthlyPlan.fullYearMonthly).toEqual({ srs: 859, cpfSelf: 667, cpfFamily: 142, total: 1_668 });
   });
 
-  it('warnings: the budget binds; age 55+ top-up note', () => {
-    expect(result.warnings.map((w) => w.code)).toEqual(['BUDGET_LIMITS_PLAN', 'AGE_55_PLUS_TOPUP']);
+  it('warnings (in order): BUDGET_LIMITS_PLAN, AGE_55_PLUS_TOPUP, FAMILY_TOPUP_CHECKS', () => {
+    expect(result.warnings.map((w) => w.code)).toEqual(['BUDGET_LIMITS_PLAN', 'AGE_55_PLUS_TOPUP', 'FAMILY_TOPUP_CHECKS']);
+    expect(result.warnings.map((w) => w.severity)).toEqual(['info', 'info', 'caution']);
     // savingWithMoreCash (SPEC §6.11): without the cash limit the relief cap stops the plan at C = 20,640
     // (L = 26,300 is further away), 640 more dollars at 15% = 96.00 — here the same as unrealisedSaving.
     expect(result.warnings[0]?.params).toEqual({ cashBudget: 20_000, unrealisedSaving: 96, savingWithMoreCash: 96 });
     expect(result.warnings[0]?.message).toBe(
       'Your cash limit of S$20,000 is what stops the plan. With more cash you could save up to S$96.00 more tax.',
     );
+  });
+
+  it('AGE_55_PLUS_TOPUP: the room was entered, so the note quotes it and the 2026 Full Retirement Sum (§6.11)', () => {
+    expect(result.warnings[1]?.params).toEqual({ ageAtYearEnd: 57, fullRetirementSum: 220_400, roomToLimit: 50_000 });
+    expect(result.warnings[1]?.message).toBe(
+      'From age 55, cash top-ups go to your Retirement Account and earn relief only up to the Full Retirement Sum ' +
+        '(S$220,400 in 2026). The plan uses the room you entered (S$50,000); check it against your CPF Retirement ' +
+        'dashboard.',
+    );
+  });
+
+  it('FAMILY_TOPUP_CHECKS: S$1,700 goes to family, so the matched amounts of 2026 are spelled out (§6.11)', () => {
+    // §5.4: matched part per recipient per year in 2026 — retirement S$2,000, MediSave S$1,000.
+    expect(result.warnings[2]?.params).toEqual({ planned: 1_700, existing: 0, matchedRetirement: 2_000, matchedMediSave: 1_000 });
+    expect(result.warnings[2]?.message).toBe(
+      'Family top-ups: the part the Government matches earns you no relief — the first S$2,000 a year for a member ' +
+        'on the Matched Retirement Savings Scheme, S$1,000 for MediSave. The amounts here are top-ups beyond that, ' +
+        'to a family member who qualifies.',
+    );
+  });
+});
+
+describe('Appendix A.2b — the same person with the CPF room left blank', () => {
+  // roomToLimit not provided: at 57 that means "not confirmed" (§6.5), so the CPF self room is 0.
+  const input = a2Input(null);
+  const result = plan(input);
+
+  it('the baseline is that of A.2: CPF 18,360, chargeable income 148,640, tax 12,246.00', () => {
+    expect(result.cpf.employeeContribution).toBe(18_360);
+    expect(result.baseline.reliefs.totalBeforeCap).toBe(59_360);
+    expect(result.baseline.chargeableIncome).toBe(148_640);
+    expect(result.baseline.taxPayable).toBe(12_246);
+    expect(result.baseline).toEqual(plan(a2Input(50_000)).baseline);
+  });
+
+  it('lever rooms: SRS 10,300, CPF self 0, family 8,000 -> L = 18,300', () => {
+    expect(result.input.levers.cpfSelf.roomToLimit).toBeNull();
+    expect(result.levers).toEqual({
+      srs: { statutoryCap: 15_300, used: 5_000, room: 10_300, eligible: true, enabled: true },
+      cpfSelf: { statutoryCap: 8_000, used: 0, room: 0, eligible: true, enabled: true },
+      cpfFamily: { statutoryCap: 8_000, used: 0, room: 8_000, eligible: true, enabled: true },
+    });
+  });
+
+  it('U, C, L, B = 128,640 / 20,640 / 18,300 / 20,000 -> X = 18,300, binding leverLimits', () => {
+    expect(usefulRoomOf(input)).toBe(128_640);
+    expect(result.reliefCapRoom).toBe(20_640);
+    expect(result.levers.srs.room + result.levers.cpfSelf.room + result.levers.cpfFamily.room).toBe(18_300);
+    expect(result.input.preferences.cashBudget).toBe(20_000);
+    expect(result.plan.totalContribution).toBe(18_300);
+    expect(result.plan.bindingConstraint).toBe('leverLimits');
+  });
+
+  it('plan: SRS 10,300, family 8,000, CPF self 0; chargeable income 130,340; tax 9,501.00; saved 2,745.00', () => {
+    expect(result.plan.contributions).toEqual({ srs: 10_300, cpfSelf: 0, cpfFamily: 8_000 });
+    expect(result.plan.taxBefore).toBe(12_246);
+    expect(result.plan.chargeableIncomeAfter).toBe(130_340); // 148,640 - 18,300
+    expect(result.plan.taxAfter).toBe(9_501); // 7,950 + 15% x 10,340 = 7,950 + 1,551
+    expect(result.plan.taxSaved).toBe(2_745); // 18,300 x 15%
+    expect(result.plan.savingRate).toBeCloseTo(0.15, 12);
+    expect(result.plan.marginalRateBefore).toBe(0.15);
+    expect(result.plan.marginalRateAfter).toBe(0.15);
+    // min(U, C) = 20,640 -> chargeable income 128,000 -> 9,150.00; 9,501.00 - 9,150.00
+    expect(result.plan.unrealisedSaving).toBe(351);
+    expect(result.optimised.reliefs).toMatchObject({
+      srs: 15_300, // 5,000 existing + 10,300
+      cpfTopUpSelf: 0,
+      cpfTopUpFamily: 8_000,
+      totalBeforeCap: 77_660, // 59,360 + 18,300
+      totalAllowed: 77_660,
+      lostToCap: 0,
+    });
+  });
+
+  it('ladder: one tier [0, 18,300) at 15%, all used by the plan; L stays below the relief cap', () => {
+    expect(result.ladder).toEqual([
+      {
+        fromContribution: 0,
+        toContribution: 18_300,
+        amount: 18_300,
+        rate: 0.15,
+        taxSaved: 2_745,
+        cumulativeTaxSaved: 2_745,
+        usedByPlan: 18_300,
+      },
+    ]);
+  });
+
+  it('scenarios: the CPF self scenario is empty until the room is confirmed (§6.9 uses roomIfEnabled)', () => {
+    const byId = Object.fromEntries(result.scenarios.map((s) => [s.id, s]));
+    expect(byId.none).toMatchObject({ totalContribution: 0, taxPayable: 12_246, taxSaved: 0, wastedContribution: 0 });
+    // 10,300 x 15% = 1,545
+    expect(byId.srsOnly).toMatchObject({
+      contributions: { srs: 10_300, cpfSelf: 0, cpfFamily: 0 },
+      totalContribution: 10_300,
+      taxPayable: 10_701,
+      taxSaved: 1_545,
+      wastedContribution: 0,
+    });
+    expect(byId.cpfSelfOnly).toMatchObject({
+      contributions: { srs: 0, cpfSelf: 0, cpfFamily: 0 },
+      totalContribution: 0,
+      taxPayable: 12_246,
+      taxSaved: 0,
+      savingRate: 0,
+      wastedContribution: 0,
+    });
+    expect(byId.srsPlusCpfSelf).toMatchObject({
+      contributions: { srs: 10_300, cpfSelf: 0, cpfFamily: 0 },
+      totalContribution: 10_300,
+      taxPayable: 10_701,
+      taxSaved: 1_545,
+      wastedContribution: 0,
+    });
+    // 18,300 fits under the relief cap (C = 20,640): nothing is wasted
+    expect(byId.maxAll).toMatchObject({
+      contributions: { srs: 10_300, cpfSelf: 0, cpfFamily: 8_000 },
+      totalContribution: 18_300,
+      taxPayable: 9_501,
+      taxSaved: 2_745,
+      wastedContribution: 0,
+    });
+    expect(byId.recommended).toMatchObject({
+      contributions: { srs: 10_300, cpfSelf: 0, cpfFamily: 8_000 },
+      totalContribution: 18_300,
+      taxPayable: 9_501,
+      taxSaved: 2_745,
+      wastedContribution: 0,
+    });
+  });
+
+  it('simulator: 20 rows up to 18,300, every one inside the plan, CPF self never filled', () => {
+    const rows = result.simulator;
+    expect(rows).toHaveLength(20); // i = 0 ... ceil(18,300 / 1,000) = 19
+    expect(rows.every((row) => row.split.cpfSelf === 0 && row.withinPlan)).toBe(true);
+    // priority cpfSelf -> srs -> cpfFamily, with no CPF self room: SRS first, then family
+    expect(rows[10]).toMatchObject({ contribution: 10_000, split: { cpfSelf: 0, srs: 10_000, cpfFamily: 0 }, taxSaved: 1_500 });
+    expect(rows[11]).toMatchObject({ contribution: 11_000, split: { cpfSelf: 0, srs: 10_300, cpfFamily: 700 }, taxSaved: 1_650 });
+    // last step is 300 dollars: 300 x 15% = 45.00
+    expect(rows[19]).toMatchObject({
+      contribution: 18_300,
+      split: { cpfSelf: 0, srs: 10_300, cpfFamily: 8_000 },
+      taxPayable: 9_501,
+      taxSaved: 2_745,
+      stepSaving: 45,
+      withinPlan: true,
+    });
+    expect(rows[19]?.stepRate).toBeCloseTo(0.15, 12);
+  });
+
+  it('monthly plan on 2026-11-13: SRS 5,150 + 5,150, family 4,000 + 4,000', () => {
+    expect(result.monthlyPlan.schedule).toEqual([
+      { month: '2026-11', amounts: { cpfSelf: 0, srs: 5_150, cpfFamily: 4_000 }, total: 9_150 },
+      { month: '2026-12', amounts: { cpfSelf: 0, srs: 5_150, cpfFamily: 4_000 }, total: 9_150 },
+    ]);
+    // ceil(10,300 / 12) = 859; ceil(8,000 / 12) = 667
+    expect(result.monthlyPlan.fullYearMonthly).toEqual({ srs: 859, cpfSelf: 0, cpfFamily: 667, total: 1_526 });
+  });
+
+  it('warnings (in order): LEVER_LIMITS_PLAN, CPF_SELF_ROOM_UNCONFIRMED, FAMILY_TOPUP_CHECKS', () => {
+    expect(result.warnings.map((w) => w.code)).toEqual(['LEVER_LIMITS_PLAN', 'CPF_SELF_ROOM_UNCONFIRMED', 'FAMILY_TOPUP_CHECKS']);
+    expect(result.warnings.map((w) => w.severity)).toEqual(['info', 'caution', 'caution']);
+  });
+
+  it('LEVER_LIMITS_PLAN promises nothing: every scheme is on, and the unconfirmed CPF room is not counted', () => {
+    // savingIfSwitchedOn (§6.11): sum of roomIfEnabled = 10,300 + 0 + 8,000 = 18,300 = X, so there is nothing more.
+    expect(result.warnings[0]?.params).toEqual({ leverRoom: 18_300, unrealisedSaving: 351, savingIfSwitchedOn: 0 });
+    expect(result.warnings[0]?.message).toBe('The plan uses all S$18,300 of room left in the schemes you switched on.');
+  });
+
+  it('CPF_SELF_ROOM_UNCONFIRMED asks for the room, quoting the 2026 Enhanced and Full Retirement Sums (§6.11)', () => {
+    expect(result.warnings[1]?.params).toEqual({ ageAtYearEnd: 57, fullRetirementSum: 220_400, enhancedRetirementSum: 440_800 });
+    expect(result.warnings[1]?.message).toBe(
+      'From age 55 the CPF Board accepts top-ups up to the Enhanced Retirement Sum (S$440,800), but only the part ' +
+        'up to the Full Retirement Sum (S$220,400) earns relief, and a top-up cannot be reversed. Your own CPF is ' +
+        'left out until you enter how much you can still top up with relief (S$0 if you have set aside the Full ' +
+        'Retirement Sum).',
+    );
+  });
+
+  it('FAMILY_TOPUP_CHECKS: the whole S$8,000 of family room is in the plan', () => {
+    expect(result.warnings[2]?.params).toEqual({ planned: 8_000, existing: 0, matchedRetirement: 2_000, matchedMediSave: 1_000 });
+  });
+
+  it('a missing roomToLimit field is the same as null, and any number confirms the room', () => {
+    expect(plan(a2Input(undefined))).toEqual(result);
+    // 0 confirms "no room": the same plan as A.2b, but the note is AGE_55_PLUS_TOPUP, not the caution.
+    const zero = plan(a2Input(0));
+    expect(zero.plan).toEqual(result.plan);
+    expect(zero.warnings.map((w) => w.code)).toEqual(['LEVER_LIMITS_PLAN', 'AGE_55_PLUS_TOPUP', 'FAMILY_TOPUP_CHECKS']);
+    // 8,000 confirms the whole cap: the plan of A.2.
+    expect(plan(a2Input(8_000)).plan).toEqual(plan(a2Input(50_000)).plan);
   });
 });
 

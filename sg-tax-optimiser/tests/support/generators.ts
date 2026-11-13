@@ -129,7 +129,7 @@ const optionalLimit: Alt[] = [
   vals(3, 'null', [0]),
   vals(1, 'abs', [0]),
   span(3, 'abs', 1, 7_999),
-  vals(1, 'abs', [8_000, 8_001, 20_000]),
+  vals(1, 'abs', [8_000, 8_001, 20_000, 50_000]),
 ];
 
 /**
@@ -145,6 +145,8 @@ const RECIPE = {
     span(3, 'abs', 25, 50),
     vals(3, 'abs', [18, 17, 16, 19]),
     vals(3, 'abs', [55, 54, 56, 53]),
+    // SPEC §6.5: from 55 the room for a top-up to one's own CPF must be entered — the boundary, both sides
+    vals(3, 'abs', [54, 55]),
     vals(2, 'abs', [60, 59, 61]),
     vals(2, 'abs', [65, 64, 66]),
     vals(2, 'abs', [70, 69, 71]),
@@ -152,7 +154,8 @@ const RECIPE = {
     span(4, 'abs', 16, 80),
   ],
   birthMonth: [span(10, 'abs', 1, 12), vals(1, 'absent', [0])],
-  monthsWorked: [vals(9, 'abs', [12]), span(5, 'abs', 1, 12), vals(1, 'absent', [0])],
+  // SPEC §6.11: a foreigner who worked 6 months or fewer is asked to check tax residency — both sides of 6
+  monthsWorked: [vals(9, 'abs', [12]), span(5, 'abs', 1, 12), vals(1, 'absent', [0]), vals(3, 'abs', [6, 7, 5, 1])],
   wage: [
     span(11, 'abs', 3_000, 7_300),
     span(3, 'abs', 752, 3_000),
@@ -267,6 +270,8 @@ const RECIPE = {
   todayYearOffset: [vals(8, 'abs', [0]), vals(2, 'abs', [-1]), vals(2, 'abs', [1]), vals(1, 'abs', [-2, 2, -6, 3])],
   todayMonth: [span(6, 'abs', 1, 12), span(4, 'special', 0, SPECIAL_DATES.length - 1)],
   todayDay: [span(1, 'abs', 1, 31)],
+  // profile.hasUnusedParenthoodTaxRebate: left out, false (0) or true (1)
+  parenthoodRebate: [vals(5, 'absent', [0]), vals(3, 'abs', [0]), vals(3, 'abs', [1])],
 } satisfies Record<string, Alt[]>;
 
 export type Recipe = Record<keyof typeof RECIPE, Draw>;
@@ -407,7 +412,13 @@ export function realise(recipe: Recipe, options: RealiseOptions = DEFAULT_OPTION
   const full: FullInput = {
     incomeYear,
     today: realiseToday(recipe, incomeYear),
-    profile: { residency, prYear, ageAtYearEnd: recipe.age.v, birthMonth: absOr(recipe.birthMonth, 12) },
+    profile: {
+      residency,
+      prYear,
+      ageAtYearEnd: recipe.age.v,
+      birthMonth: absOr(recipe.birthMonth, 12),
+      hasUnusedParenthoodTaxRebate: recipe.parenthoodRebate.t === 'abs' && recipe.parenthoodRebate.v === 1,
+    },
     income: {
       monthlyOrdinaryWage: wage,
       monthsWorked,
@@ -489,6 +500,9 @@ export function realise(recipe: Recipe, options: RealiseOptions = DEFAULT_OPTION
   };
   if (recipe.prYear.t !== 'absent') input.profile.prYear = prYear;
   if (recipe.birthMonth.t !== 'absent') input.profile.birthMonth = full.profile.birthMonth;
+  if (recipe.parenthoodRebate.t !== 'absent') {
+    input.profile.hasUnusedParenthoodTaxRebate = full.profile.hasUnusedParenthoodTaxRebate;
+  }
   if (recipe.monthsWorked.t !== 'absent') input.income.monthsWorked = monthsWorked;
   if (recipe.otherTaxableIncome.t !== 'absent') input.income.otherTaxableIncome = otherTaxableIncome;
   if (recipe.employmentExpenses.t !== 'absent') input.income.employmentExpenses = employmentExpenses;
@@ -590,7 +604,7 @@ export const garbageShapedInputArb: fc.Arbitrary<unknown> = fc.record(
   {
     incomeYear: supportedYear,
     today: weirdValue,
-    profile: garbageRecord(['residency', 'prYear', 'ageAtYearEnd', 'birthMonth']),
+    profile: garbageRecord(['residency', 'prYear', 'ageAtYearEnd', 'birthMonth', 'hasUnusedParenthoodTaxRebate']),
     income: garbageRecord([
       'monthlyOrdinaryWage',
       'monthsWorked',
@@ -625,6 +639,7 @@ const MUTABLE_PATHS: readonly (readonly string[])[] = [
   ['profile', 'prYear'],
   ['profile', 'ageAtYearEnd'],
   ['profile', 'birthMonth'],
+  ['profile', 'hasUnusedParenthoodTaxRebate'],
   ['income', 'monthlyOrdinaryWage'],
   ['income', 'monthsWorked'],
   ['income', 'additionalWages'],
@@ -696,13 +711,15 @@ export function seededInputs(count: number, seed: number, options: RealiseOption
  * (No NaN/Infinity/undefined — they cannot be written to a JSON file.) Since §6.0 was clarified it also settles
  * non-boolean `enabled` flags (only the boolean true enables a lever) and malformed-but-nearly-valid dates
  * (impossible dates, unpadded fields, leading whitespace and a trailing digit cannot be parsed), so both are here.
+ * It also says that `hasUnusedParenthoodTaxRebate` is true only for the boolean true, and §6.5 that a room for the
+ * person's own CPF counts as provided only when it is a number — which decides the plan from age 55.
  */
 const MESSY = {
   money: [-1, -5_000.5, 0.9, 1_234.56, 99.999, 10_000_000_001, 1e12, 9e15, '5000', true, null, DELETE, [], {}],
   limit: [-1, -0.5, 0.5, 2_499.99, 10_000_000_001, '5000', false, DELETE, []],
-  monthsWorked: [0, -1, 13, 100, 6.9, 0.5, 11.999, '6', null, DELETE],
+  monthsWorked: [0, -1, 13, 100, 6.9, 7.2, 0.5, 11.999, '6', null, DELETE],
   birthMonth: [0, -3, 13, 6.5, '6', null, DELETE],
-  age: [-5, 121, 500, 17.9, 54.99, 59.5, '35', null, DELETE],
+  age: [-5, 121, 500, 17.9, 54.99, 55.01, 59.5, '35', '55', null, DELETE],
   prYear: [0, 4, 1.5, 2.0001, '1', '2', null, true, DELETE],
   residency: ['PR', 'Citizen', '', 'foreigner ', 'non-resident', 5, null, DELETE],
   minSavingRate: [-0.1, 1.5, 2, 1.0000001, '0.07', null, true, DELETE],
@@ -718,6 +735,10 @@ const MESSY = {
   ],
   simulatorStep: [0, 1, 99, 99.9, 100.5, 250.7, -100, '500', null, 1_000_000_000, DELETE],
   enabled: [true, false, 1, 0, 'true', 'false', 'yes', '', null, [], {}, [true], DELETE],
+  // SPEC §6.0: `hasUnusedParenthoodTaxRebate` is true only for the boolean true; everything else is false
+  flag: [true, true, false, 1, 0, 'true', 'false', 'yes', '', null, [], {}, [true], DELETE],
+  // SPEC §6.5: a room is "provided" only when it is a number (then sanitised like money, so a negative room is 0)
+  room: [0, 1, 3_000, 8_000, 50_000, -1, 0.5, 2_499.99, 10_000_000_001, '8000', '', true, false, null, [], {}, DELETE],
   today: [
     '',
     'garbage',
@@ -764,7 +785,7 @@ const MESSY_FIELDS: readonly (readonly [readonly string[], readonly unknown[]])[
   [['existing', 'cpfTopUpFamily'], MESSY.money],
   [['otherReliefs'], MESSY.money],
   [['income', 'employeeCpfOverride'], MESSY.limit],
-  [['levers', 'cpfSelf', 'roomToLimit'], MESSY.limit],
+  [['levers', 'cpfSelf', 'roomToLimit'], MESSY.room],
   [['levers', 'cpfFamily', 'maxAmount'], MESSY.limit],
   [['preferences', 'cashBudget'], MESSY.limit],
   [['income', 'monthsWorked'], MESSY.monthsWorked],
@@ -779,6 +800,7 @@ const MESSY_FIELDS: readonly (readonly [readonly string[], readonly unknown[]])[
   [['levers', 'srs', 'enabled'], MESSY.enabled],
   [['levers', 'cpfSelf', 'enabled'], MESSY.enabled],
   [['levers', 'cpfFamily', 'enabled'], MESSY.enabled],
+  [['profile', 'hasUnusedParenthoodTaxRebate'], MESSY.flag],
 ];
 
 /**

@@ -23,3 +23,8 @@ export function formatTax(amount: number): string {
 export function formatPercent(rate: number): string {
   return `${Math.round(rate * 10_000) / 100}%`;
 }
+
+/** A rate as cents per dollar, e.g. 0.075 -> "7.5 cents", 0.2 -> "20 cents". */
+export function formatCentsPerDollar(rate: number): string {
+  return `${Math.round(rate * 1000) / 10} cents`;
+}

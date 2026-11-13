@@ -1,8 +1,8 @@
 /**
- * An independent transcription of SPEC.md §5 (rule values) and §6.0–§6.6, §6.10 (calculation model), written by
- * the test author from the specification text alone. It shares no code and no data with `src/engine/` (only the
- * type declarations of the data contract are imported), so a property test that compares the engine with this
- * model checks the engine's rule data as well as its logic.
+ * An independent transcription of SPEC.md §5 (rule values) and §6.0–§6.6, §6.10 (calculation model) and of the
+ * §6.11 warnings table, written by the test author from the specification text alone. It shares no code and no
+ * data with `src/engine/` (only the type declarations of the data contract are imported), so a property test that
+ * compares the engine with this model checks the engine's rule data as well as its logic.
  *
  * Everything here is integer arithmetic on whole dollars, per-mille rates and cents; the only non-integers are
  * the donation deduction (a multiple of S$0.50) and the reported rates.
@@ -37,8 +37,24 @@ export const SPEC_SUMS: Record<SpecYear, { frs: number; ers: number; bhs: number
   2026: { frs: 220_400, ers: 440_800, bhs: 79_000 },
   2027: { frs: 228_200, ers: 456_400, bhs: 79_000 },
 };
+/**
+ * §5.4: the part of a family top-up that the Government matches earns the giver no relief, per recipient per
+ * year — retirement (Matched Retirement Savings Scheme) and MediSave (Matched MediSave Scheme; "not applicable"
+ * in 2025). Wording only: every top-up amount in the model already means the part that is not matched (§6.3).
+ */
+export const SPEC_MATCHED_TOPUP: Record<SpecYear, { retirement: number; mediSave: number | null }> = {
+  2025: { retirement: 2_000, mediSave: null },
+  2026: { retirement: 2_000, mediSave: 1_000 },
+  2027: { retirement: 2_000, mediSave: 1_000 },
+};
+/** §5.4: CPF payout eligibility age (informational). */
+export const SPEC_PAYOUT_ELIGIBILITY_AGE = 65;
 /** §5.2: Earned Income Relief. */
 export const SPEC_EIR = { below55: 1_000, age55to59: 6_000, age60plus: 8_000 } as const;
+/** §6.5: from this age at year end the room for a top-up to one's own CPF must be entered. */
+export const SPEC_ROOM_CONFIRMATION_AGE = 55;
+/** §6.11: a foreigner who worked this many months or fewer is asked to check tax residency. */
+export const SPEC_RESIDENCY_CHECK_MONTHS = 6;
 
 export interface SpecBracket {
   /** Chargeable income at which the band starts. */
@@ -99,8 +115,13 @@ export const SPEC_WARNINGS: readonly (readonly [string, 'info' | 'caution' | 'bl
   ['EXISTING_EXCEEDS_CAP', 'caution'],
   ['CPF_OVERRIDE_ABOVE_MAX', 'caution'],
   ['FOREIGNER_NO_CPF', 'info'],
+  ['TAX_RESIDENCY_CHECK', 'caution'],
+  ['SRS_NON_RESIDENT_WITHDRAWAL', 'caution'],
   ['PR_GRADUATED_RATES', 'info'],
+  ['CPF_SELF_ROOM_UNCONFIRMED', 'caution'],
   ['AGE_55_PLUS_TOPUP', 'info'],
+  ['FAMILY_TOPUP_CHECKS', 'caution'],
+  ['PARENTHOOD_TAX_REBATE', 'caution'],
   ['SRS_UNDER_18', 'caution'],
   ['DEADLINE_PASSED', 'blocker'],
   ['DEADLINE_SOON', 'caution'],
@@ -115,7 +136,14 @@ export const SPEC_WARNINGS: readonly (readonly [string, 'info' | 'caution' | 'bl
 export interface FullInput {
   incomeYear: number;
   today: string;
-  profile: { residency: Residency; prYear: 1 | 2 | 3; ageAtYearEnd: number; birthMonth: number };
+  profile: {
+    residency: Residency;
+    prYear: 1 | 2 | 3;
+    ageAtYearEnd: number;
+    birthMonth: number;
+    /** §6.0: true only for the boolean `true`, otherwise false. */
+    hasUnusedParenthoodTaxRebate: boolean;
+  };
   income: {
     monthlyOrdinaryWage: number;
     monthsWorked: number;
@@ -204,7 +232,7 @@ function pad(value: number, width: number): string {
 
 /**
  * SPEC §6.0 applied to anything. A lever is enabled only when its `enabled` flag is exactly the boolean `true`
- * (§6.0, as clarified).
+ * (§6.0, as clarified), and `profile.hasUnusedParenthoodTaxRebate` is likewise true only for the boolean `true`.
  */
 export function specSanitise(raw: unknown): FullInput {
   const top = record(raw);
@@ -236,6 +264,7 @@ export function specSanitise(raw: unknown): FullInput {
       prYear: profile.prYear === 1 || profile.prYear === 2 ? profile.prYear : 3,
       ageAtYearEnd: specClampedInt(profile.ageAtYearEnd, 0, 120, 0),
       birthMonth: specClampedInt(profile.birthMonth, 1, 12, 12),
+      hasUnusedParenthoodTaxRebate: profile.hasUnusedParenthoodTaxRebate === true,
     },
     income: {
       monthlyOrdinaryWage: specMoney(income.monthlyOrdinaryWage),
@@ -433,6 +462,14 @@ export interface SpecLever {
   room: number;
 }
 
+/**
+ * §6.5/§6.11 "roomToLimit provided": it is a number after §6.0 sanitising (so `NaN`, `±Infinity` and negative
+ * numbers, which §6.0 reads as a limit of 0, count as provided; text, booleans, `null` and a missing field do not).
+ */
+export function specRoomProvided(s: FullInput): boolean {
+  return s.levers.cpfSelf.roomToLimit !== null;
+}
+
 export function existingOf(s: FullInput): LeverAmounts {
   return { srs: s.existing.srs, cpfSelf: s.existing.cpfTopUpSelf, cpfFamily: s.existing.cpfTopUpFamily };
 }
@@ -457,7 +494,12 @@ export function specLevers(s: FullInput): Record<LeverId, SpecLever> {
     const used = Math.min(existing[lever], statutoryCap);
     let roomIfEnabled = Math.max(0, statutoryCap - used);
     const limit = userLimit[lever];
-    if (limit !== null) roomIfEnabled = Math.min(roomIfEnabled, limit);
+    if (limit !== null) {
+      roomIfEnabled = Math.min(roomIfEnabled, limit);
+    } else if (lever === 'cpfSelf' && ageAtYearEnd >= SPEC_ROOM_CONFIRMATION_AGE) {
+      // §6.5 "Room must be confirmed from age 55": a blank roomToLimit then means "not confirmed", not "unlimited".
+      roomIfEnabled = 0;
+    }
     const enabled = s.levers[lever].enabled;
     return {
       eligible: eligible[lever],

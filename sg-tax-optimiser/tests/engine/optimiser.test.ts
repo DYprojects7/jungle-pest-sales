@@ -59,7 +59,8 @@ describe('binding constraint: usefulRoom', () => {
     expect(result.plan.taxSaved).toBe(3_289); // 28,600 x 11.5%
     expect(result.plan.marginalRateAfter).toBe(0.07);
     expect(result.plan.unrealisedSaving).toBe(0);
-    expect(codes(result)).toEqual([]);
+    // Nothing limits the plan, but S$5,300 of it is a family top-up, which carries its caution (§6.11).
+    expect(codes(result)).toEqual(['FAMILY_TOPUP_CHECKS']);
   });
 
   it('the ladder shows the cheaper rung the plan leaves unused', () => {

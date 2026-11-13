@@ -20,7 +20,13 @@ import type { PlannerInput } from '../../src/engine';
 
 describe('exports', () => {
   it('index.ts exports exactly the SPEC §7 API', () => {
+    // SPEC §7 lists DISCLAIMER, NOT_MODELLED, lockUpFacts, lockUpHorizon and transferCautions from facts.ts.
+    // NON_RESIDENT_SRS_COST (the 7.5 / 20 cents of SPEC §5.4) is exported with them so that every surface quotes
+    // the same two figures; it is the one export the §7 listing does not name.
     expect(Object.keys(engine).sort()).toEqual([
+      'DISCLAIMER',
+      'NON_RESIDENT_SRS_COST',
+      'NOT_MODELLED',
       'SUPPORTED_INCOME_YEARS',
       'computeCpf',
       'defaultIncomeYear',
@@ -28,9 +34,12 @@ describe('exports', () => {
       'evaluate',
       'getRules',
       'grossTax',
+      'lockUpFacts',
+      'lockUpHorizon',
       'marginalRate',
       'plan',
       'sanitiseInput',
+      'transferCautions',
     ]);
   });
 
@@ -177,7 +186,7 @@ describe('defaultInput', () => {
     expect(defaultInput('2026-11-13')).toEqual({
       incomeYear: 2026,
       today: '2026-11-13',
-      profile: { residency: 'citizen', prYear: 3, ageAtYearEnd: 35, birthMonth: 12 },
+      profile: { residency: 'citizen', prYear: 3, ageAtYearEnd: 35, birthMonth: 12, hasUnusedParenthoodTaxRebate: false },
       income: {
         monthlyOrdinaryWage: 10_000,
         monthsWorked: 12,
@@ -268,13 +277,15 @@ describe('the opening example in all three income years', () => {
 
 describe('an older worker in all three income years', () => {
   // Citizen, 58 all year (above 55 to 60), S$8,000 x 12, no bonus, no other reliefs, minSavingRate 0.07.
-  const older = (incomeYear: number): PlannerInput => {
+  // At 58 the CPF top-up room must be entered (SPEC §6.5): here the full S$8,000 is confirmed.
+  const older = (incomeYear: number, roomToLimit: number | null = 8_000): PlannerInput => {
     const base = defaultInput(`${incomeYear}-06-30`);
     return {
       ...base,
       profile: { ...base.profile, ageAtYearEnd: 58 },
       income: { ...base.income, monthlyOrdinaryWage: 8_000, additionalWages: 0 },
       otherReliefs: 0,
+      levers: { ...base.levers, cpfSelf: { enabled: true, roomToLimit } },
     };
   };
 
@@ -307,6 +318,21 @@ describe('an older worker in all three income years', () => {
     expect(result.baseline.taxPayable).toBe(2_773.2);
     expect(result.plan.taxAfter).toBe(1_142.2);
     expect(result.plan.taxSaved).toBe(1_631);
+  });
+
+  it('with the CPF room left blank only SRS is planned, in every year (SPEC §6.5)', () => {
+    // X = L = 15,300 (SRS only), all of it in the 7% band: 15,300 x 7% = 1,071.00 less tax.
+    // 2025: 2,993.28 - 1,071 = 1,922.28. 2026: 2,840.40 - 1,071 = 1,769.40. 2027: 2,773.20 - 1,071 = 1,702.20.
+    const taxAfter: Record<number, number> = { 2025: 1_922.28, 2026: 1_769.4, 2027: 1_702.2 };
+    for (const incomeYear of [2025, 2026, 2027]) {
+      const result = plan(older(incomeYear, null));
+      expect(result.levers.cpfSelf).toEqual({ statutoryCap: 8_000, used: 0, room: 0, eligible: true, enabled: true });
+      expect(result.plan.contributions).toEqual({ srs: 15_300, cpfSelf: 0, cpfFamily: 0 });
+      expect(result.plan.taxAfter).toBe(taxAfter[incomeYear]);
+      expect(result.plan.taxSaved).toBe(1_071);
+      expect(result.warnings.map((w) => w.code)).toContain('CPF_SELF_ROOM_UNCONFIRMED');
+      expect(result.warnings.map((w) => w.code)).not.toContain('AGE_55_PLUS_TOPUP');
+    }
   });
 });
 

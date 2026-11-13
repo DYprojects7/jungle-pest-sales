@@ -17,6 +17,7 @@ export interface SanitisedInput extends PlannerInput {
     prYear: PrYear;
     ageAtYearEnd: number;
     birthMonth: number;
+    hasUnusedParenthoodTaxRebate: boolean;
   };
   income: {
     monthlyOrdinaryWage: number;
@@ -142,6 +143,8 @@ export function sanitise(input: PlannerInput): SanitisedInput {
       prYear: prYear(profile.prYear),
       ageAtYearEnd: integerInRange(profile.ageAtYearEnd, 0, MAX_AGE, 0),
       birthMonth: integerInRange(profile.birthMonth, 1, 12, 12),
+      // §6.0: like a lever's `enabled` flag, true only for the boolean `true` (never for 1 or "true").
+      hasUnusedParenthoodTaxRebate: profile.hasUnusedParenthoodTaxRebate === true,
     },
     income: {
       monthlyOrdinaryWage: money(income.monthlyOrdinaryWage),

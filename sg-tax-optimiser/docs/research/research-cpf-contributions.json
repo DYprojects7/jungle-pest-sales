@@ -1,5 +1,5 @@
 {
- "summary": "Scope covered: CPF compulsory contribution rates (2025, 2026, announced 2027), wage ceilings, low-wage formulas, SPR graduated rates, rounding, and IRAS CPF relief for employees.\n\nIMPORTANT LIMITATION: the session's shared WebSearch budget ran out after 9 successful searches (2 further searches - on age-band change timing and on foreigners/work-pass holders - were refused), and direct fetching is blocked (gov.sg hosts, plus endowus.com, justlogin.com and 494075.fs1.hubspotusercontent-na1.net all fail DNS; those hosts would have to be allowed in the session's network settings to verify directly). Everything below comes from WebSearch result content only; nothing was filled from memory as a fact. Unverified items are listed in open_questions (some with a clearly-labelled unverified expectation).\n\nKey confirmed values (official CPF Board / IRAS pages via search results):\n- Rates for wages > S$750, SC/SPR 3rd year+ (employer/employee/total). 2025: <=55 17/20/37; >55-60 15.5/17/32.5; >60-65 12/11.5/23.5; >65-70 9/7.5/16.5; >70 7.5/5/12.5. From 1 Jan 2026: <=55 17/20/37; >55-60 16/18/34; >60-65 12.5/12.5/25; >65-70 9/7.5/16.5; >70 7.5/5/12.5.\n- From 1 Jan 2027 (Budget 2026): total +1.5pp for >55-60 (to 35.5%) and +1pp for >60-65 (to 26%) - totals confirmed by CPF Board; the split (16.5/19 and 13/13) rests partly on secondary sources (medium confidence).\n- OW ceiling S$7,400 (2025), S$8,000 (from 1 Jan 2026, end-state of the Budget 2023 schedule; no 2027 change found). Annual salary ceiling S$102,000 unchanged. AW ceiling = S$102,000 - total OW subject to CPF for the year. CPF Annual Limit S$37,740 = 37% x S$102,000.\n- Low-wage 2026 (<=55): <=S$50 nil; >S$50-500 employer 17% x TW, employee nil; >S$500-750 employee 0.6 x (TW-500), total 17% x TW + 0.6 x (TW-500). Phase-in factor for >55-60 is 0.54 and >60-65 is 0.375 (official table via search extraction); 0.225 (>65-70) and 0.15 (>70) are only secondary/derived.\n- Monthly maxima 2026 from the official table: <=55 total S$2,960 / employee S$1,600; >55-60 S$2,720 / S$1,440; >60-65 S$2,000 / S$1,000.\n- Rounding: total to nearest dollar (>=50c up), employee share cents always dropped, employer = total - employee.\n- SPR 1st/2nd year G/G for <=55: total 9% (max S$720) / employee 5% (max S$400); total 24% (max S$1,920) / employee 15% (max S$1,200). Other age bands not retrieved.\n- IRAS CPF relief: only compulsory employee contributions on OW (up to OW ceiling) and AW (up to AW ceiling); voluntary excess not deductible; subject to S$80,000 overall relief cap. Derived maximum for an employee <=55 at/above the ceilings: 20% x S$102,000 = S$20,400 for both YA2026 and YA2027.\n\nNot verified (see open_questions): age-band switch timing, foreigners' exemption, 2024 OW ceiling, SPR graduated rates for older bands and F/G option details, official 2027 rate table, and published CPF/IRAS worked examples. Worked examples supplied are the official table maxima and the CPF AW-ceiling example, plus several clearly-flagged derived vectors.",
+ "summary": "Scope covered: CPF compulsory contribution rates (2025, 2026, announced 2027), wage ceilings, low-wage formulas, SPR graduated rates, rounding, and IRAS CPF relief for employees.\n\nIMPORTANT LIMITATION: the search allowance ran out after 9 successful searches (2 further searches - on age-band change timing and on foreigners/work-pass holders - were refused), and direct fetching is blocked (gov.sg hosts, plus endowus.com, justlogin.com and 494075.fs1.hubspotusercontent-na1.net all fail DNS; these hosts were not reachable from the research environment to verify directly). Everything below comes from web search result content only; nothing was filled from memory as a fact. Unverified items are listed in open_questions (some with a clearly-labelled unverified expectation).\n\nKey confirmed values (official CPF Board / IRAS pages via search results):\n- Rates for wages > S$750, SC/SPR 3rd year+ (employer/employee/total). 2025: <=55 17/20/37; >55-60 15.5/17/32.5; >60-65 12/11.5/23.5; >65-70 9/7.5/16.5; >70 7.5/5/12.5. From 1 Jan 2026: <=55 17/20/37; >55-60 16/18/34; >60-65 12.5/12.5/25; >65-70 9/7.5/16.5; >70 7.5/5/12.5.\n- From 1 Jan 2027 (Budget 2026): total +1.5pp for >55-60 (to 35.5%) and +1pp for >60-65 (to 26%) - totals confirmed by CPF Board; the split (16.5/19 and 13/13) rests partly on secondary sources (medium confidence).\n- OW ceiling S$7,400 (2025), S$8,000 (from 1 Jan 2026, end-state of the Budget 2023 schedule; no 2027 change found). Annual salary ceiling S$102,000 unchanged. AW ceiling = S$102,000 - total OW subject to CPF for the year. CPF Annual Limit S$37,740 = 37% x S$102,000.\n- Low-wage 2026 (<=55): <=S$50 nil; >S$50-500 employer 17% x TW, employee nil; >S$500-750 employee 0.6 x (TW-500), total 17% x TW + 0.6 x (TW-500). Phase-in factor for >55-60 is 0.54 and >60-65 is 0.375 (official table via search extraction); 0.225 (>65-70) and 0.15 (>70) are only secondary/derived.\n- Monthly maxima 2026 from the official table: <=55 total S$2,960 / employee S$1,600; >55-60 S$2,720 / S$1,440; >60-65 S$2,000 / S$1,000.\n- Rounding: total to nearest dollar (>=50c up), employee share cents always dropped, employer = total - employee.\n- SPR 1st/2nd year G/G for <=55: total 9% (max S$720) / employee 5% (max S$400); total 24% (max S$1,920) / employee 15% (max S$1,200). Other age bands not retrieved.\n- IRAS CPF relief: only compulsory employee contributions on OW (up to OW ceiling) and AW (up to AW ceiling); voluntary excess not deductible; subject to S$80,000 overall relief cap. Derived maximum for an employee <=55 at/above the ceilings: 20% x S$102,000 = S$20,400 for both YA2026 and YA2027.\n\nNot verified (see open_questions): age-band switch timing, foreigners' exemption, 2024 OW ceiling, SPR graduated rates for older bands and F/G option details, official 2027 rate table, and published CPF/IRAS worked examples. Worked examples supplied are the official table maxima and the CPF AW-ceiling example, plus several clearly-flagged derived vectors.",
  "facts": [
   {
    "id": "cpf-rates-2026-age-55-and-below",
@@ -70,7 +70,7 @@
    "value": "Employer 12% (derived), employee 11.5%, total 23.5%",
    "applies_to": "Wages paid 1 Jan 2025 - 31 Dec 2025 (YA2026)",
    "source_url": "https://www.cpf.gov.sg/content/dam/web/employer/employer-obligations/documents/CPF_contribution_rates_from_1_Jan_2025.pdf",
-   "source_quote": "Above 60 - 65 ... [23.5% (OW)]* + 23.5% (AW) [11.5% (OW)]* + 11.5% (AW)",
+   "source_quote": "Above 60 - 65... [23.5% (OW)]* + 23.5% (AW) [11.5% (OW)]* + 11.5% (AW)",
    "confidence": "high"
   },
   {
@@ -97,7 +97,7 @@
    "value": "Total 35.5% (from 34%); employer 16.5%, employee 19% (split = 2026 rates + reported increments)",
    "applies_to": "Wages paid from 1 Jan 2027 (income year 2027 / YA2028)",
    "source_url": "https://www.cpf.gov.sg/member/infohub/news/cpf-related-announcements/budget-highlights-2026",
-   "source_quote": "total CPF contribution rates for senior workers ... will increase by 1.5% for those aged above age 55 to 60 and 1% for those above age 60 to 65 from 1 January 2027. (Search summary: 34% to 35.5%; employers pay 0.5 points more and employees 1 point more.)",
+   "source_quote": "total CPF contribution rates for senior workers... will increase by 1.5% for those aged above age 55 to 60 and 1% for those above age 60 to 65 from 1 January 2027. (Search summary: 34% to 35.5%; employers pay 0.5 points more and employees 1 point more.)",
    "confidence": "medium"
   },
   {
@@ -178,7 +178,7 @@
    "value": "Use the AW ceiling of the year the AW is due and payable",
    "applies_to": "All years",
    "source_url": "https://www.cpf.gov.sg/service/sfc/servlet.shepherd/document/download/069IW00000KUuZCYA1",
-   "source_quote": "The applicable AW ceiling depends on when the AW is due and payable ... the employer should contribute according to the 2026 AW ceiling (CPF AW ceiling examples document, as summarised by search).",
+   "source_quote": "The applicable AW ceiling depends on when the AW is due and payable... the employer should contribute according to the 2026 AW ceiling (CPF AW ceiling examples document, as summarised by search).",
    "confidence": "medium"
   },
   {
@@ -214,7 +214,7 @@
    "value": "Employee = 0.6 x (TW - S$500); total = 17% x TW + 0.6 x (TW - S$500); employer = total - employee",
    "applies_to": "Wages paid from 1 Jan 2026, age 55 and below (same in 2025 since rates unchanged)",
    "source_url": "https://www.cpf.gov.sg/content/dam/web/employer/employer-obligations/documents/CPFcontributionratesfrom1Jan2026.pdf",
-   "source_quote": "The table lists the employee's share as 0.6 (TW - $500), where TW is total wages for the calendar month ... total contributions of 17% of TW plus that same amount. 'employee contribution rates continue to be phased in for wages of more than $500 to $750'.",
+   "source_quote": "The table lists the employee's share as 0.6 (TW - $500), where TW is total wages for the calendar month... total contributions of 17% of TW plus that same amount. 'employee contribution rates continue to be phased in for wages of more than $500 to $750'.",
    "confidence": "high"
   },
   {
@@ -241,7 +241,7 @@
    "value": "Employee = 0.225 x (TW - S$500) (secondary source + consistent with continuity at S$750)",
    "applies_to": "2025 and 2026 (employee rate 7.5% in both years)",
    "source_url": "https://numbers.sg/rates/cpf-contribution-rates/",
-   "source_quote": "numbers.sg lists '(pay - $500)' coefficients of 0.39 for above 60 to 65, 0.225 for above 65 to 70, and 0.15 for other brackets (year not clearly stated). Not confirmed against the official PDF in this session.",
+   "source_quote": "numbers.sg lists '(pay - $500)' coefficients of 0.39 for above 60 to 65, 0.225 for above 65 to 70, and 0.15 for other brackets (year not clearly stated). Not confirmed against the official PDF in this research pass.",
    "confidence": "medium"
   },
   {
@@ -250,7 +250,7 @@
    "value": "Employee = 0.15 x (TW - S$500) (derived; needs verification against the official table)",
    "applies_to": "2025 and 2026 (employee rate 5%)",
    "source_url": "https://numbers.sg/rates/cpf-contribution-rates/",
-   "source_quote": "numbers.sg lists ... 0.225 for above 65 to 70, and 0.15 for other brackets. Pattern in the official table: multiplier = 3 x employee rate (0.6 for 20%, 0.54 for 18%, 0.375 for 12.5%).",
+   "source_quote": "numbers.sg lists... 0.225 for above 65 to 70, and 0.15 for other brackets. Pattern in the official table: multiplier = 3 x employee rate (0.6 for 20%, 0.54 for 18%, 0.375 for 12.5%).",
    "confidence": "low"
   },
   {
@@ -259,7 +259,7 @@
    "value": "<=55: total max S$2,960, employee max S$1,600 (employer S$1,360); >55-60: S$2,720 / S$1,440 (employer S$1,280); >60-65: S$2,000 / S$1,000 (employer S$1,000). Derived, not quoted: >65-70 S$1,320 / S$600; >70 S$1,000 / S$400.",
    "applies_to": "Ordinary wages per month, 1 Jan 2026 - 31 Dec 2026 (AW contributions are additional, subject to the AW ceiling)",
    "source_url": "https://www.cpf.gov.sg/content/dam/web/employer/employer-obligations/documents/CPFcontributionratesfrom1Jan2026.pdf",
-   "source_quote": "* Max. of $2,960 * Max. of $1,600 ... The 55-60 band has a $2,720 total cap and a $1,440 employee cap, and the 60-65 band has a $2,000 total cap and a $1,000 employee cap.",
+   "source_quote": "* Max. of $2,960 * Max. of $1,600... The 55-60 band has a $2,720 total cap and a $1,440 employee cap, and the 60-65 band has a $2,000 total cap and a $1,000 employee cap.",
    "confidence": "high"
   },
   {
@@ -322,7 +322,7 @@
    "value": "Total 9% (max S$720/month on OW), employee 5% (max S$400), employer 4% (derived). Note: the search extraction labelled 9% as 'employer', but the caps (9% x S$8,000 = S$720; 5% x S$8,000 = S$400) fit the table's Total / Employee's-share column layout.",
    "applies_to": "1st-year SPR, age <=55, wages paid from 1 Jan 2026",
    "source_url": "https://www.cpf.gov.sg/content/dam/web/employer/employer-obligations/documents/CPFcontributionratesfrom1Jan2026.pdf",
-   "source_quote": "The first-year G/G table appears to show ... 9% and an employee share of 5% above $750, with caps of $720 and $400.",
+   "source_quote": "The first-year G/G table appears to show... 9% and an employee share of 5% above $750, with caps of $720 and $400.",
    "confidence": "medium"
   },
   {
@@ -331,7 +331,7 @@
    "value": "Total 24% (max S$1,920/month on OW), employee 15% (max S$1,200), employer 9% (derived). The search extraction labelled 24% as 'employer'; caps (24% x S$8,000 = S$1,920; 15% x S$8,000 = S$1,200) show 24% is the total.",
    "applies_to": "2nd-year SPR, age <=55, wages paid from 1 Jan 2026",
    "source_url": "https://www.cpf.gov.sg/content/dam/web/employer/employer-obligations/documents/CPFcontributionratesfrom1Jan2026.pdf",
-   "source_quote": "The second-year table appears to show 24% ... and 15% employee, with caps of $1,920 and $1,200.",
+   "source_quote": "The second-year table appears to show 24%... and 15% employee, with caps of $1,920 and $1,200.",
    "confidence": "medium"
   },
   {
@@ -349,7 +349,7 @@
    "value": "Relief = compulsory employee CPF on OW (capped at the monthly OW ceiling) + on AW (capped at AW ceiling = S$102,000 - total OW subject to CPF)",
    "applies_to": "YA2026 and YA2027",
    "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/central-provident-fund(cpf)-relief-for-employees",
-   "source_quote": "Relief is limited to compulsory employee CPF contributions made on Ordinary Wages and Additional Wages ... AW ceiling is $102,000 less total ordinary wages subject to CPF for the year.",
+   "source_quote": "Relief is limited to compulsory employee CPF contributions made on Ordinary Wages and Additional Wages... AW ceiling is $102,000 less total ordinary wages subject to CPF for the year.",
    "confidence": "high"
   },
   {
@@ -376,7 +376,7 @@
    "value": "OW cap S$8,000/month (S$96,000/yr); AW cap = S$102,000 - total OW subject to CPF (minimum S$6,000 when OW >= S$8,000 all year)",
    "applies_to": "Income earned 1 Jan - 31 Dec 2026, assessed YA2027 (YA mapping is inferred; the IRAS page states the ceiling by wage date)",
    "source_url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/central-provident-fund(cpf)-relief-for-employees",
-   "source_quote": "IRAS's CPF relief page lists the CPF monthly salary ceiling at $8,000 for wages on or after 1 Jan 2026 ... no page here names YA 2027 explicitly.",
+   "source_quote": "IRAS's CPF relief page lists the CPF monthly salary ceiling at $8,000 for wages on or after 1 Jan 2026... no page here names YA 2027 explicitly.",
    "confidence": "medium"
   },
   {
@@ -492,7 +492,7 @@
   }
  ],
  "open_questions": [
-  "TOOLING LIMIT: the shared WebSearch budget was exhausted after 9 successful searches and direct fetches fail DNS (gov.sg hosts, endowus.com, justlogin.com, 494075.fs1.hubspotusercontent-na1.net - these would need to be allowed in the session's network settings). All items below still need a sourced check.",
+  "RESEARCH LIMIT: the search allowance was exhausted after 9 successful searches and direct fetches fail DNS (gov.sg hosts, endowus.com, justlogin.com, 494075.fs1.hubspotusercontent-na1.net - these hosts were not reachable from the research environment). All items below still need a sourced check.",
   "Q6 age-band switch timing NOT verified: the CPF FAQ exists at https://www.cpf.gov.sg/service/article/when-will-my-cpf-contribution-rates-change-when-I-turn-55-60-65-or-70 but its content was not retrieved. Unverified expectation (from memory, do not treat as sourced): new rates apply from the first day of the month after the month of the 55th/60th/65th/70th birthday.",
   "Q9 foreigners on work passes NOT verified with a quote: retrieved CPF tables are scoped to 'Singapore citizens or PRs', and a CPF FAQ exists (https://www.cpf.gov.sg/service/article/do-i-need-to-pay-cpf-contributions-for-my-foreign-employee-who-has-recently-obtained-singapore-permanent-residence-status), but no explicit statement that Employment Pass / S Pass / Work Permit holders pay no CPF was retrieved.",
   "OW ceiling for 2024 not confirmed by a retrieved quote. Unverified expectation: S$6,800/month for 1 Jan - 31 Dec 2024 (and S$6,300 for 1 Sep - 31 Dec 2023) under the Budget 2023 schedule; official table: https://www.cpf.gov.sg/content/dam/web/employer/employer-obligations/documents/CPFcontributionandallocationratesfrom1Jan2024.pdf",

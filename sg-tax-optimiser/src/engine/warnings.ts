@@ -6,17 +6,21 @@ import { maxCompulsoryEmployeeCpf } from './cpf';
 import { formatLongDate, parseIsoDate } from './dates';
 import { taxPayableAfter } from './evaluate';
 import type { EngineContext } from './evaluate';
-import { formatDollars, formatPercent, formatTax } from './format';
-import { LEVER_IDS, totalOf } from './levers';
+import { NON_RESIDENT_SRS_COST } from './facts';
+import { formatCentsPerDollar, formatDollars, formatPercent, formatTax } from './format';
+import { LEVER_IDS, RETIREMENT_ACCOUNT_AGE, cpfSelfRoomUnconfirmed, totalOf } from './levers';
 import { subtractMoney } from './money';
 import type { Optimisation } from './optimiser';
-import type { LeverId, MonthlyPlan, PlannerWarning } from './types';
+import type { LadderTier, LeverId, MonthlyPlan, PlannerWarning } from './types';
 
 /** DEADLINE_SOON applies from this many days before the deadline. */
 const DEADLINE_SOON_DAYS = 14;
 
-/** Age from which a CPF top-up to oneself goes to the Retirement Account. */
-const RETIREMENT_ACCOUNT_AGE = 55;
+/** TAX_RESIDENCY_CHECK applies to a foreigner who worked at most this many months of the year ("half the year"). */
+const TAX_RESIDENCY_CHECK_MONTHS = 6;
+
+/** Days in Singapore in the income year that make a foreigner a tax resident (SPEC §5.4). */
+const TAX_RESIDENCY_DAYS = 183;
 
 /** Where each lever's money goes, to complete "You have already put S$X into …". */
 const LEVER_DESTINATIONS: Record<LeverId, string> = {
@@ -213,7 +217,8 @@ function cpfOverrideAboveMax(ctx: EngineContext): PlannerWarning | null {
     message:
       `The employee CPF you entered (${formatDollars(override)}) is more than the largest compulsory ` +
       `contribution possible in a year (${formatDollars(maxCompulsory)}), so ${formatDollars(maxCompulsory)} ` +
-      'is used. Voluntary contributions do not earn CPF relief.',
+      'is used. Voluntary contributions to your three CPF accounts earn no relief; a cash top-up to your ' +
+      "MediSave, Special or Retirement Account does — enter it under 'Already contributed'.",
     params: { override, maxCompulsory },
   };
 }
@@ -234,6 +239,50 @@ function foreignerNoCpf(ctx: EngineContext): PlannerWarning | null {
   };
 }
 
+function taxResidencyCheck(ctx: EngineContext): PlannerWarning | null {
+  const { monthsWorked } = ctx.input.income;
+  if (ctx.input.profile.residency !== 'foreigner' || monthsWorked > TAX_RESIDENCY_CHECK_MONTHS) return null;
+  return {
+    code: 'TAX_RESIDENCY_CHECK',
+    severity: 'caution',
+    message:
+      'You worked here for half the year or less. You are a tax resident only if you were in Singapore for at ' +
+      `least ${TAX_RESIDENCY_DAYS} days (IRAS has further rules for stays that span two years). Non-residents ` +
+      'get no reliefs, so this plan would not apply.',
+    params: { monthsWorked, residentDays: TAX_RESIDENCY_DAYS },
+  };
+}
+
+/**
+ * §6.11 `lowValueAmount`: the part of the plan's contribution that lies in ladder tiers whose rate is below what
+ * a non-resident pays, at the least, to take a dollar out of SRS again.
+ */
+function lowValuePlanDollars(ladder: readonly LadderTier[]): number {
+  return ladder
+    .filter((tier) => tier.rate < NON_RESIDENT_SRS_COST.atRetirementOrTenYears)
+    .reduce((sum, tier) => sum + tier.usedByPlan, 0);
+}
+
+function srsNonResidentWithdrawal(ctx: EngineContext, ladder: readonly LadderTier[]): PlannerWarning | null {
+  const { eligible, enabled } = ctx.levers.srs;
+  if (ctx.input.profile.residency !== 'foreigner' || !enabled || !eligible) return null;
+  const { atRetirementOrTenYears, early } = NON_RESIDENT_SRS_COST;
+  const leastCost = formatCentsPerDollar(atRetirementOrTenYears);
+  const lowValueAmount = lowValuePlanDollars(ladder);
+  return {
+    code: 'SRS_NON_RESIDENT_WITHDRAWAL',
+    severity: 'caution',
+    message:
+      "If you have left Singapore when you withdraw, SRS is taxed as a non-resident's: at least " +
+      `${leastCost} per dollar withdrawn at retirement age or under the 10-year rule for foreigners, and at ` +
+      `least ${formatCentsPerDollar(early)} if earlier.` +
+      (lowValueAmount > 0
+        ? ` ${formatDollars(lowValueAmount)} of this plan saves less than ${leastCost} per dollar today.`
+        : ''),
+    params: { lowValueAmount, atRetirementOrTenYears, early },
+  };
+}
+
 function prGraduatedRates(ctx: EngineContext): PlannerWarning | null {
   const { residency, prYear } = ctx.input.profile;
   if (residency !== 'pr' || prYear === 3) return null;
@@ -248,19 +297,73 @@ function prGraduatedRates(ctx: EngineContext): PlannerWarning | null {
   };
 }
 
-function age55PlusTopUp(ctx: EngineContext): PlannerWarning | null {
-  const { ageAtYearEnd } = ctx.input.profile;
+/** True when the person is 55 or over and top-ups to their own CPF are switched on and open to them. */
+function ownTopUpFromAge55(ctx: EngineContext): boolean {
   const { eligible, enabled } = ctx.levers.cpfSelf;
-  if (ageAtYearEnd < RETIREMENT_ACCOUNT_AGE || !enabled || !eligible) return null;
+  return ctx.input.profile.ageAtYearEnd >= RETIREMENT_ACCOUNT_AGE && enabled && eligible;
+}
+
+function cpfSelfRoomUnconfirmedWarning(ctx: EngineContext): PlannerWarning | null {
+  if (!ownTopUpFromAge55(ctx) || !cpfSelfRoomUnconfirmed(ctx.input)) return null;
+  const { ageAtYearEnd } = ctx.input.profile;
+  const { fullRetirementSum, enhancedRetirementSum } = ctx.rules.cpfTopUp;
+  return {
+    code: 'CPF_SELF_ROOM_UNCONFIRMED',
+    severity: 'caution',
+    message:
+      `From age ${RETIREMENT_ACCOUNT_AGE} the CPF Board accepts top-ups up to the Enhanced Retirement Sum ` +
+      `(${formatDollars(enhancedRetirementSum)}), but only the part up to the Full Retirement Sum ` +
+      `(${formatDollars(fullRetirementSum)}) earns relief, and a top-up cannot be reversed. Your own CPF is left ` +
+      `out until you enter how much you can still top up with relief (${formatDollars(0)} if you have set aside ` +
+      'the Full Retirement Sum).',
+    params: { ageAtYearEnd, fullRetirementSum, enhancedRetirementSum },
+  };
+}
+
+function age55PlusTopUp(ctx: EngineContext): PlannerWarning | null {
+  const { roomToLimit } = ctx.input.levers.cpfSelf;
+  if (!ownTopUpFromAge55(ctx) || roomToLimit === null) return null;
+  const { ageAtYearEnd } = ctx.input.profile;
   const { fullRetirementSum } = ctx.rules.cpfTopUp;
   return {
     code: 'AGE_55_PLUS_TOPUP',
     severity: 'info',
     message:
-      'From age 55, cash top-ups go to your Retirement Account and earn tax relief only up to the Full ' +
-      `Retirement Sum (${formatDollars(fullRetirementSum)} in ${ctx.rules.incomeYear}). Check your balance and ` +
-      'enter the room you have left.',
-    params: { ageAtYearEnd, fullRetirementSum },
+      `From age ${RETIREMENT_ACCOUNT_AGE}, cash top-ups go to your Retirement Account and earn relief only up to ` +
+      `the Full Retirement Sum (${formatDollars(fullRetirementSum)} in ${ctx.rules.incomeYear}). The plan uses ` +
+      `the room you entered (${formatDollars(roomToLimit)}); check it against your CPF Retirement dashboard.`,
+    params: { ageAtYearEnd, fullRetirementSum, roomToLimit },
+  };
+}
+
+function familyTopUpChecks(ctx: EngineContext, optimisation: Optimisation): PlannerWarning | null {
+  const planned = optimisation.plan.contributions.cpfFamily;
+  const existing = ctx.input.existing.cpfTopUpFamily;
+  if (!ctx.levers.cpfFamily.eligible || (planned <= 0 && existing <= 0)) return null;
+  const { retirementAnnualCap, mediSaveAnnualCap } = ctx.rules.cpfTopUp.matchedTopUps;
+  const params: Record<string, number | string> = { planned, existing, matchedRetirement: retirementAnnualCap };
+  if (mediSaveAnnualCap !== null) params.matchedMediSave = mediSaveAnnualCap;
+  return {
+    code: 'FAMILY_TOPUP_CHECKS',
+    severity: 'caution',
+    message:
+      'Family top-ups: the part the Government matches earns you no relief — the first ' +
+      `${formatDollars(retirementAnnualCap)} a year for a member on the Matched Retirement Savings Scheme` +
+      (mediSaveAnnualCap === null ? '' : `, ${formatDollars(mediSaveAnnualCap)} for MediSave`) +
+      '. The amounts here are top-ups beyond that, to a family member who qualifies.',
+    params,
+  };
+}
+
+function parenthoodTaxRebate(ctx: EngineContext): PlannerWarning | null {
+  if (ctx.input.profile.hasUnusedParenthoodTaxRebate !== true) return null;
+  return {
+    code: 'PARENTHOOD_TAX_REBATE',
+    severity: 'caution',
+    message:
+      `With unused Parenthood Tax Rebate your tax bill this year may already be ${formatDollars(0)}. This plan ` +
+      'would then save no cash now: it makes the rebate last longer, so the benefit arrives in a later year.',
+    params: {},
   };
 }
 
@@ -301,7 +404,8 @@ function deadlineSoon(optimisation: Optimisation, monthlyPlan: MonthlyPlan): Pla
       (daysToDeadline === 0
         ? `Today, ${longDate(deadline)}, is the deadline.`
         : `Only ${days(daysToDeadline)} left until the ${longDate(deadline)} deadline.`) +
-      ' Banks and the CPF Board can stop taking contributions earlier, so transfer as soon as you can.',
+      ' Banks stop taking same-day SRS contributions before midnight on the last day, some as early as 7pm, ' +
+      'and a CPF top-up counts on the day the CPF Board receives it, so transfer as soon as you can.',
     params: { deadline, daysToDeadline },
   };
 }
@@ -335,11 +439,15 @@ function pitRebateApplied(ctx: EngineContext): PlannerWarning | null {
   };
 }
 
-/** SPEC §6.11: every warning whose condition holds, in the order of the SPEC's table. */
+/**
+ * SPEC §6.11: every warning whose condition holds, in the order of the SPEC's table.
+ * @param ladder the savings ladder of §6.7 for the same plan (for `SRS_NON_RESIDENT_WITHDRAWAL`)
+ */
 export function buildWarnings(
   ctx: EngineContext,
   optimisation: Optimisation,
   monthlyPlan: MonthlyPlan,
+  ladder: readonly LadderTier[],
 ): PlannerWarning[] {
   const candidates = [
     noTaxPayable(ctx),
@@ -351,8 +459,13 @@ export function buildWarnings(
     existingExceedsCap(ctx),
     cpfOverrideAboveMax(ctx),
     foreignerNoCpf(ctx),
+    taxResidencyCheck(ctx),
+    srsNonResidentWithdrawal(ctx, ladder),
     prGraduatedRates(ctx),
+    cpfSelfRoomUnconfirmedWarning(ctx),
     age55PlusTopUp(ctx),
+    familyTopUpChecks(ctx, optimisation),
+    parenthoodTaxRebate(ctx),
     srsUnder18(ctx),
     deadlinePassed(ctx, monthlyPlan),
     deadlineSoon(optimisation, monthlyPlan),

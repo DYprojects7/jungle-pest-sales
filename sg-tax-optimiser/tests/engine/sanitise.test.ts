@@ -90,7 +90,7 @@ describe('sanitiseInput — optional fields and limits', () => {
     expect(sanitiseInput(minimal)).toEqual({
       incomeYear: 2026,
       today: '2026-11-13',
-      profile: { residency: 'pr', prYear: 3, ageAtYearEnd: 40, birthMonth: 12 },
+      profile: { residency: 'pr', prYear: 3, ageAtYearEnd: 40, birthMonth: 12, hasUnusedParenthoodTaxRebate: false },
       income: {
         monthlyOrdinaryWage: 5_000,
         monthsWorked: 12,
@@ -237,6 +237,46 @@ describe('sanitiseInput — profile', () => {
     expect(profile({ residency: 'citizen' }).residency).toBe('citizen');
     expect(profile({ residency: 'tourist' }).residency).toBe('citizen');
     expect(profile({ residency: undefined }).residency).toBe('citizen');
+  });
+
+  it.each([
+    [true, true],
+    [false, false],
+    ['true', false],
+    ['yes', false],
+    [1, false],
+    [0, false],
+    [null, false],
+    [undefined, false],
+    [{}, false],
+    [[true], false],
+  ])('hasUnusedParenthoodTaxRebate %j -> %s (true only for the boolean true, §6.0)', (given, expected) => {
+    expect(profile({ hasUnusedParenthoodTaxRebate: given }).hasUnusedParenthoodTaxRebate).toBe(expected);
+  });
+
+  it('hasUnusedParenthoodTaxRebate defaults to false: missing field, missing profile, and the default input', () => {
+    const { hasUnusedParenthoodTaxRebate: _dropped, ...withoutTheField } = base.profile;
+    expect(sanitiseInput(loose({ ...base, profile: withoutTheField })).profile.hasUnusedParenthoodTaxRebate).toBe(false);
+    expect(sanitiseInput(loose({ ...base, profile: undefined })).profile.hasUnusedParenthoodTaxRebate).toBe(false);
+    expect(sanitiseInput(loose({ incomeYear: 2026 })).profile.hasUnusedParenthoodTaxRebate).toBe(false);
+    expect(base.profile.hasUnusedParenthoodTaxRebate).toBe(false);
+    expect(plan(base).input.profile.hasUnusedParenthoodTaxRebate).toBe(false);
+  });
+
+  it('the tick-box changes no figure: only the PARENTHOOD_TAX_REBATE caution is added (SPEC §1, §6.11)', () => {
+    const without = plan(base);
+    const ticked = plan({ ...base, profile: { ...base.profile, hasUnusedParenthoodTaxRebate: true } });
+    expect(ticked.input.profile.hasUnusedParenthoodTaxRebate).toBe(true);
+    const figures = ({ rules: _rules, input: _input, warnings: _warnings, ...rest }: PlannerResult) => rest;
+    expect(figures(ticked)).toEqual(figures(without));
+    expect(without.warnings.map((w) => w.code)).toEqual(['LEVER_LIMITS_PLAN']);
+    expect(ticked.warnings.map((w) => w.code)).toEqual(['LEVER_LIMITS_PLAN', 'PARENTHOOD_TAX_REBATE']);
+    // "true" and 1 are not a tick: no caution.
+    for (const notATick of ['true', 1]) {
+      const result = plan(loose({ ...base, profile: { ...base.profile, hasUnusedParenthoodTaxRebate: notATick } }));
+      expect(result.input.profile.hasUnusedParenthoodTaxRebate).toBe(false);
+      expect(result.warnings.map((w) => w.code)).toEqual(['LEVER_LIMITS_PLAN']);
+    }
   });
 });
 

@@ -141,9 +141,12 @@ describe('foreigner', () => {
     expect(maxAll).toMatchObject({ totalContribution: 35_700, taxSaved: 6_516, wastedContribution: 0 });
   });
 
-  it('warnings: FOREIGNER_NO_CPF, and no existing-over-cap warning for CPF top-ups', () => {
-    expect(result.warnings.map((w) => w.code)).toEqual(['LEVER_LIMITS_PLAN', 'FOREIGNER_NO_CPF']);
+  it('warnings: FOREIGNER_NO_CPF and the SRS withdrawal caution, and no existing-over-cap warning for CPF top-ups', () => {
+    // A foreigner with SRS switched on and open to them always gets SRS_NON_RESIDENT_WITHDRAWAL (§6.11). The plan
+    // sits in the 19% and 18% rungs, so none of it is worth less than the 7.5 cents it costs to take out.
+    expect(result.warnings.map((w) => w.code)).toEqual(['LEVER_LIMITS_PLAN', 'FOREIGNER_NO_CPF', 'SRS_NON_RESIDENT_WITHDRAWAL']);
     expect(result.warnings[1]?.params).toEqual({ srsCap: 35_700 });
+    expect(result.warnings[2]?.params).toMatchObject({ lowValueAmount: 0 });
   });
 
   it('CPF top-ups already made earn a foreigner no relief', () => {
@@ -291,6 +294,166 @@ describe('user limits', () => {
       cpfSelf: 3_000,
       cpfFamily: 2_500,
     });
+  });
+});
+
+describe('CPF self room from age 55 must be confirmed (§6.5)', () => {
+  // The opening example at 54 and at 55 (December birthday, so the CPF rate is 20% all year in both cases).
+  // 54: EIR 1,000 -> reliefs 26,400, CI 108,600, tax 6,639.00 (Appendix A.1).
+  // 55: EIR 6,000 -> reliefs 31,400, CI 103,600, tax 3,350 + 11.5% x 23,600 = 6,064.00. U = 63,600, C = 48,600.
+  const at = (ageAtYearEnd: number, cpfSelf: Overrides['cpfSelf'] = {}, more: Overrides = {}) =>
+    plan(input({ ...more, profile: { ...more.profile, ageAtYearEnd }, cpfSelf }));
+  const codes = (result: ReturnType<typeof plan>): string[] => result.warnings.map((w) => w.code);
+
+  it('54 with the room left blank: the limits are assumed not to bind (room 8,000)', () => {
+    const result = at(54);
+    expect(result.baseline.taxPayable).toBe(6_639);
+    expect(result.levers.cpfSelf).toEqual({ statutoryCap: 8_000, used: 0, room: 8_000, eligible: true, enabled: true });
+    expect(result.plan.contributions).toEqual({ srs: 15_300, cpfSelf: 8_000, cpfFamily: 0 });
+    expect(result.plan.taxSaved).toBe(2_679.5);
+    expect(codes(result)).toEqual(['LEVER_LIMITS_PLAN']);
+  });
+
+  it('55 with the room left blank: room 0, the plan is SRS only, and the caution asks for the figure', () => {
+    const result = at(55);
+    expect(result.cpf.employeeContribution).toBe(20_400);
+    expect(result.baseline.reliefs.earnedIncome).toBe(6_000);
+    expect(result.baseline.chargeableIncome).toBe(103_600);
+    expect(result.baseline.taxPayable).toBe(6_064);
+    expect(result.levers.cpfSelf).toEqual({ statutoryCap: 8_000, used: 0, room: 0, eligible: true, enabled: true });
+    // X = min(U 63,600, C 48,600, L 15,300) = 15,300. CI 88,300 -> 3,350 + 11.5% x 8,300 = 4,304.50.
+    expect(result.plan.contributions).toEqual({ srs: 15_300, cpfSelf: 0, cpfFamily: 0 });
+    expect(result.plan.totalContribution).toBe(15_300);
+    expect(result.plan.bindingConstraint).toBe('leverLimits');
+    expect(result.plan.taxAfter).toBe(4_304.5);
+    expect(result.plan.taxSaved).toBe(1_759.5); // 15,300 x 11.5%
+    // min(U, C) = 48,600 -> CI 55,000 -> 1,600.00; 4,304.50 - 1,600.00
+    expect(result.plan.unrealisedSaving).toBe(2_704.5);
+    expect(codes(result)).toEqual(['LEVER_LIMITS_PLAN', 'CPF_SELF_ROOM_UNCONFIRMED']);
+  });
+
+  it('55, blank: the ladder and the simulator stop at the SRS room (L = 15,300)', () => {
+    const result = at(55);
+    expect(result.ladder).toEqual([
+      { fromContribution: 0, toContribution: 15_300, amount: 15_300, rate: 0.115, taxSaved: 1_759.5, cumulativeTaxSaved: 1_759.5, usedByPlan: 15_300 },
+    ]);
+    expect(result.simulator).toHaveLength(17); // 0, 1,000 ... 15,000, 15,300
+    expect(result.simulator[16]).toMatchObject({ contribution: 15_300, split: { srs: 15_300, cpfSelf: 0, cpfFamily: 0 }, taxSaved: 1_759.5 });
+    expect(result.simulator.every((row) => row.split.cpfSelf === 0)).toBe(true);
+  });
+
+  it('55, blank: the scenarios of §6.9 use roomIfEnabled, so "CPF only" is empty', () => {
+    const byId = Object.fromEntries(at(55).scenarios.map((s) => [s.id, s]));
+    expect(byId.srsOnly).toMatchObject({ contributions: { srs: 15_300, cpfSelf: 0, cpfFamily: 0 }, taxPayable: 4_304.5, taxSaved: 1_759.5 });
+    expect(byId.cpfSelfOnly).toMatchObject({
+      contributions: { srs: 0, cpfSelf: 0, cpfFamily: 0 },
+      totalContribution: 0,
+      taxPayable: 6_064,
+      taxSaved: 0,
+      savingRate: 0,
+      wastedContribution: 0,
+    });
+    expect(byId.srsPlusCpfSelf).toMatchObject({ contributions: { srs: 15_300, cpfSelf: 0, cpfFamily: 0 }, totalContribution: 15_300, taxSaved: 1_759.5 });
+    expect(byId.maxAll).toMatchObject({ contributions: { srs: 15_300, cpfSelf: 0, cpfFamily: 0 }, totalContribution: 15_300, taxSaved: 1_759.5 });
+    expect(byId.recommended).toMatchObject({ contributions: { srs: 15_300, cpfSelf: 0, cpfFamily: 0 }, totalContribution: 15_300 });
+    // Also when the lever is switched off: the scenario ignores the flag but not the unconfirmed room.
+    const off = Object.fromEntries(at(55, { enabled: false }).scenarios.map((s) => [s.id, s]));
+    expect(off.cpfSelfOnly?.totalContribution).toBe(0);
+    // At 54 the same scenario is the full 8,000: 8,000 x 11.5% = 920.00.
+    const younger = Object.fromEntries(at(54).scenarios.map((s) => [s.id, s]));
+    expect(younger.cpfSelfOnly).toMatchObject({ contributions: { srs: 0, cpfSelf: 8_000, cpfFamily: 0 }, taxSaved: 920 });
+  });
+
+  it('55, blank: LEVER_LIMITS_PLAN counts only the family top-up as room that can be switched on', () => {
+    // Sum of roomIfEnabled = 15,300 (SRS) + 0 (own CPF, unconfirmed) + 8,000 (family, off) = 23,300.
+    // From CI 88,300 the 8,000 family dollars are all at 11.5%: 920.00. (Counting the unconfirmed 8,000 as well
+    // would have promised 8,300 x 11.5% + 7,700 x 7% = 1,493.50.)
+    const limit = at(55).warnings.find((w) => w.code === 'LEVER_LIMITS_PLAN');
+    expect(limit?.params).toEqual({ leverRoom: 15_300, unrealisedSaving: 2_704.5, savingIfSwitchedOn: 920 });
+    expect(limit?.message).toBe(
+      'The plan uses all S$15,300 of room left in the schemes you switched on. ' +
+        'Switching on the schemes you left off could save up to S$920.00 more tax.',
+    );
+    // With the family top-up on as well there is nothing left to switch on.
+    const allOn = at(55, {}, { cpfFamily: { enabled: true } });
+    expect(allOn.plan.contributions).toEqual({ srs: 15_300, cpfSelf: 0, cpfFamily: 8_000 });
+    expect(allOn.warnings.find((w) => w.code === 'LEVER_LIMITS_PLAN')?.params).toMatchObject({ leverRoom: 23_300, savingIfSwitchedOn: 0 });
+    // Own CPF switched OFF at 55 with a blank room: still not counted (roomIfEnabled is 0), so 920.00 again;
+    // at 54 the same switch is worth the full 16,000: tax(93,300) - tax(77,300) = 4,879.50 - 3,161.00 = 1,718.50.
+    expect(at(55, { enabled: false }).warnings.find((w) => w.code === 'LEVER_LIMITS_PLAN')?.params).toMatchObject({ savingIfSwitchedOn: 920 });
+    expect(at(54, { enabled: false }).warnings.find((w) => w.code === 'LEVER_LIMITS_PLAN')?.params).toMatchObject({ savingIfSwitchedOn: 1_718.5 });
+  });
+
+  it('55 with a room of 0: confirmed as nothing — the same plan, but the note instead of the caution', () => {
+    const result = at(55, { roomToLimit: 0 });
+    expect(result.levers.cpfSelf.room).toBe(0);
+    expect(result.plan).toEqual(at(55).plan);
+    expect(codes(result)).toEqual(['LEVER_LIMITS_PLAN', 'AGE_55_PLUS_TOPUP']);
+  });
+
+  it('55 with a room entered: the smaller of the room and what is left of the S$8,000 cap', () => {
+    // 3,000: X = 18,300 -> CI 85,300 -> 3,959.50; saved 2,104.50.
+    const some = at(55, { roomToLimit: 3_000 });
+    expect(some.levers.cpfSelf.room).toBe(3_000);
+    expect(some.plan.contributions).toEqual({ srs: 15_300, cpfSelf: 3_000, cpfFamily: 0 });
+    expect(some.plan.taxAfter).toBe(3_959.5);
+    expect(some.plan.taxSaved).toBe(2_104.5);
+    expect(codes(some)).toEqual(['LEVER_LIMITS_PLAN', 'AGE_55_PLUS_TOPUP']);
+    // 8,000, 8,001 and 50,000 all confirm the whole cap: X = 23,300 -> CI 80,300 -> 3,350 + 34.50 = 3,384.50.
+    for (const roomToLimit of [8_000, 8_001, 50_000]) {
+      const full = at(55, { roomToLimit });
+      expect(full.levers.cpfSelf.room).toBe(8_000);
+      expect(full.plan.contributions).toEqual({ srs: 15_300, cpfSelf: 8_000, cpfFamily: 0 });
+      expect(full.plan.taxAfter).toBe(3_384.5);
+      expect(full.plan.taxSaved).toBe(2_679.5);
+      expect(codes(full)).toEqual(['LEVER_LIMITS_PLAN', 'AGE_55_PLUS_TOPUP']);
+    }
+  });
+
+  it('55: existing top-ups still come off the cap first', () => {
+    // 6,000 already topped up: 2,000 of the cap is left. Blank -> 0; room 5,000 -> 2,000; room 500 -> 500.
+    expect(at(55, {}, { existing: { cpfTopUpSelf: 6_000 } }).levers.cpfSelf).toMatchObject({ used: 6_000, room: 0 });
+    expect(at(55, { roomToLimit: 5_000 }, { existing: { cpfTopUpSelf: 6_000 } }).levers.cpfSelf).toMatchObject({ used: 6_000, room: 2_000 });
+    expect(at(55, { roomToLimit: 500 }, { existing: { cpfTopUpSelf: 6_000 } }).levers.cpfSelf).toMatchObject({ used: 6_000, room: 500 });
+  });
+
+  it('54: a room that is entered still limits the plan, and a large one changes nothing', () => {
+    expect(at(54, { roomToLimit: 0 }).levers.cpfSelf.room).toBe(0);
+    expect(at(54, { roomToLimit: 3_000 }).levers.cpfSelf.room).toBe(3_000);
+    expect(at(54, { roomToLimit: 50_000 }).levers.cpfSelf.room).toBe(8_000);
+    for (const roomToLimit of [0, 3_000, 50_000]) {
+      expect(codes(at(54, { roomToLimit }))).not.toContain('AGE_55_PLUS_TOPUP');
+      expect(codes(at(54, { roomToLimit }))).not.toContain('CPF_SELF_ROOM_UNCONFIRMED');
+    }
+  });
+
+  it('every age from 55 up needs the room; "not a number" is not a room', () => {
+    for (const ageAtYearEnd of [55, 56, 60, 65, 70, 99, 120]) {
+      expect(at(ageAtYearEnd).levers.cpfSelf.room).toBe(0);
+      expect(at(ageAtYearEnd, { roomToLimit: 8_000 }).levers.cpfSelf.room).toBe(8_000);
+    }
+    for (const notANumber of [undefined, null, '8000', true, {}]) {
+      const result = at(55, { roomToLimit: notANumber as unknown as number });
+      expect(result.input.levers.cpfSelf.roomToLimit).toBeNull();
+      expect(result.levers.cpfSelf.room).toBe(0);
+    }
+    // NaN and a negative number ARE numbers: a limit of 0 (§6.0), which counts as entered.
+    for (const zeroLimit of [Number.NaN, -5, Number.POSITIVE_INFINITY]) {
+      const result = at(55, { roomToLimit: zeroLimit });
+      expect(result.input.levers.cpfSelf.roomToLimit).toBe(0);
+      expect(result.levers.cpfSelf.room).toBe(0);
+      expect(codes(result)).toContain('AGE_55_PLUS_TOPUP');
+      expect(codes(result)).not.toContain('CPF_SELF_ROOM_UNCONFIRMED');
+    }
+  });
+
+  it('the rule is about own CPF only: SRS and the family top-up are not held back at 55', () => {
+    const result = at(55, {}, { cpfFamily: { enabled: true } });
+    expect(result.levers.srs.room).toBe(15_300);
+    expect(result.levers.cpfFamily.room).toBe(8_000);
+    // A foreigner aged 60 has no CPF lever at all: cap 0, room 0, with or without a figure.
+    const foreigner = at(60, { roomToLimit: 8_000 }, { profile: { residency: 'foreigner' } });
+    expect(foreigner.levers.cpfSelf).toEqual({ statutoryCap: 0, used: 0, room: 0, eligible: false, enabled: true });
   });
 });
 

@@ -114,7 +114,8 @@ describe('H1 — turns 55 in March, works June–December (7 months), S$30,000 b
   //   employee 7,560 + 5,400 = 12,960; employer 16% x (42,000 + 30,000) = 11,520
   // Income 42,000 + 30,000 = 72,000. EIR at 55 = 6,000. Reliefs 18,960. CI 53,040.
   // Tax 550 + 7% x 13,040 = 550 + 912.80 = 1,462.80.
-  const input = person({ age: 55, birthMonth: 3, ow: 6_000, months: 7, aw: 30_000 });
+  // At 55 the CPF top-up room must be entered (SPEC §6.5): this person has confirmed the full S$8,000.
+  const input = person({ age: 55, birthMonth: 3, ow: 6_000, months: 7, aw: 30_000, roomToLimit: 8_000 });
   const r = plan(input);
 
   it('CPF: 18% in every worked month and on the bonus', () => {
@@ -165,6 +166,30 @@ describe('H1 — turns 55 in March, works June–December (7 months), S$30,000 b
     ]);
   });
 
+  it('the same person with the CPF room left blank (SPEC §6.5): L 15,300 -> SRS only; saves 991.90', () => {
+    // A blank room at 55 is "not confirmed": CPF self room 0, so L = 15,300 and X = min(33,040, 61,040, 15,300).
+    // CI after 53,040 - 15,300 = 37,740 -> 200 + 3.5% x 7,740 = 470.90. Saved 1,462.80 - 470.90 = 991.90
+    //   (= 13,040 x 7% + 2,260 x 3.5% = 912.80 + 79.10). Unrealised: 470.90 - tax(20,000) = 470.90.
+    const blank = plan(person({ age: 55, birthMonth: 3, ow: 6_000, months: 7, aw: 30_000 }));
+    expect(blank.cpf).toEqual(r.cpf);
+    expect(blank.baseline).toEqual(r.baseline);
+    expect(blank.levers.cpfSelf).toEqual({ statutoryCap: 8_000, used: 0, room: 0, eligible: true, enabled: true });
+    expect(blank.plan.contributions).toEqual({ srs: 15_300, cpfSelf: 0, cpfFamily: 0 });
+    expect(blank.plan.taxAfter).toBe(470.9);
+    expect(blank.plan.taxSaved).toBe(991.9);
+    expect(blank.plan.chargeableIncomeAfter).toBe(37_740);
+    expect(blank.plan.marginalRateAfter).toBe(0.035);
+    expect(blank.plan.bindingConstraint).toBe('leverLimits');
+    expect(blank.plan.unrealisedSaving).toBe(470.9);
+    expect(codes(blank)).toEqual(['LEVER_LIMITS_PLAN', 'CPF_SELF_ROOM_UNCONFIRMED']);
+    expect(tiers(blank)).toEqual([
+      { from: 0, to: 13_040, amount: 13_040, rate: 0.07, saved: 912.8, cumulative: 912.8, used: 13_040, zero: undefined },
+      { from: 13_040, to: 15_300, amount: 2_260, rate: 0.035, saved: 79.1, cumulative: 991.9, used: 2_260, zero: undefined },
+    ]);
+    expect(scenario(blank, 'cpfSelfOnly')).toMatchObject({ totalContribution: 0, taxSaved: 0 });
+    expect(scenario(blank, 'srsPlusCpfSelf').contributions).toEqual({ srs: 15_300, cpfSelf: 0, cpfFamily: 0 });
+  });
+
   it('the birth month moves the switch: June -> one month at 20%; December -> 20% throughout', () => {
     // Birth month 6: June still completedAge 54 -> 20% (1,200); July–December 18% (1,080 x 6 = 6,480);
     //   bonus at the December rate 18% (5,400). Total 13,080.
@@ -181,6 +206,8 @@ describe('H2 — turns 55 in October, works September–December (4 months), S$1
   // Worked months 9..12. completedAge = 54 for m <= 10 (Sep, Oct: "55 and below"), 55 for Nov, Dec ("above 55 to 60").
   // OW 7,000 a month is under both OW ceilings (7,400 / 8,000). OW subject 28,000; AW ceiling 74,000; AW subject 10,000.
   // Income 28,000 + 10,000 = 38,000. EIR (age 55) 6,000.
+  // The CPF top-up room is left blank: at 55 that leaves own CPF out (room 0) and raises CPF_SELF_ROOM_UNCONFIRMED
+  // instead of the AGE_55_PLUS_TOPUP note (SPEC §6.5, §6.11). SRS alone has more room than these plans need.
   const base = { age: 55, birthMonth: 10, ow: 7_000, months: 4, aw: 10_000 };
 
   it('2026 (20% then 18%): CPF 7,120, employer 6,220, CI 24,880, tax 97.60', () => {
@@ -199,7 +226,12 @@ describe('H2 — turns 55 in October, works September–December (4 months), S$1
     expect(r.plan.taxSaved).toBe(97.6);
     expect(r.plan.bindingConstraint).toBe('usefulRoom');
     expect(r.plan.unrealisedSaving).toBe(0);
-    expect(codes(r)).toEqual(['AGE_55_PLUS_TOPUP']);
+    expect(r.levers.cpfSelf.room).toBe(0);
+    expect(codes(r)).toEqual(['CPF_SELF_ROOM_UNCONFIRMED']);
+    // With the room entered the note replaces the caution and the plan is the same (U = 4,880 binds either way).
+    const confirmed = plan(person({ ...base, incomeYear: 2026, roomToLimit: 8_000 }));
+    expect(confirmed.plan).toEqual(r.plan);
+    expect(codes(confirmed)).toEqual(['AGE_55_PLUS_TOPUP']);
   });
 
   it('2025 (20% then 17%): CPF 6,880, employer 6,100, CI 25,120, tax 102.40', () => {
@@ -212,7 +244,7 @@ describe('H2 — turns 55 in October, works September–December (4 months), S$1
     expect(r.cpf.monthlyEmployeeRates).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0.2, 0.2, 0.17, 0.17]);
     expect(r.baseline.chargeableIncome).toBe(25_120);
     expect(r.baseline.taxPayable).toBe(102.4);
-    expect(codes(r)).toEqual(['AGE_55_PLUS_TOPUP']);
+    expect(codes(r)).toEqual(['CPF_SELF_ROOM_UNCONFIRMED']);
   });
 
   it('2027 (20% then 19%): CPF 7,360, employer 6,340, CI 24,640, tax 92.80, flagged projected', () => {
@@ -224,7 +256,7 @@ describe('H2 — turns 55 in October, works September–December (4 months), S$1
     expect(r.cpf.employerContribution).toBe(6_340);
     expect(r.baseline.chargeableIncome).toBe(24_640);
     expect(r.baseline.taxPayable).toBe(92.8);
-    expect(codes(r)).toEqual(['AGE_55_PLUS_TOPUP', 'PROJECTED_RULES']);
+    expect(codes(r)).toEqual(['CPF_SELF_ROOM_UNCONFIRMED', 'PROJECTED_RULES']);
   });
 });
 
@@ -245,7 +277,8 @@ describe('H3 — turns 60 in 2027: EIR uses the age at year end, CPF the month a
     expect(r.plan.taxAfter).toBe(3_350);
     expect(r.plan.taxSaved).toBe(761.3);
     expect(r.plan.bindingConstraint).toBe('usefulRoom');
-    expect(codes(r)).toEqual(['AGE_55_PLUS_TOPUP', 'PROJECTED_RULES']);
+    // CPF room left blank at 60: the caution, not the note (the plan needs SRS only).
+    expect(codes(r)).toEqual(['CPF_SELF_ROOM_UNCONFIRMED', 'PROJECTED_RULES']);
   });
 
   it('January birthday: 19% in January only, then 13%; the bonus takes the December rate', () => {
@@ -269,7 +302,8 @@ describe('H4 — turns 65 in June 2026, works April–December (9 months) on S$5
   //   employee 6,078
   //   employer 12.5% x 16,665 = 2,083.125; 9% x 33,330 = 2,999.70; 9% x 20,001 = 1,800.09 -> 6,882.915 -> 6,883
   // Income 49,995 + 20,001 = 69,996. EIR 8,000. Reliefs 14,078. CI 55,918. Tax 550 + 7% x 15,918 = 1,664.26.
-  const r = plan(person({ age: 65, birthMonth: 6, ow: 5_555, months: 9, aw: 20_001, minRate: 0.07 }));
+  // CPF top-up room confirmed at the full S$8,000 (required from 55, SPEC §6.5).
+  const r = plan(person({ age: 65, birthMonth: 6, ow: 5_555, months: 9, aw: 20_001, minRate: 0.07, roomToLimit: 8_000 }));
 
   it('CPF 6,078 (cents dropped every month), employer 6,883', () => {
     expect(r.cpf).toEqual({
@@ -294,6 +328,22 @@ describe('H4 — turns 65 in June 2026, works April–December (9 months) on S$5
     expect(r.plan.taxSaved).toBe(1_114.26);
     expect(r.plan.savingRate).toBeCloseTo(0.07, 12);
     expect(r.plan.bindingConstraint).toBe('usefulRoom');
+    expect(codes(r)).toEqual(['AGE_55_PLUS_TOPUP']);
+  });
+
+  it('with the CPF room left blank the SRS cap binds 618 dollars early: 15,300 saves 1,071.00', () => {
+    // L = 15,300 < U = 15,918 -> X = 15,300 (leverLimits). CI after 40,618 -> 550 + 7% x 618 = 593.26.
+    // Saved 1,664.26 - 593.26 = 1,071.00. Unrealised: 593.26 - tax(40,000) = 43.26.
+    // The family top-up (off) could take those 618 dollars: savingIfSwitchedOn = 43.26 (SPEC §6.11).
+    const blank = plan(person({ age: 65, birthMonth: 6, ow: 5_555, months: 9, aw: 20_001, minRate: 0.07 }));
+    expect(blank.baseline).toEqual(r.baseline);
+    expect(blank.plan.contributions).toEqual({ srs: 15_300, cpfSelf: 0, cpfFamily: 0 });
+    expect(blank.plan.taxAfter).toBe(593.26);
+    expect(blank.plan.taxSaved).toBe(1_071);
+    expect(blank.plan.bindingConstraint).toBe('leverLimits');
+    expect(blank.plan.unrealisedSaving).toBe(43.26);
+    expect(codes(blank)).toEqual(['LEVER_LIMITS_PLAN', 'CPF_SELF_ROOM_UNCONFIRMED']);
+    expect(blank.warnings[0]?.params).toEqual({ leverRoom: 15_300, unrealisedSaving: 43.26, savingIfSwitchedOn: 43.26 });
   });
 });
 
@@ -323,19 +373,30 @@ describe('H5 — turns 70 in November 2026: December (and the bonus) drop to 5%;
     expect(r.plan.taxSaved).toBe(4.38);
     expect(r.plan.savingRate).toBe(4.38 / 125);
     expect(r.plan.bindingConstraint).toBe('usefulRoom');
-    expect(codes(r)).toEqual(['AGE_55_PLUS_TOPUP']);
+    // The CPF room is blank: at 70 that is the caution (own CPF left out), not the AGE_55_PLUS_TOPUP note.
+    expect(codes(r)).toEqual(['CPF_SELF_ROOM_UNCONFIRMED']);
   });
 
   it('min rate 2%: 10,125 clears the whole bill', () => {
-    const r = plan(person({ ...base, minRate: 0.02 }));
+    const r = plan(person({ ...base, minRate: 0.02, roomToLimit: 8_000 }));
     expect(r.plan.totalContribution).toBe(10_125);
     expect(r.plan.taxAfter).toBe(0);
     expect(r.plan.taxSaved).toBe(204.38);
-    // Ladder over L = 23,300: 125 at 3.5% (4.38, realised), 10,000 at 2% (200.00), then 13,175 tax-free dollars.
+    // Room confirmed at 8,000, so the ladder runs over L = 23,300: 125 at 3.5% (4.38, realised), 10,000 at 2%
+    // (200.00), then 13,175 tax-free dollars.
     expect(tiers(r)).toEqual([
       { from: 0, to: 125, amount: 125, rate: 0.035, saved: 4.38, cumulative: 4.38, used: 125, zero: undefined },
       { from: 125, to: 10_125, amount: 10_000, rate: 0.02, saved: 200, cumulative: 204.38, used: 10_000, zero: undefined },
       { from: 10_125, to: 23_300, amount: 13_175, rate: 0, saved: 0, cumulative: 204.38, used: 0, zero: 'belowTaxThreshold' },
+    ]);
+    // Room left blank: the same plan (SRS alone covers 10,125), but the ladder stops at L = 15,300, leaving
+    // 15,300 - 10,125 = 5,175 tax-free dollars.
+    const blank = plan(person({ ...base, minRate: 0.02 }));
+    expect(blank.plan).toEqual(r.plan);
+    expect(tiers(blank)).toEqual([
+      { from: 0, to: 125, amount: 125, rate: 0.035, saved: 4.38, cumulative: 4.38, used: 125, zero: undefined },
+      { from: 125, to: 10_125, amount: 10_000, rate: 0.02, saved: 200, cumulative: 204.38, used: 10_000, zero: undefined },
+      { from: 10_125, to: 15_300, amount: 5_175, rate: 0, saved: 0, cumulative: 204.38, used: 0, zero: 'belowTaxThreshold' },
     ]);
   });
 });
@@ -397,12 +458,21 @@ describe('H6 — nil band and phase-in boundaries (S$500 / S$501 / S$750 / S$751
     expect(r.baseline.taxPayable).toBe(0);
     expect(r.plan.totalContribution).toBe(0);
     expect(r.plan.bindingConstraint).toBe('none');
-    expect(codes(r)).toEqual(['NO_TAX_PAYABLE', 'AGE_55_PLUS_TOPUP']);
-    // L = 23,300, all of it below the tax threshold (1,052 in the 0% band, the rest beyond CI0): one merged tier.
+    // CPF room blank at 60: own CPF is left out (room 0) and the caution asks for the figure.
+    expect(codes(r)).toEqual(['NO_TAX_PAYABLE', 'CPF_SELF_ROOM_UNCONFIRMED']);
+    // L = 15,300 (SRS only), all of it below the tax threshold (1,052 in the 0% band, the rest beyond CI0): one
+    // merged tier.
     expect(tiers(r)).toEqual([
+      { from: 0, to: 15_300, amount: 15_300, rate: 0, saved: 0, cumulative: 0, used: 0, zero: 'belowTaxThreshold' },
+    ]);
+    expect(scenario(r, 'maxAll').wastedContribution).toBe(15_300);
+    // With the room confirmed at 8,000 the ladder and the "everything" scenario cover 23,300.
+    const confirmed = plan(person({ age: 60, birthMonth: 6, ow: 700, aw: 2_000, roomToLimit: 8_000 }));
+    expect(codes(confirmed)).toEqual(['NO_TAX_PAYABLE', 'AGE_55_PLUS_TOPUP']);
+    expect(tiers(confirmed)).toEqual([
       { from: 0, to: 23_300, amount: 23_300, rate: 0, saved: 0, cumulative: 0, used: 0, zero: 'belowTaxThreshold' },
     ]);
-    expect(scenario(r, 'maxAll').wastedContribution).toBe(23_300);
+    expect(scenario(confirmed, 'maxAll').wastedContribution).toBe(23_300);
   });
 
   it('1st-year PR aged 66 on S$700 (5%, factor 0.15) with a S$1,000 bonus', () => {
@@ -410,7 +480,7 @@ describe('H6 — nil band and phase-in boundaries (S$500 / S$501 / S$750 / S$751
     const r = plan(person({ residency: 'pr', prYear: 1, age: 66, ow: 700, aw: 1_000 }));
     expect(r.cpf.employeeContribution).toBe(410);
     expect(r.cpf.monthlyEmployeeRates).toEqual(new Array(12).fill(0.05));
-    expect(codes(r)).toEqual(['NO_TAX_PAYABLE', 'PR_GRADUATED_RATES', 'AGE_55_PLUS_TOPUP']);
+    expect(codes(r)).toEqual(['NO_TAX_PAYABLE', 'PR_GRADUATED_RATES', 'CPF_SELF_ROOM_UNCONFIRMED']);
   });
 });
 
@@ -531,7 +601,8 @@ describe('H9 — the plan lands exactly on the S$80,000 relief cap', () => {
     expect(r.optimised.reliefs).toMatchObject({ srs: 15_300, cpfTopUpSelf: 8_000, cpfTopUpFamily: 4_000, totalBeforeCap: 80_000, totalAllowed: 80_000, lostToCap: 0 });
     expect(r.optimised.chargeableIncome).toBe(160_000);
     expect(r.optimised.marginalRate).toBe(0.15);
-    expect(codes(r)).toEqual(['RELIEF_CAP_LIMITS_PLAN']);
+    // S$4,000 of the plan is a family top-up, so FAMILY_TOPUP_CHECKS follows (SPEC §6.11).
+    expect(codes(r)).toEqual(['RELIEF_CAP_LIMITS_PLAN', 'FAMILY_TOPUP_CHECKS']);
     // The cap is reached exactly at L, so there is no over-cap tier.
     expect(tiers(r)).toEqual([
       { from: 0, to: 19_300, amount: 19_300, rate: 0.18, saved: 3_474, cumulative: 3_474, used: 19_300, zero: undefined },
@@ -544,11 +615,12 @@ describe('H9 — the plan lands exactly on the S$80,000 relief cap', () => {
     const r = plan(person({ ...base, minRate: 0.18 }));
     expect(r.plan.totalContribution).toBe(19_300);
     expect(r.plan.bindingConstraint).toBe('usefulRoom');
-    expect(codes(r)).toEqual([]);
+    // Nothing limits the plan; the only warning is the family top-up caution (4,000 of the plan goes to family).
+    expect(codes(r)).toEqual(['FAMILY_TOPUP_CHECKS']);
     const withBudget = plan(person({ ...base, minRate: 0.18, budget: 19_300 }));
     expect(withBudget.plan.totalContribution).toBe(19_300);
     expect(withBudget.plan.bindingConstraint).toBe('usefulRoom');
-    expect(codes(withBudget)).toEqual([]);
+    expect(codes(withBudget)).toEqual(['FAMILY_TOPUP_CHECKS']);
   });
 
   it('one more dollar of other reliefs: C 19,299 < L, the last family dollar would be wasted', () => {
@@ -577,6 +649,7 @@ describe('H10 — existing contributions at and over the caps, plus room limits;
   // Reliefs: 1,000 + 20,400 + 15,300 + 8,000 + 2,500 = 47,200 -> C = 32,800.
   // CI 168,000 - 47,200 = 120,800. Tax 7,950 + 15% x 800 = 8,070.00.
   // Rooms: SRS 0; CPF self min(0, roomToLimit 1,000) = 0; family min(8,000 - 2,500, max 7,000) = 5,500. L = 5,500.
+  // The S$2,500 already given to family raises FAMILY_TOPUP_CHECKS in every result below (SPEC §6.11).
   const base: Person = {
     age: 40,
     ow: 12_000,
@@ -621,7 +694,7 @@ describe('H10 — existing contributions at and over the caps, plus room limits;
     expect(r.plan.savingRate).toBe(0.15);
     expect(r.plan.bindingConstraint).toBe('usefulRoom');
     expect(r.plan.unrealisedSaving).toBe(0);
-    expect(codes(r)).toEqual(['EXISTING_EXCEEDS_CAP']);
+    expect(codes(r)).toEqual(['EXISTING_EXCEEDS_CAP', 'FAMILY_TOPUP_CHECKS']);
   });
 
   it('min rate just above 15% (0.1501): nothing qualifies -> X = 0, BELOW_MIN_SAVING_RATE', () => {
@@ -629,7 +702,7 @@ describe('H10 — existing contributions at and over the caps, plus room limits;
     expect(r.plan.totalContribution).toBe(0);
     expect(r.plan.taxSaved).toBe(0);
     expect(r.plan.bindingConstraint).toBe('usefulRoom');
-    expect(codes(r)).toEqual(['BELOW_MIN_SAVING_RATE', 'EXISTING_EXCEEDS_CAP']);
+    expect(codes(r)).toEqual(['BELOW_MIN_SAVING_RATE', 'EXISTING_EXCEEDS_CAP', 'FAMILY_TOPUP_CHECKS']);
     expect(r.warnings[0]?.params).toEqual({ marginalRate: 0.15, minSavingRate: 0.1501 });
   });
 
@@ -648,7 +721,7 @@ describe('H10 — existing contributions at and over the caps, plus room limits;
     expect(r.plan.taxSaved).toBe(660.5);
     expect(r.plan.bindingConstraint).toBe('leverLimits');
     expect(r.plan.unrealisedSaving).toBe(3_139.5);
-    expect(codes(r)).toEqual(['LEVER_LIMITS_PLAN', 'EXISTING_EXCEEDS_CAP']);
+    expect(codes(r)).toEqual(['LEVER_LIMITS_PLAN', 'EXISTING_EXCEEDS_CAP', 'FAMILY_TOPUP_CHECKS']);
     expect(tiers(r)).toEqual([
       { from: 0, to: 800, amount: 800, rate: 0.15, saved: 120, cumulative: 120, used: 800, zero: undefined },
       { from: 800, to: 5_500, amount: 4_700, rate: 0.115, saved: 540.5, cumulative: 660.5, used: 4_700, zero: undefined },
@@ -681,7 +754,7 @@ describe('H10 — existing contributions at and over the caps, plus room limits;
     expect(r.plan.unrealisedSaving).toBe(45);
     expect(r.ladder[0]).toMatchObject({ amount: 800, rate: 0.15, usedByPlan: 500 });
     expect(r.ladder[1]).toMatchObject({ amount: 4_700, rate: 0.115, usedByPlan: 0 });
-    expect(codes(r)).toEqual(['BUDGET_LIMITS_PLAN', 'EXISTING_EXCEEDS_CAP']);
+    expect(codes(r)).toEqual(['BUDGET_LIMITS_PLAN', 'EXISTING_EXCEEDS_CAP', 'FAMILY_TOPUP_CHECKS']);
   });
 });
 
@@ -689,7 +762,8 @@ describe('H11 — relief cap already exceeded at baseline for a 61-year-old', ()
   // Age 61, December birthday: completedAge 60 all year -> "above 60 to 65": 12.5% x 8,000 = 1,000 x 12 = 12,000.
   // EIR 8,000. Other reliefs 65,000 -> 85,000 before the cap; 80,000 allowed; 5,000 lost.
   // Income 96,000 + other income 50,000 = 146,000. CI 66,000. Tax 550 + 7% x 26,000 = 2,370.00.
-  const r = plan(person({ age: 61, ow: 8_000, otherIncome: 50_000, otherReliefs: 65_000 }));
+  // CPF top-up room confirmed at the full S$8,000 (required from 55, SPEC §6.5), so L = 23,300.
+  const r = plan(person({ age: 61, ow: 8_000, otherIncome: 50_000, otherReliefs: 65_000, roomToLimit: 8_000 }));
 
   it('baseline', () => {
     expect(r.cpf.employeeContribution).toBe(12_000);
@@ -712,6 +786,17 @@ describe('H11 — relief cap already exceeded at baseline for a 61-year-old', ()
     expect(r.simulator).toHaveLength(25);
     expect(r.simulator.every((row) => row.taxPayable === 2_370 && row.taxSaved === 0 && row.stepRate === 0)).toBe(true);
     expect(r.simulator.map((row) => row.withinPlan)).toEqual([true, ...new Array(24).fill(false)]);
+  });
+
+  it('with the CPF room left blank only the SRS room (15,300) is on the ladder, and the caution replaces the note', () => {
+    const blank = plan(person({ age: 61, ow: 8_000, otherIncome: 50_000, otherReliefs: 65_000 }));
+    expect(blank.plan).toEqual(r.plan);
+    expect(codes(blank)).toEqual(['RELIEF_CAP_EXCEEDED_BASELINE', 'RELIEF_CAP_LIMITS_PLAN', 'CPF_SELF_ROOM_UNCONFIRMED']);
+    expect(tiers(blank)).toEqual([
+      { from: 0, to: 15_300, amount: 15_300, rate: 0, saved: 0, cumulative: 0, used: 0, zero: 'reliefCap' },
+    ]);
+    expect(scenario(blank, 'srsPlusCpfSelf')).toMatchObject({ totalContribution: 15_300, taxSaved: 0, wastedContribution: 15_300 });
+    expect(blank.simulator).toHaveLength(17); // 0, 1,000 ... 15,000, 15,300
   });
 });
 
@@ -948,7 +1033,11 @@ describe('H15 — foreigner with the S$35,700 SRS cap', () => {
     expect(r.plan.taxSaved).toBe(5_654);
     expect(r.plan.bindingConstraint).toBe('leverLimits');
     expect(r.plan.unrealisedSaving).toBe(726);
-    expect(codes(r)).toEqual(['LEVER_LIMITS_PLAN', 'FOREIGNER_NO_CPF']);
+    // SRS is on and open to this foreigner, so the withdrawal caution follows FOREIGNER_NO_CPF (SPEC §6.11);
+    // the S$2,000 already given to family raises nothing, because a foreigner gets no relief for it (§6.5).
+    expect(codes(r)).toEqual(['LEVER_LIMITS_PLAN', 'FOREIGNER_NO_CPF', 'SRS_NON_RESIDENT_WITHDRAWAL']);
+    // Every plan dollar is on the 22% rung, far above the 7.5 cents it costs a non-resident to take out.
+    expect(r.warnings[2]?.params).toMatchObject({ lowValueAmount: 0 });
     expect(scenario(r, 'maxAll').contributions).toEqual({ srs: 25_700, cpfSelf: 0, cpfFamily: 0 });
     expect(scenario(r, 'cpfSelfOnly').totalContribution).toBe(0);
   });
@@ -970,7 +1059,7 @@ describe('H15 — foreigner with the S$35,700 SRS cap', () => {
     expect(r.levers.srs).toEqual({ statutoryCap: 35_700, used: 35_700, room: 0, eligible: true, enabled: true });
     expect(r.baseline.reliefs.srs).toBe(35_700);
     expect(r.plan.totalContribution).toBe(0);
-    expect(codes(r)).toEqual(['LEVER_LIMITS_PLAN', 'EXISTING_EXCEEDS_CAP', 'FOREIGNER_NO_CPF']);
+    expect(codes(r)).toEqual(['LEVER_LIMITS_PLAN', 'EXISTING_EXCEEDS_CAP', 'FOREIGNER_NO_CPF', 'SRS_NON_RESIDENT_WITHDRAWAL']);
     expect(r.warnings[1]?.params).toEqual({ levers: 'srs', srsExisting: 35_701, srsCap: 35_700, srsExcess: 1 });
   });
 
@@ -1042,7 +1131,8 @@ describe('H17 — CPF override for a 2nd-year PR who turns 60 in April', () => {
   //   OW: floor(12.5% x 8,000) = 1,000 x 4 + floor(7.5% x 8,000) = 600 x 8 = 4,000 + 4,800 = 8,800
   //   AW: ceiling 6,000 -> 7.5% x 6,000 = 450. Auto total 9,250.
   // Income 108,000 + 10,000 = 118,000. EIR at 60 = 8,000.
-  const base: Person = { residency: 'pr', prYear: 2, age: 60, birthMonth: 4, ow: 9_000, aw: 10_000, minRate: 0.115 };
+  // CPF top-up room confirmed at the full S$8,000 (required from 55, SPEC §6.5), hence AGE_55_PLUS_TOPUP below.
+  const base: Person = { residency: 'pr', prYear: 2, age: 60, birthMonth: 4, ow: 9_000, aw: 10_000, minRate: 0.115, roomToLimit: 8_000 };
 
   it('auto: 9,250', () => {
     const r = plan(person(base));
@@ -1074,6 +1164,18 @@ describe('H17 — CPF override for a 2nd-year PR who turns 60 in April', () => {
     expect(r.plan.contributions).toEqual({ srs: 15_300, cpfSelf: 2_355, cpfFamily: 0 });
     expect(r.plan.taxSaved).toBe(2_030.33);
     expect(codes(r)).toEqual(['PR_GRADUATED_RATES', 'AGE_55_PLUS_TOPUP']);
+  });
+
+  it('override 12,345 with the CPF room left blank: the plan stops at the SRS cap', () => {
+    // L = 15,300 < U = 17,655 -> X = 15,300 (leverLimits). CI after 82,355 -> 3,350 + 11.5% x 2,355
+    //   = 3,350 + 270.825 -> 3,620.83 (half-up). Saved 5,380.33 - 3,620.83 = 1,759.50 (= 15,300 x 11.5%).
+    const r = plan(person({ ...base, override: 12_345, roomToLimit: null }));
+    expect(r.baseline.taxPayable).toBe(5_380.33);
+    expect(r.plan.contributions).toEqual({ srs: 15_300, cpfSelf: 0, cpfFamily: 0 });
+    expect(r.plan.taxAfter).toBe(3_620.83);
+    expect(r.plan.taxSaved).toBe(1_759.5);
+    expect(r.plan.bindingConstraint).toBe('leverLimits');
+    expect(codes(r)).toEqual(['LEVER_LIMITS_PLAN', 'PR_GRADUATED_RATES', 'CPF_SELF_ROOM_UNCONFIRMED']);
   });
 
   it('override 25,000 is held at 20,400 with a caution; 20,400 itself raises nothing; 0 means zero relief', () => {
@@ -1331,7 +1433,16 @@ describe('H23 — age 55 with a December birthday: EIR 6,000 but still the "55 a
     expect(r.baseline.reliefs.earnedIncome).toBe(6_000);
     expect(r.baseline.chargeableIncome).toBe(75_600);
     expect(r.baseline.taxPayable).toBe(3_042);
-    expect(codes(r)).toContain('AGE_55_PLUS_TOPUP');
+    // 55 at year end counts as "from 55" for the room rule too (SPEC §6.5), whatever the birth month: the room
+    // is blank, so own CPF is left out and the caution is shown instead of the note.
+    expect(r.levers.cpfSelf.room).toBe(0);
+    expect(codes(r)).toContain('CPF_SELF_ROOM_UNCONFIRMED');
+    expect(codes(r)).not.toContain('AGE_55_PLUS_TOPUP');
+    // One year younger nothing is asked: room 8,000, neither warning.
+    const younger = plan(person({ age: 54, birthMonth: 12, ow: 8_000, aw: 6_000, minRate: 0.07 }));
+    expect(younger.levers.cpfSelf.room).toBe(8_000);
+    expect(codes(younger)).not.toContain('CPF_SELF_ROOM_UNCONFIRMED');
+    expect(codes(younger)).not.toContain('AGE_55_PLUS_TOPUP');
   });
 
   it('age 56 is in the higher band from January whatever the birth month', () => {

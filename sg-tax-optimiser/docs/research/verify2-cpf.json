@@ -13,7 +13,7 @@
    "status": "confirmed",
    "value": "1 Jan - 31 Dec 2025 (wages > S$750; employer/employee/total): 55 and below 17/20/37; above 55 to 60 15.5/17/32.5; above 60 to 65 12/11.5/23.5; above 65 to 70 9/7.5/16.5; above 70 7.5/5/12.5.",
    "evidence_url": "https://www.cpf.gov.sg/member/infohub/educational-resources/changes-to-cpf-in-2024-and-beyond",
-   "evidence_quote": "Above 55 to 60: Total 32.5 (+1.5), employer 15.5 (+0.5), employee 17.0 (+1) ... Above 60 to 65: Total 23.5 (+1.5), employer 12.0 (+0.5), employee 11.5 (+1)",
+   "evidence_quote": "Above 55 to 60: Total 32.5 (+1.5), employer 15.5 (+0.5), employee 17.0 (+1)... Above 60 to 65: Total 23.5 (+1.5), employer 12.0 (+0.5), employee 11.5 (+1)",
    "note": "The two changed bands were read directly from official pages (cpf.gov.sg / MOM COS 2025 factsheet were both in the result set; I could not tell which of the two carried the table). The other three bands are confirmed indirectly: CPF states only the above-55-to-65 bands changed on 1 Jan 2025 and again on 1 Jan 2026, and 'contribution rates for employees aged 65 to 70 remain unchanged, at 16.5%'. The definitive 2025 table is https://www.cpf.gov.sg/content/dam/web/employer/employer-obligations/documents/CPF_contribution_rates_from_1_Jan_2025.pdf (found, but its text was not returned)."
   },
   {
@@ -37,7 +37,7 @@
    "status": "confirmed",
    "value": "CPF annual salary ceiling S$102,000 (unchanged); AW ceiling = S$102,000 - total Ordinary Wages subject to CPF for the year.",
    "evidence_url": "https://www.cpf.gov.sg/service/article/what-is-the-additional-wage-aw-ceiling",
-   "evidence_quote": "$102,000 \u2013 Total Ordinary Wages subject to CPF for the year",
+   "evidence_quote": "$102,000 – Total Ordinary Wages subject to CPF for the year",
    "note": "CPF's 2026 notice says the annual salary ceiling 'remains unchanged' at $102,000. The AW ceiling is per employee, per employer, per calendar year, and the year is the one in which the AW is due and payable."
   },
   {
@@ -68,7 +68,7 @@
    "status": "confirmed",
    "value": "Total contribution rounded to the nearest dollar (under 50 cents dropped, 50 cents and above = extra dollar); employee share: cents always dropped; employer share = rounded total - employee share.",
    "evidence_url": "https://www.cpf.gov.sg/service/article/are-cpf-contributions-rounded-to-the-nearest-dollar",
-   "evidence_quote": "Cents should be dropped for amounts less than 50 cents, and amounts of 50 cents and above should be treated as an additional dollar ... the cents should always be dropped for the employee's share"
+   "evidence_quote": "Cents should be dropped for amounts less than 50 cents, and amounts of 50 cents and above should be treated as an additional dollar... the cents should always be dropped for the employee's share"
   },
   {
    "id": "age-switch",

@@ -59,8 +59,13 @@ const SEVERITY: Record<WarningCode, PlannerWarning['severity']> = {
   EXISTING_EXCEEDS_CAP: 'caution',
   CPF_OVERRIDE_ABOVE_MAX: 'caution',
   FOREIGNER_NO_CPF: 'info',
+  TAX_RESIDENCY_CHECK: 'caution',
+  SRS_NON_RESIDENT_WITHDRAWAL: 'caution',
   PR_GRADUATED_RATES: 'info',
+  CPF_SELF_ROOM_UNCONFIRMED: 'caution',
   AGE_55_PLUS_TOPUP: 'info',
+  FAMILY_TOPUP_CHECKS: 'caution',
+  PARENTHOOD_TAX_REBATE: 'caution',
   SRS_UNDER_18: 'caution',
   DEADLINE_PASSED: 'blocker',
   DEADLINE_SOON: 'caution',
@@ -361,6 +366,17 @@ describe('CPF_OVERRIDE_ABOVE_MAX', () => {
     expect(w.message).toContain('S$20,400');
   });
 
+  it('ends by saying which CPF payment does earn relief, and where to enter it (wording fixed by SPEC §6.11)', () => {
+    const w = warning(plan(input({ income: { employeeCpfOverride: 25_000 } })), 'CPF_OVERRIDE_ABOVE_MAX');
+    const ending =
+      'Voluntary contributions to your three CPF accounts earn no relief; a cash top-up to your MediSave, Special ' +
+      "or Retirement Account does — enter it under 'Already contributed'.";
+    expect(w.message.endsWith(` ${ending}`)).toBe(true);
+    // The sentence before it still says what was entered and what is used instead.
+    expect(w.message.slice(0, -ending.length)).toMatch(/S\$25,000.*S\$20,400.*S\$20,400 is used\. $/);
+    expect(w.message).not.toContain('Voluntary contributions do not earn CPF relief');
+  });
+
   it('does not fire at the maximum, without an override, or for a foreigner', () => {
     expect(codes(plan(input({ income: { employeeCpfOverride: 20_400 } })))).not.toContain('CPF_OVERRIDE_ABOVE_MAX');
     expect(codes(plan(input()))).not.toContain('CPF_OVERRIDE_ABOVE_MAX');
@@ -400,6 +416,156 @@ describe('FOREIGNER_NO_CPF', () => {
   });
 });
 
+describe('TAX_RESIDENCY_CHECK', () => {
+  const foreigner = (monthsWorked: unknown, more: Overrides = {}): PlannerResult =>
+    plan(
+      input({
+        ...more,
+        profile: { residency: 'foreigner', ...more.profile },
+        income: { ...more.income, monthsWorked: monthsWorked as number },
+      }),
+    );
+
+  it('fires for a foreigner who worked 6 months or fewer, with the normative message', () => {
+    const w = warning(foreigner(6), 'TAX_RESIDENCY_CHECK');
+    expect(w.severity).toBe('caution');
+    expect(w.params).toEqual({ monthsWorked: 6, residentDays: 183 });
+    expect(w.message).toBe(
+      'You worked here for half the year or less. You are a tax resident only if you were in Singapore for at ' +
+        'least 183 days (IRAS has further rules for stays that span two years). Non-residents get no reliefs, so ' +
+        'this plan would not apply.',
+    );
+  });
+
+  it('the boundary is 6 months: 1 to 6 fire, 7 to 12 do not', () => {
+    for (const months of [1, 2, 3, 4, 5, 6]) expect(codes(foreigner(months))).toContain('TAX_RESIDENCY_CHECK');
+    for (const months of [7, 8, 9, 10, 11, 12]) expect(codes(foreigner(months))).not.toContain('TAX_RESIDENCY_CHECK');
+  });
+
+  it('uses the sanitised months worked (§6.0): missing or not a number is 12; 0, NaN and negatives are 1; 6.9 is 6', () => {
+    for (const months of [undefined, null, '3']) {
+      const result = foreigner(months);
+      expect(result.input.income.monthsWorked).toBe(12);
+      expect(codes(result)).not.toContain('TAX_RESIDENCY_CHECK');
+    }
+    for (const months of [0, Number.NaN, -4]) {
+      const w = warning(foreigner(months), 'TAX_RESIDENCY_CHECK');
+      expect(w.params).toEqual({ monthsWorked: 1, residentDays: 183 });
+    }
+    expect(warning(foreigner(6.9), 'TAX_RESIDENCY_CHECK').params).toMatchObject({ monthsWorked: 6 });
+    expect(codes(foreigner(7.9))).not.toContain('TAX_RESIDENCY_CHECK');
+  });
+
+  it('is about foreigners only: a citizen or PR who worked 3 months is not asked', () => {
+    expect(codes(plan(input({ income: { monthsWorked: 3 } })))).not.toContain('TAX_RESIDENCY_CHECK');
+    expect(codes(plan(input({ profile: { residency: 'pr' }, income: { monthsWorked: 3 } })))).not.toContain('TAX_RESIDENCY_CHECK');
+    expect(codes(plan(input({ profile: { residency: 'pr', prYear: 1 }, income: { monthsWorked: 1 } })))).not.toContain('TAX_RESIDENCY_CHECK');
+  });
+
+  it('does not depend on SRS: it fires with SRS off and for a foreigner under 18', () => {
+    expect(codes(foreigner(6, { srs: { enabled: false } }))).toContain('TAX_RESIDENCY_CHECK');
+    expect(codes(foreigner(6, { profile: { ageAtYearEnd: 17 } }))).toContain('TAX_RESIDENCY_CHECK');
+  });
+});
+
+describe('SRS_NON_RESIDENT_WITHDRAWAL', () => {
+  const BASE_MESSAGE =
+    "If you have left Singapore when you withdraw, SRS is taxed as a non-resident's: at least 7.5 cents per dollar " +
+    'withdrawn at retirement age or under the 10-year rule for foreigners, and at least 20 cents if earlier.';
+
+  // Foreigner, 35, S$7,000 a month and a S$7,000 bonus, no other reliefs: income 91,000, no CPF, Earned Income
+  // Relief 1,000 -> chargeable income 90,000, tax 3,350 + 11.5% x 10,000 = 4,500.00. SRS room 35,700.
+  // Ladder (§6.7): [0, 10,000) at 11.5% (90,000 down to 80,000), then [10,000, 35,700) at 7%.
+  const earner = (preferences: Overrides['preferences'] = {}, more: Overrides = {}): PlannerResult =>
+    plan(
+      input({
+        otherReliefs: 0,
+        ...more,
+        profile: { residency: 'foreigner', ...more.profile },
+        income: { monthlyOrdinaryWage: 7_000, additionalWages: 7_000, ...more.income },
+        preferences,
+      }),
+    );
+
+  it('fires for a foreigner with SRS switched on, with the normative message', () => {
+    // The opening example as a foreigner: CI 129,000; the plan (35,700) sits in the 15% and 11.5% rungs.
+    const result = plan(input({ profile: { residency: 'foreigner' } }));
+    const w = warning(result, 'SRS_NON_RESIDENT_WITHDRAWAL');
+    expect(w.severity).toBe('caution');
+    expect(w.params).toEqual({ lowValueAmount: 0, atRetirementOrTenYears: 0.075, early: 0.2 });
+    expect(w.message).toBe(BASE_MESSAGE);
+    expect(result.ladder.map((tier) => [tier.rate, tier.usedByPlan])).toEqual([[0.15, 9_000], [0.115, 26_700]]);
+  });
+
+  it('minimum 7%: the plan spans the 11.5% and 7% rungs, and the S$25,700 on the 7% rung is called out', () => {
+    // U = 90,000 - 40,000 = 50,000; C = 79,000; L = 35,700 -> X = 35,700: 10,000 at 11.5% + 25,700 at 7%.
+    const result = earner({ minSavingRate: 0.07 });
+    expect(result.baseline.chargeableIncome).toBe(90_000);
+    expect(result.baseline.taxPayable).toBe(4_500);
+    expect(result.plan.contributions).toEqual({ srs: 35_700, cpfSelf: 0, cpfFamily: 0 });
+    expect(result.plan.taxSaved).toBe(2_949); // 1,150.00 + 1,799.00
+    expect(result.ladder.map((tier) => [tier.rate, tier.amount, tier.usedByPlan])).toEqual([
+      [0.115, 10_000, 10_000],
+      [0.07, 25_700, 25_700],
+    ]);
+    const w = warning(result, 'SRS_NON_RESIDENT_WITHDRAWAL');
+    expect(w.params).toEqual({ lowValueAmount: 25_700, atRetirementOrTenYears: 0.075, early: 0.2 });
+    expect(w.message).toBe(`${BASE_MESSAGE} S$25,700 of this plan saves less than 7.5 cents per dollar today.`);
+  });
+
+  it('minimum 11.5%: the plan stops at the top rung, so nothing is called out', () => {
+    // U = 90,000 - 80,000 = 10,000 -> X = 10,000, all at 11.5%.
+    const result = earner({ minSavingRate: 0.115 });
+    expect(result.plan.contributions).toEqual({ srs: 10_000, cpfSelf: 0, cpfFamily: 0 });
+    expect(result.plan.bindingConstraint).toBe('usefulRoom');
+    expect(result.plan.taxSaved).toBe(1_150);
+    const w = warning(result, 'SRS_NON_RESIDENT_WITHDRAWAL');
+    expect(w.params).toEqual({ lowValueAmount: 0, atRetirementOrTenYears: 0.075, early: 0.2 });
+    expect(w.message).toBe(BASE_MESSAGE);
+  });
+
+  it('counts only the dollars the plan actually uses on the low rungs', () => {
+    // Cash limit 12,000 at a 7% minimum: 10,000 at 11.5% and 2,000 at 7%.
+    expect(warning(earner({ minSavingRate: 0.07, cashBudget: 12_000 }), 'SRS_NON_RESIDENT_WITHDRAWAL').params).toMatchObject({ lowValueAmount: 2_000 });
+    // Cash limit 10,000: exactly the top rung. 10,001: one dollar on the 7% rung.
+    expect(warning(earner({ minSavingRate: 0.07, cashBudget: 10_000 }), 'SRS_NON_RESIDENT_WITHDRAWAL').params).toMatchObject({ lowValueAmount: 0 });
+    const one = warning(earner({ minSavingRate: 0.07, cashBudget: 10_001 }), 'SRS_NON_RESIDENT_WITHDRAWAL');
+    expect(one.params).toMatchObject({ lowValueAmount: 1 });
+    expect(one.message).toBe(`${BASE_MESSAGE} S$1 of this plan saves less than 7.5 cents per dollar today.`);
+    // A minimum between 7% and 11.5% (7.5%) keeps the plan on the top rung.
+    expect(warning(earner({ minSavingRate: 0.075 }), 'SRS_NON_RESIDENT_WITHDRAWAL').params).toMatchObject({ lowValueAmount: 0 });
+  });
+
+  it('every tax dollar on a small income: the whole plan is on the 3.5% and 2% rungs', () => {
+    // S$3,000 x 12, no bonus: CI 35,000, tax 200 + 3.5% x 5,000 = 375.00. Minimum 0: X = U = 15,000
+    // (5,000 at 3.5% + 10,000 at 2%); the 20,700 dollars beyond that are not in the plan.
+    const result = earner({ minSavingRate: 0 }, { income: { monthlyOrdinaryWage: 3_000, additionalWages: 0 } });
+    expect(result.baseline.taxPayable).toBe(375);
+    expect(result.plan.totalContribution).toBe(15_000);
+    expect(result.ladder.map((tier) => [tier.rate, tier.usedByPlan])).toEqual([[0.035, 5_000], [0.02, 10_000], [0, 0]]);
+    const w = warning(result, 'SRS_NON_RESIDENT_WITHDRAWAL');
+    expect(w.params).toMatchObject({ lowValueAmount: 15_000 });
+    expect(w.message).toBe(`${BASE_MESSAGE} S$15,000 of this plan saves less than 7.5 cents per dollar today.`);
+  });
+
+  it('fires whenever SRS is on and open to a foreigner, even when nothing can be added', () => {
+    const full = earner({ minSavingRate: 0.07 }, { existing: { srs: 35_700 } });
+    expect(full.plan.totalContribution).toBe(0);
+    expect(warning(full, 'SRS_NON_RESIDENT_WITHDRAWAL').params).toMatchObject({ lowValueAmount: 0 });
+  });
+
+  it('does not fire with SRS off, under 18, or for a citizen or PR', () => {
+    expect(codes(earner({}, { srs: { enabled: false } }))).not.toContain('SRS_NON_RESIDENT_WITHDRAWAL');
+    // 17: SRS is not open (§6.5), so there is nothing to caution about; from 18 it is.
+    expect(codes(earner({}, { profile: { ageAtYearEnd: 17 } }))).not.toContain('SRS_NON_RESIDENT_WITHDRAWAL');
+    expect(codes(earner({}, { profile: { ageAtYearEnd: 18 } }))).toContain('SRS_NON_RESIDENT_WITHDRAWAL');
+    expect(codes(earner({}, { profile: { residency: 'citizen' } }))).not.toContain('SRS_NON_RESIDENT_WITHDRAWAL');
+    expect(codes(earner({}, { profile: { residency: 'pr' } }))).not.toContain('SRS_NON_RESIDENT_WITHDRAWAL');
+    // "enabled" must be the boolean true (§6.0).
+    expect(codes(earner({}, { srs: { enabled: 1 as unknown as boolean } }))).not.toContain('SRS_NON_RESIDENT_WITHDRAWAL');
+  });
+});
+
 describe('PR_GRADUATED_RATES', () => {
   it('fires for PRs in their 1st and 2nd year', () => {
     const first = warning(plan(input({ profile: { residency: 'pr', prYear: 1 } })), 'PR_GRADUATED_RATES');
@@ -419,26 +585,182 @@ describe('PR_GRADUATED_RATES', () => {
   });
 });
 
+describe('CPF_SELF_ROOM_UNCONFIRMED', () => {
+  it('fires from 55 when own CPF is on, open to the person and the room was not entered', () => {
+    const w = warning(plan(input({ profile: { ageAtYearEnd: 55 } })), 'CPF_SELF_ROOM_UNCONFIRMED');
+    expect(w.severity).toBe('caution');
+    expect(w.params).toEqual({ ageAtYearEnd: 55, fullRetirementSum: 220_400, enhancedRetirementSum: 440_800 });
+    expect(w.message).toBe(
+      'From age 55 the CPF Board accepts top-ups up to the Enhanced Retirement Sum (S$440,800), but only the part ' +
+        'up to the Full Retirement Sum (S$220,400) earns relief, and a top-up cannot be reversed. Your own CPF is ' +
+        'left out until you enter how much you can still top up with relief (S$0 if you have set aside the Full ' +
+        'Retirement Sum).',
+    );
+    expect(codes(plan(input({ profile: { ageAtYearEnd: 70 } })))).toContain('CPF_SELF_ROOM_UNCONFIRMED');
+  });
+
+  it('quotes the retirement sums of the income year (§5.4)', () => {
+    const y2025 = warning(plan(input({ incomeYear: 2025, today: '2025-06-30', profile: { ageAtYearEnd: 60 } })), 'CPF_SELF_ROOM_UNCONFIRMED');
+    expect(y2025.params).toEqual({ ageAtYearEnd: 60, fullRetirementSum: 213_000, enhancedRetirementSum: 426_000 });
+    expect(y2025.message).toContain('Enhanced Retirement Sum (S$426,000)');
+    expect(y2025.message).toContain('Full Retirement Sum (S$213,000)');
+    const y2027 = warning(plan(input({ incomeYear: 2027, today: '2027-06-30', profile: { ageAtYearEnd: 60 } })), 'CPF_SELF_ROOM_UNCONFIRMED');
+    expect(y2027.params).toEqual({ ageAtYearEnd: 60, fullRetirementSum: 228_200, enhancedRetirementSum: 456_400 });
+    expect(y2027.message).toContain('Enhanced Retirement Sum (S$456,400)');
+    expect(y2027.message).toContain('Full Retirement Sum (S$228,200)');
+  });
+
+  it('does not fire below 55, with the lever off, for a foreigner, or once any room is entered', () => {
+    expect(codes(plan(input({ profile: { ageAtYearEnd: 54 } })))).not.toContain('CPF_SELF_ROOM_UNCONFIRMED');
+    expect(codes(plan(input({ profile: { ageAtYearEnd: 60 }, cpfSelf: { enabled: false } })))).not.toContain('CPF_SELF_ROOM_UNCONFIRMED');
+    expect(codes(plan(input({ profile: { ageAtYearEnd: 60, residency: 'foreigner' } })))).not.toContain('CPF_SELF_ROOM_UNCONFIRMED');
+    for (const roomToLimit of [0, 1, 8_000, 50_000]) {
+      expect(codes(plan(input({ profile: { ageAtYearEnd: 60 }, cpfSelf: { roomToLimit } })))).not.toContain('CPF_SELF_ROOM_UNCONFIRMED');
+    }
+  });
+});
+
 describe('AGE_55_PLUS_TOPUP', () => {
-  it('fires from 55 when the CPF self lever is on and eligible', () => {
-    const w = warning(plan(input({ profile: { ageAtYearEnd: 55 } })), 'AGE_55_PLUS_TOPUP');
+  it('fires from 55 when own CPF is on, open to the person and the room WAS entered', () => {
+    const w = warning(plan(input({ profile: { ageAtYearEnd: 55 }, cpfSelf: { roomToLimit: 4_000 } })), 'AGE_55_PLUS_TOPUP');
     expect(w.severity).toBe('info');
-    expect(w.params).toEqual({ ageAtYearEnd: 55, fullRetirementSum: 220_400 });
-    expect(w.message).toContain('S$220,400 in 2026');
-    expect(codes(plan(input({ profile: { ageAtYearEnd: 70 } })))).toContain('AGE_55_PLUS_TOPUP');
+    expect(w.params).toEqual({ ageAtYearEnd: 55, fullRetirementSum: 220_400, roomToLimit: 4_000 });
+    expect(w.message).toBe(
+      'From age 55, cash top-ups go to your Retirement Account and earn relief only up to the Full Retirement Sum ' +
+        '(S$220,400 in 2026). The plan uses the room you entered (S$4,000); check it against your CPF Retirement ' +
+        'dashboard.',
+    );
+    expect(codes(plan(input({ profile: { ageAtYearEnd: 70 }, cpfSelf: { roomToLimit: 4_000 } })))).toContain('AGE_55_PLUS_TOPUP');
+  });
+
+  it('quotes the room as entered, also when it is S$0 or above the S$8,000 cap', () => {
+    const zero = warning(plan(input({ profile: { ageAtYearEnd: 58 }, cpfSelf: { roomToLimit: 0 } })), 'AGE_55_PLUS_TOPUP');
+    expect(zero.params).toMatchObject({ roomToLimit: 0 });
+    expect(zero.message).toContain('The plan uses the room you entered (S$0);');
+    const large = warning(plan(input({ profile: { ageAtYearEnd: 58 }, cpfSelf: { roomToLimit: 50_000.75 } })), 'AGE_55_PLUS_TOPUP');
+    expect(large.params).toMatchObject({ roomToLimit: 50_000 });
+    expect(large.message).toContain('The plan uses the room you entered (S$50,000);');
   });
 
   it('quotes the Full Retirement Sum of the income year', () => {
-    const y2025 = plan(input({ incomeYear: 2025, today: '2025-06-30', profile: { ageAtYearEnd: 60 } }));
-    expect(warning(y2025, 'AGE_55_PLUS_TOPUP').params).toEqual({ ageAtYearEnd: 60, fullRetirementSum: 213_000 });
-    const y2027 = plan(input({ incomeYear: 2027, today: '2027-06-30', profile: { ageAtYearEnd: 60 } }));
-    expect(warning(y2027, 'AGE_55_PLUS_TOPUP').params).toEqual({ ageAtYearEnd: 60, fullRetirementSum: 228_200 });
+    const y2025 = plan(input({ incomeYear: 2025, today: '2025-06-30', profile: { ageAtYearEnd: 60 }, cpfSelf: { roomToLimit: 8_000 } }));
+    expect(warning(y2025, 'AGE_55_PLUS_TOPUP').params).toEqual({ ageAtYearEnd: 60, fullRetirementSum: 213_000, roomToLimit: 8_000 });
+    expect(warning(y2025, 'AGE_55_PLUS_TOPUP').message).toContain('(S$213,000 in 2025)');
+    const y2027 = plan(input({ incomeYear: 2027, today: '2027-06-30', profile: { ageAtYearEnd: 60 }, cpfSelf: { roomToLimit: 8_000 } }));
+    expect(warning(y2027, 'AGE_55_PLUS_TOPUP').params).toEqual({ ageAtYearEnd: 60, fullRetirementSum: 228_200, roomToLimit: 8_000 });
+    expect(warning(y2027, 'AGE_55_PLUS_TOPUP').message).toContain('(S$228,200 in 2027)');
   });
 
-  it('does not fire below 55, with the lever off, or for a foreigner', () => {
-    expect(codes(plan(input({ profile: { ageAtYearEnd: 54 } })))).not.toContain('AGE_55_PLUS_TOPUP');
-    expect(codes(plan(input({ profile: { ageAtYearEnd: 60 }, cpfSelf: { enabled: false } })))).not.toContain('AGE_55_PLUS_TOPUP');
-    expect(codes(plan(input({ profile: { ageAtYearEnd: 60, residency: 'foreigner' } })))).not.toContain('AGE_55_PLUS_TOPUP');
+  it('does not fire below 55, with the lever off, for a foreigner, or while the room is blank', () => {
+    const room = { roomToLimit: 4_000 };
+    expect(codes(plan(input({ profile: { ageAtYearEnd: 54 }, cpfSelf: room })))).not.toContain('AGE_55_PLUS_TOPUP');
+    expect(codes(plan(input({ profile: { ageAtYearEnd: 60 }, cpfSelf: { ...room, enabled: false } })))).not.toContain('AGE_55_PLUS_TOPUP');
+    expect(codes(plan(input({ profile: { ageAtYearEnd: 60, residency: 'foreigner' }, cpfSelf: room })))).not.toContain('AGE_55_PLUS_TOPUP');
+    expect(codes(plan(input({ profile: { ageAtYearEnd: 60 } })))).not.toContain('AGE_55_PLUS_TOPUP');
+    expect(codes(plan(input({ profile: { ageAtYearEnd: 60 }, cpfSelf: { roomToLimit: null } })))).not.toContain('AGE_55_PLUS_TOPUP');
+  });
+
+  it('from 55, with own CPF on and open, exactly one of the caution and the note is shown', () => {
+    const pair: WarningCode[] = ['CPF_SELF_ROOM_UNCONFIRMED', 'AGE_55_PLUS_TOPUP'];
+    for (const ageAtYearEnd of [54, 55, 56, 64, 65, 90]) {
+      for (const roomToLimit of [undefined, null, 0, 3_000, 8_000, 20_000]) {
+        for (const residency of ['citizen', 'pr'] as const) {
+          const shown = codes(plan(input({ profile: { ageAtYearEnd, residency }, cpfSelf: { roomToLimit } }))).filter((code) => pair.includes(code));
+          const expected = ageAtYearEnd < 55 ? [] : typeof roomToLimit === 'number' ? ['AGE_55_PLUS_TOPUP'] : ['CPF_SELF_ROOM_UNCONFIRMED'];
+          expect({ ageAtYearEnd, roomToLimit, residency, shown }).toEqual({ ageAtYearEnd, roomToLimit, residency, shown: expected });
+        }
+      }
+    }
+  });
+});
+
+describe('FAMILY_TOPUP_CHECKS', () => {
+  const MESSAGE_2026 =
+    'Family top-ups: the part the Government matches earns you no relief — the first S$2,000 a year for a member ' +
+    'on the Matched Retirement Savings Scheme, S$1,000 for MediSave. The amounts here are top-ups beyond that, to ' +
+    'a family member who qualifies.';
+
+  it('fires when the plan puts money into a family top-up', () => {
+    // Opening example with the family top-up on: X = L = 31,300, of which 8,000 for family.
+    const result = plan(input({ cpfFamily: { enabled: true } }));
+    expect(result.plan.contributions.cpfFamily).toBe(8_000);
+    const w = warning(result, 'FAMILY_TOPUP_CHECKS');
+    expect(w.severity).toBe('caution');
+    expect(w.params).toEqual({ planned: 8_000, existing: 0, matchedRetirement: 2_000, matchedMediSave: 1_000 });
+    expect(w.message).toBe(MESSAGE_2026);
+  });
+
+  it('fires when a family top-up was already made, even with the lever off and nothing planned', () => {
+    const result = plan(input({ existing: { cpfTopUpFamily: 1 } }));
+    expect(result.levers.cpfFamily.enabled).toBe(false);
+    expect(result.plan.contributions.cpfFamily).toBe(0);
+    const w = warning(result, 'FAMILY_TOPUP_CHECKS');
+    expect(w.params).toEqual({ planned: 0, existing: 1, matchedRetirement: 2_000, matchedMediSave: 1_000 });
+    expect(w.message).toBe(MESSAGE_2026);
+  });
+
+  it('does not fire when there is neither: lever off, or lever on but no family dollar in the plan', () => {
+    expect(codes(plan(input()))).not.toContain('FAMILY_TOPUP_CHECKS');
+    // Family on, but a cash limit of 23,300 is used up by SRS (15,300) and own CPF (8,000), which come first.
+    const none = plan(input({ cpfFamily: { enabled: true }, preferences: { cashBudget: 23_300 } }));
+    expect(none.plan.contributions).toEqual({ srs: 15_300, cpfSelf: 8_000, cpfFamily: 0 });
+    expect(codes(none)).not.toContain('FAMILY_TOPUP_CHECKS');
+    // One more dollar of cash reaches the family top-up.
+    const one = plan(input({ cpfFamily: { enabled: true }, preferences: { cashBudget: 23_301 } }));
+    expect(one.plan.contributions.cpfFamily).toBe(1);
+    expect(warning(one, 'FAMILY_TOPUP_CHECKS').params).toMatchObject({ planned: 1, existing: 0 });
+    // "Most I would give" of 0.
+    expect(codes(plan(input({ cpfFamily: { enabled: true, maxAmount: 0 } })))).not.toContain('FAMILY_TOPUP_CHECKS');
+  });
+
+  it('never fires for a foreigner, who gets no relief for family top-ups (§6.5), even with top-ups already made', () => {
+    const result = plan(
+      input({ profile: { residency: 'foreigner' }, existing: { cpfTopUpFamily: 5_000 }, cpfFamily: { enabled: true } }),
+    );
+    expect(result.levers.cpfFamily).toMatchObject({ eligible: false, statutoryCap: 0, room: 0 });
+    expect(codes(result)).not.toContain('FAMILY_TOPUP_CHECKS');
+  });
+
+  it('2025 has no MediSave matching figure; 2027 has both (§5.4)', () => {
+    const y2025 = warning(plan(input({ incomeYear: 2025, today: '2025-06-30', cpfFamily: { enabled: true } })), 'FAMILY_TOPUP_CHECKS');
+    expect(y2025.params).toEqual({ planned: 8_000, existing: 0, matchedRetirement: 2_000 });
+    expect(y2025.message).toBe(
+      'Family top-ups: the part the Government matches earns you no relief — the first S$2,000 a year for a member ' +
+        'on the Matched Retirement Savings Scheme. The amounts here are top-ups beyond that, to a family member who ' +
+        'qualifies.',
+    );
+    const y2027 = warning(plan(input({ incomeYear: 2027, today: '2027-06-30', cpfFamily: { enabled: true } })), 'FAMILY_TOPUP_CHECKS');
+    expect(y2027.params).toEqual({ planned: 8_000, existing: 0, matchedRetirement: 2_000, matchedMediSave: 1_000 });
+    expect(y2027.message).toBe(MESSAGE_2026);
+  });
+});
+
+describe('PARENTHOOD_TAX_REBATE', () => {
+  const ticked = (value: unknown): PlannerResult =>
+    plan(input({ profile: { hasUnusedParenthoodTaxRebate: value as boolean } }));
+
+  it('fires when the box is ticked, with the normative message', () => {
+    const w = warning(ticked(true), 'PARENTHOOD_TAX_REBATE');
+    expect(w.severity).toBe('caution');
+    expect(w.params).toEqual({});
+    expect(w.message).toBe(
+      'With unused Parenthood Tax Rebate your tax bill this year may already be S$0. This plan would then save no ' +
+        'cash now: it makes the rebate last longer, so the benefit arrives in a later year.',
+    );
+  });
+
+  it('only the boolean true is a tick: not "true", 1, false, null or a missing field', () => {
+    for (const value of ['true', 1, false, null, undefined, 'yes', {}]) {
+      expect(codes(ticked(value))).not.toContain('PARENTHOOD_TAX_REBATE');
+    }
+    expect(codes(plan(input()))).not.toContain('PARENTHOOD_TAX_REBATE');
+  });
+
+  it('is independent of everything else: it also shows when no tax is payable or nothing is recommended', () => {
+    const noTax = plan(input({ profile: { hasUnusedParenthoodTaxRebate: true }, income: { monthlyOrdinaryWage: 1_500, additionalWages: 0 }, otherReliefs: 0 }));
+    expect(codes(noTax)).toEqual(['NO_TAX_PAYABLE', 'PARENTHOOD_TAX_REBATE']);
+    const foreigner = plan(input({ profile: { residency: 'foreigner', hasUnusedParenthoodTaxRebate: true }, srs: { enabled: false } }));
+    expect(codes(foreigner)).toContain('PARENTHOOD_TAX_REBATE');
   });
 });
 
@@ -476,14 +798,18 @@ describe('DEADLINE_SOON', () => {
     const fourteen = warning(plan(input({ today: '2026-12-17' })), 'DEADLINE_SOON');
     expect(fourteen.severity).toBe('caution');
     expect(fourteen.params).toEqual({ deadline: '2026-12-31', daysToDeadline: 14 });
-    expect(fourteen.message).toBe(
-      'Only 14 days left until the 31 December 2026 deadline. ' +
-        'Banks and the CPF Board can stop taking contributions earlier, so transfer as soon as you can.',
+    // The ending is fixed by SPEC §6.11 (bank cut-offs; a CPF top-up counts on the day it is received).
+    const ending =
+      'Banks stop taking same-day SRS contributions before midnight on the last day, some as early as 7pm, and a ' +
+      'CPF top-up counts on the day the CPF Board receives it, so transfer as soon as you can.';
+    expect(fourteen.message).toBe(`Only 14 days left until the 31 December 2026 deadline. ${ending}`);
+    expect(warning(plan(input({ today: '2026-12-30' })), 'DEADLINE_SOON').message).toBe(
+      `Only 1 day left until the 31 December 2026 deadline. ${ending}`,
     );
-    expect(warning(plan(input({ today: '2026-12-30' })), 'DEADLINE_SOON').message).toContain('Only 1 day left');
     const lastDay = warning(plan(input({ today: '2026-12-31' })), 'DEADLINE_SOON');
     expect(lastDay.params).toEqual({ deadline: '2026-12-31', daysToDeadline: 0 });
-    expect(lastDay.message).toContain('Today, 31 December 2026, is the deadline.');
+    expect(lastDay.message).toBe(`Today, 31 December 2026, is the deadline. ${ending}`);
+    expect(lastDay.message).not.toContain('can stop taking contributions earlier');
   });
 
   it('does not fire 15 days out, or when nothing is recommended', () => {
@@ -542,7 +868,11 @@ describe('warnings in general', () => {
     plan(input({ existing: { srs: 20_000, cpfTopUpSelf: 9_000, cpfTopUpFamily: 9_000 } })),
     plan(input({ income: { employeeCpfOverride: 25_000 } })),
     plan(input({ profile: { residency: 'foreigner' } })),
+    plan(input({ profile: { residency: 'foreigner' }, income: { monthsWorked: 6 } })),
     plan(input({ profile: { residency: 'pr', prYear: 1, ageAtYearEnd: 60 } })),
+    plan(input({ profile: { residency: 'pr', prYear: 3, ageAtYearEnd: 60 }, cpfSelf: { roomToLimit: 2_000 } })),
+    plan(input({ cpfFamily: { enabled: true } })),
+    plan(input({ profile: { hasUnusedParenthoodTaxRebate: true } })),
     plan(input({ profile: { ageAtYearEnd: 17 } })),
     plan(input({ today: '2027-01-01' })),
     plan(input({ today: '2026-12-25' })),
@@ -580,14 +910,77 @@ describe('warnings in general', () => {
   });
 
   it('several warnings can apply at once', () => {
-    // 2nd-year PR aged 60 on the last day of projected 2027, with the CPF self lever on
+    // 2nd-year PR aged 60 on the last day of projected 2027, with the CPF self lever on and its room left blank:
+    // L = 15,300 (SRS only) is the smallest of U, C, L, so the schemes bind and something is recommended.
     const result = plan(input({ incomeYear: 2027, today: '2027-12-31', profile: { residency: 'pr', prYear: 2, ageAtYearEnd: 60 } }));
     expect(codes(result)).toEqual([
       'LEVER_LIMITS_PLAN',
       'PR_GRADUATED_RATES',
-      'AGE_55_PLUS_TOPUP',
+      'CPF_SELF_ROOM_UNCONFIRMED',
       'DEADLINE_SOON',
       'PROJECTED_RULES',
     ]);
+  });
+
+  it('a citizen-or-PR pile-up comes out in the order of the SPEC table', () => {
+    // 1st-year PR aged 60 in projected 2027, on the last day: CPF figure 25,000 entered (held at 20,400), S$9,000
+    // already given to family (over the 8,000 cap), own CPF room entered as 2,000, the tick-box ticked.
+    // Reliefs 8,000 + 20,400 + 8,000 + 5,000 = 41,400 -> CI 93,600 (tax 4,914.00). U = 53,600, C = 38,600,
+    // L = 15,300 + 2,000 + 0 = 17,300 -> the schemes bind and S$17,300 is recommended.
+    const result = plan(
+      input({
+        incomeYear: 2027,
+        today: '2027-12-31',
+        profile: { residency: 'pr', prYear: 1, ageAtYearEnd: 60, hasUnusedParenthoodTaxRebate: true },
+        income: { employeeCpfOverride: 25_000 },
+        existing: { cpfTopUpFamily: 9_000 },
+        cpfSelf: { roomToLimit: 2_000 },
+        cpfFamily: { enabled: true },
+      }),
+    );
+    expect(result.baseline.taxPayable).toBe(4_914);
+    expect(result.plan.contributions).toEqual({ srs: 15_300, cpfSelf: 2_000, cpfFamily: 0 });
+    expect(codes(result)).toEqual([
+      'LEVER_LIMITS_PLAN',
+      'EXISTING_EXCEEDS_CAP',
+      'CPF_OVERRIDE_ABOVE_MAX',
+      'PR_GRADUATED_RATES',
+      'AGE_55_PLUS_TOPUP',
+      'FAMILY_TOPUP_CHECKS',
+      'PARENTHOOD_TAX_REBATE',
+      'DEADLINE_SOON',
+      'PROJECTED_RULES',
+    ]);
+  });
+
+  it('a foreigner pile-up comes out in the order of the SPEC table', () => {
+    // Foreigner, 6 months worked, seen the day after the deadline, tick-box ticked. Income 60,000 + 15,000;
+    // reliefs 1,000 + 5,000 -> CI 69,000 (tax 550 + 7% x 29,000 = 2,580.00). U = 29,000 is the smallest limit,
+    // so no plan-limit warning; the whole plan is on the 7% rung.
+    const adult = plan(
+      input({
+        today: '2027-01-01',
+        profile: { residency: 'foreigner', hasUnusedParenthoodTaxRebate: true },
+        income: { monthsWorked: 6 },
+      }),
+    );
+    expect(adult.baseline.taxPayable).toBe(2_580);
+    expect(adult.plan.contributions).toEqual({ srs: 29_000, cpfSelf: 0, cpfFamily: 0 });
+    expect(codes(adult)).toEqual([
+      'FOREIGNER_NO_CPF',
+      'TAX_RESIDENCY_CHECK',
+      'SRS_NON_RESIDENT_WITHDRAWAL',
+      'PARENTHOOD_TAX_REBATE',
+      'DEADLINE_PASSED',
+    ]);
+    expect(warning(adult, 'SRS_NON_RESIDENT_WITHDRAWAL').params).toMatchObject({ lowValueAmount: 29_000 });
+    // The same person at 17 has no scheme at all: the tick-box caution still comes before SRS_UNDER_18.
+    const minor = plan(
+      input({
+        profile: { residency: 'foreigner', ageAtYearEnd: 17, hasUnusedParenthoodTaxRebate: true },
+        income: { monthsWorked: 6 },
+      }),
+    );
+    expect(codes(minor)).toEqual(['LEVER_LIMITS_PLAN', 'FOREIGNER_NO_CPF', 'TAX_RESIDENCY_CHECK', 'PARENTHOOD_TAX_REBATE', 'SRS_UNDER_18']);
   });
 });

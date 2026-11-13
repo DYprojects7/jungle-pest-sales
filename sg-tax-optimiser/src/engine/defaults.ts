@@ -13,7 +13,13 @@ export function defaultInput(today: string): PlannerInput {
   return {
     incomeYear: defaultIncomeYear(typeof today === 'string' ? today : ''),
     today,
-    profile: { residency: 'citizen', prYear: 3, ageAtYearEnd: 35, birthMonth: 12 },
+    profile: {
+      residency: 'citizen',
+      prYear: 3,
+      ageAtYearEnd: 35,
+      birthMonth: 12,
+      hasUnusedParenthoodTaxRebate: false,
+    },
     income: {
       monthlyOrdinaryWage: 10_000,
       monthsWorked: 12,

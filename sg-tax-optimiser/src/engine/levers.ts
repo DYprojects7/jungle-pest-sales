@@ -7,6 +7,21 @@ import type { LeverAmounts, LeverId, LeverRoom, YearRules } from './types';
 /** The levers in canonical order (SPEC §6.0). */
 export const LEVER_IDS: readonly LeverId[] = ['srs', 'cpfSelf', 'cpfFamily'];
 
+/**
+ * Age on 31 December of the income year from which a member has a Retirement Account (SPEC §6.5). From this age
+ * the CPF Board accepts cash top-ups above the Full Retirement Sum, which earn no relief and cannot be reversed.
+ */
+export const RETIREMENT_ACCOUNT_AGE = 55;
+
+/**
+ * SPEC §6.5 "Room must be confirmed from age 55": true when the person is 55 or over at the end of the year and
+ * has not entered how much they can still top up with relief. A blank `roomToLimit` then means "not confirmed",
+ * not "unlimited", so the lever's room is 0 until a figure is entered.
+ */
+export function cpfSelfRoomUnconfirmed(input: SanitisedInput): boolean {
+  return input.profile.ageAtYearEnd >= RETIREMENT_ACCOUNT_AGE && input.levers.cpfSelf.roomToLimit === null;
+}
+
 export interface LeverPositions {
   /** Cap, usage and room per lever, as reported in `PlannerResult.levers`. */
   levers: Record<LeverId, LeverRoom>;
@@ -67,6 +82,9 @@ function position(
  * - `srs`: aged at least `rules.srs.minAge` (18) at the end of the year; the cap depends on residency.
  * - `cpfSelf`: Citizens and PRs (people with a CPF account).
  * - `cpfFamily`: residency statuses in `rules.cpfTopUp.familyGiverResidency` (Citizens and PRs, §5.4).
+ *
+ * Room: the statutory cap less what is already used, then the person's own limit. For `cpfSelf` from age 55 a
+ * room that was not entered is a room of 0 (see `cpfSelfRoomUnconfirmed`).
  */
 export function leverPositions(input: SanitisedInput, rules: YearRules): LeverPositions {
   const { profile, existing, levers } = input;
@@ -84,7 +102,7 @@ export function leverPositions(input: SanitisedInput, rules: YearRules): LeverPo
     levers.cpfSelf.enabled,
     rules.cpfTopUp.selfReliefCap,
     existing.cpfTopUpSelf,
-    levers.cpfSelf.roomToLimit,
+    cpfSelfRoomUnconfirmed(input) ? 0 : levers.cpfSelf.roomToLimit,
   );
   const cpfFamily = position(
     rules.cpfTopUp.familyGiverResidency.includes(profile.residency),
