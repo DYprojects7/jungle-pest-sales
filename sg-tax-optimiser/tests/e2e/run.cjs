@@ -302,6 +302,9 @@ async function main() {
       expectTrue(!/<script\b[^>]*\bsrc=/i.test(html), 'dist/index.html references an external script');
       const links = html.match(/<link\b[^>]*rel=["']?stylesheet[^>]*>/gi) || [];
       expectEqual(links.join(' '), '', 'a linked stylesheet would block the first render');
+      // The tab icon travels inside the file, and the browser chrome is tinted for each colour scheme.
+      expectTrue(/<link\b[^>]*rel="icon"[^>]*href="data:image\/svg\+xml,/.test(html.replace(/\s+/g, ' ')), 'no inline tab icon');
+      expectEqual((html.match(/<meta name="theme-color"/g) || []).length, 2, 'theme-color metas');
     });
 
     await check('web fonts: asked for by the page itself after it has loaded, from Google Fonts only', async () => {
@@ -332,6 +335,16 @@ async function main() {
         `headline reads "${headline}"`,
       );
       expectTrue((await text(page, 'reco-reason')).length > 20, 'no reason sentence under the recommendation');
+    });
+
+    await check('the plan card at 1280px: the right-hand column ends level with the left, on the Copy summary button', async () => {
+      const ends = await page.evaluate(() => {
+        const bottom = (selector) => Math.round(document.querySelector(selector).getBoundingClientRect().bottom);
+        return { main: bottom('.slab-main'), foot: bottom('.slip-foot'), copy: bottom('#copy-summary') };
+      });
+      expectTrue(Math.abs(ends.main - ends.foot) <= 1, `the columns end at ${ends.main}px and ${ends.foot}px`);
+      expectTrue(ends.foot - ends.copy <= 1, `the copy button ends ${ends.foot - ends.copy}px above the column`);
+      expectTrue(/48 days left to transfer, by 31 Dec 2026/.test(await flat(page, 'reco-deadline')), 'the deadline line');
     });
 
     // The page exactly as it opens, before any check changes it.
@@ -439,6 +452,53 @@ async function main() {
       await resetToExample(page);
     });
 
+    await check('the example that is left in: named in the panel, tagged on its fields, gone once each is set', async () => {
+      await resetToExample(page);
+      expectEqual(await count(page, '[data-testid="example-left"]'), 0, 'no line while the whole page is the example');
+      expectEqual(await count(page, '.tag-example'), 0, 'no field tags while the whole page is the example');
+      await setField(page, 'salary', '7000');
+      expectTrue(/Your numbers/.test(await text(page, 'saved-flag')), 'the panel should say the numbers are the person\'s own');
+      expectEqual(
+        await flat(page, 'example-left'),
+        "Still using the example's age, bonus and other reliefs.",
+        'what is left of the example',
+      );
+      expectEqual(await text(page, 'bonus-flag'), 'Example value', 'tag on the bonus');
+      expectEqual(await text(page, 'reliefTotal-flag'), 'Example value', 'tag on other reliefs');
+      expectEqual(await count(page, '[data-testid="salary-flag"]'), 0, 'no tag on the salary that was typed');
+      // Retyping the example's own figure is how somebody says "this one is right for me too".
+      await setField(page, 'bonus', '15000');
+      expectEqual(await count(page, '[data-testid="bonus-flag"]'), 0, 'tag on a bonus that was retyped');
+      expectEqual(await flat(page, 'example-left'), "Still using the example's age and other reliefs.", 'after the bonus');
+      await setField(page, 'age', '41');
+      await setField(page, 'reliefTotal', '0');
+      expectEqual(await count(page, '[data-testid="example-left"]'), 0, 'the line once every figure is set');
+      expectEqual(await count(page, '.tag-example'), 0, 'field tags once every figure is set');
+      await page.reload();
+      await page.waitForSelector('[data-testid="reco-tax-saved"]');
+      expectEqual(await count(page, '[data-testid="example-left"]'), 0, 'the line after a reload');
+      await resetToExample(page);
+    });
+
+    await check('choices that only change the view leave the example an example: step, income year, "Which first?"', async () => {
+      await page.locator('#simulator').evaluate((el) => (el.open = true));
+      await page.locator('#simulatorStep').selectOption('2000');
+      await choose(page, 'order-interest');
+      await page.locator('#incomeYear').selectOption('2027');
+      expectEqual(await count(page, '[data-testid="example-flag"]'), 1, 'still labelled as the example');
+      expectEqual(await count(page, '[data-testid="saved-flag"]'), 0, '"Your numbers" label');
+      expectTrue((await flat(page, 'reco-headline')).startsWith('Put S$8,000 into your CPF and S$15,300 into SRS'), 'the order was applied');
+      const stored = await page.evaluate(() => JSON.parse(window.localStorage.getItem('sgto:v1')));
+      expectEqual(stored.ui, null, 'the example is not stored as somebody\'s numbers');
+      const why = (await page.locator('#order-flexibility-detail').innerText()).replace(/\s+/g, ' ');
+      expectTrue(/the whole amount is taxed and there is a 5% penalty/.test(why), `"Flexibility first" reads "${why}"`);
+      await page.locator('#incomeYear').selectOption('2026');
+      await choose(page, 'order-flexibility');
+      await page.locator('#simulatorStep').selectOption('1000');
+      await page.locator('#simulator').evaluate((el) => (el.open = false));
+      await expectExample(page, 'after putting the view back');
+    });
+
     await check('money inputs: commas accepted, letters dropped, empty is 0, formatted on blur', async () => {
       const bonus = page.locator('#bonus');
       await bonus.click();
@@ -453,6 +513,29 @@ async function main() {
       await noJunk(page, 'empty bonus');
       await setField(page, 'bonus', '15000');
       expectEqual(await bonus.inputValue(), '15,000', 'bonus formatted with separators');
+    });
+
+    await check('money inputs: "12k", "10.000" and full-width digits are read as typed; a dropped minus sign is mentioned', async () => {
+      const bonus = page.locator('#bonus');
+      await setField(page, 'bonus', '12k');
+      expectEqual(await bonus.inputValue(), '12,000', '"12k"');
+      await setField(page, 'bonus', '1.5k');
+      expectEqual(await bonus.inputValue(), '1,500', '"1.5k"');
+      await setField(page, 'bonus', '10.000');
+      expectEqual(await bonus.inputValue(), '10,000', '"10.000"');
+      await setField(page, 'bonus', '1,234.56');
+      expectEqual(await bonus.inputValue(), '1,234', '"1,234.56" drops the cents');
+      await setField(page, 'bonus', '\uFF11\uFF18\uFF0C\uFF10\uFF10\uFF10');
+      expectEqual(await bonus.inputValue(), '18,000', 'full-width digits');
+      expectEqual(await count(page, '#bonus-note'), 0, 'no note when nothing was left out');
+      await setField(page, 'bonus', '-5000');
+      expectEqual(await bonus.inputValue(), '5,000', '"-5000"');
+      const note = await page.locator('#bonus-note').innerText();
+      expectTrue(/Only digits are read here, so this counts as S\$5,000/.test(note), `the note reads "${note}"`);
+      await setField(page, 'age', '4k1');
+      expectEqual(await page.locator('#age').inputValue(), '41', '"k" means nothing in an age');
+      await noJunk(page, 'number entry');
+      await resetToExample(page);
     });
 
     await check('limits explain themselves: SRS already contributed is held at S$15,300', async () => {
@@ -542,6 +625,10 @@ async function main() {
       expectTrue(/nothing/i.test(await text(page, 'reco-headline')), 'S$0 plan should say so');
       expectTrue((await text(page, 'reco-reason')).includes('3.5 cents'), 'S$0 plan should explain the 3.5 cent saving');
       expectEqual(await count(page, '[data-testid="offer-every"]'), 1, 'offer of the Every tax dollar view');
+      const bar = (await page.locator('[data-testid="sticky-bar"]').innerText()).replace(/\s+/g, ' ');
+      expectTrue(/Nothing more to put in this year/.test(bar) && !/Save S\$0/.test(bar), `the bar reads "${bar}"`);
+      const note = (await page.locator('[data-testid="warnings"] [data-code="BELOW_MIN_SAVING_RATE"]').innerText()).replace(/\s+/g, ' ');
+      expectTrue(/3\.5 cents/.test(note) && /7 cents/.test(note) && !/%/.test(note), `the note reads "${note}"`);
       await choose(page, 'depth-every');
       expectEqual(await text(page, 'reco-srs'), 'S$15,300', 'A.3 SRS with Every tax dollar');
       expectEqual(await text(page, 'reco-cpf-self'), 'S$100', 'A.3 CPF with Every tax dollar');
@@ -550,10 +637,13 @@ async function main() {
       await noJunk(page, 'A.3');
     });
 
-    await check('one rate, one rounding: 2.53 cents on the card and 2.53% in the comparison (A.3)', async () => {
+    await check('one rate, one unit: 2.53 cents on the card and 2.53 in the cents column of the comparison (A.3)', async () => {
       expectEqual(await text(page, 'reco-rate'), '2.53 cents', 'saving per dollar on the card');
-      const row = (await page.locator('[data-scenario="recommended"]').innerText()).replace(/\s+/g, ' ');
-      expectTrue(row.includes('2.53%'), `the plan row reads "${row}"`);
+      expectEqual(await text(page, 'plan-row-rate'), '2.53', 'saved per dollar in the plan row');
+      const head = (await page.locator('[data-testid="scenario-table"] thead').innerText()).replace(/\s+/g, ' ');
+      expectTrue(/Saved per dollar \(cents\)/.test(head), `the column headings read "${head}"`);
+      const table = (await page.locator('[data-testid="scenario-table"] tbody').innerText()).replace(/\s+/g, ' ');
+      expectTrue(!/%/.test(table), `the comparison still shows a percentage: "${table}"`);
     });
 
     await check('the offer button under a S$0 plan switches to Every tax dollar', async () => {
@@ -575,7 +665,12 @@ async function main() {
 
     await check('itemised reliefs add up, and long choices are listed in full instead of cut short in a drop-down', async () => {
       await choose(page, 'reliefMode-itemised');
-      expectEqual(await text(page, 'relief-total'), 'S$0', 'itemised total to start with');
+      // Like Monthly and Annual, the switch keeps the reliefs: the typed total goes into "Any other relief".
+      expectEqual(await text(page, 'relief-total'), 'S$5,000', 'the typed total carries into the helper');
+      expectEqual(await page.locator('#relief-other').inputValue(), '5,000', '"Any other relief" after the switch');
+      expectEqual(await text(page, 'reco-tax-saved'), 'S$2,679.50', 'the plan does not change on switching');
+      await setField(page, 'relief-other', '0');
+      expectEqual(await text(page, 'relief-total'), 'S$0', 'itemised total once that is cleared');
       await page.locator('#relief-spouse').check();
       await page.locator('#relief-qualifyingChild').selectOption('2');
       await choose(page, 'relief-nsmanSelf-3');
@@ -587,6 +682,11 @@ async function main() {
       expectEqual((await unlabelledControls(page)).join(', '), '', 'controls without a label or id in the helper');
       const working = (await page.locator('[data-testid="working-table"]').innerText()).replace(/\s+/g, ' ');
       expectTrue(working.includes('Other reliefs S$13,500'), 'the tax working should use the itemised total');
+      // And back: the single field takes the itemised sum, so the plan stays where it was.
+      const itemised = await text(page, 'reco-tax-saved');
+      await choose(page, 'reliefMode-total');
+      expectEqual(await page.locator('#reliefTotal').inputValue(), '13,500', 'the total after switching back');
+      expectEqual(await text(page, 'reco-tax-saved'), itemised, 'tax saved after switching back');
       await resetToExample(page);
     });
 
@@ -607,6 +707,9 @@ async function main() {
       const rules = (await page.locator('.sources .rows').innerText()).replace(/\s+/g, ' ');
       expectTrue(!/CPF top-up relief|ceiling for CPF|Retirement Sum|Healthcare Sum/.test(rules), `rule values read "${rules}"`);
       expectTrue(/SRS cap for you S\$35,700/.test(rules), 'the SRS cap should still be listed');
+      // No CPF-named options that are "SRS only" under another name.
+      const options = await page.locator('[data-testid="scenario-table"] tbody tr').evaluateAll((rows) => rows.map((r) => r.getAttribute('data-scenario')));
+      expectEqual(options.join(' '), 'none srsOnly recommended', 'options compared for a foreigner');
       await noJunk(page, 'foreigner');
     });
 
@@ -742,17 +845,67 @@ async function main() {
       expectTrue(/No scheme is switched on/.test(await flat(page, 'reco-reason')), 'the card should say no scheme is on');
       const note = (await page.locator('[data-testid="warnings"] [data-code="LEVER_LIMITS_PLAN"]').innerText()).replace(/\s+/g, ' ');
       expectTrue(/No scheme is switched on/.test(note) && !/5,039/.test(note), `the note reads "${note}"`);
+      expectEqual(
+        await flat(page, 'ladder-empty'),
+        'No scheme is switched on. Switch one on under "Schemes to use" to see its ladder.',
+        'the ladder with nothing switched on',
+      );
+      expectEqual(await count(page, '#ladder .lede'), 0, 'the lead-in about blocks and heights, with no chart under it');
       await resetToExample(page);
+    });
+
+    await check('schemes switched on but full: the ladder says so, and only offers what is there to switch on', async () => {
+      await setField(page, 'existingSrs', '15300');
+      await setField(page, 'existingCpfSelf', '8000');
+      expectEqual(
+        await flat(page, 'ladder-empty'),
+        'The schemes you switched on are full for 2026. Switch on another under "Schemes to use" to see what it would save.',
+        'the ladder with SRS and CPF self full',
+      );
+      await page.locator('#useCpfFamily').check();
+      await setField(page, 'existingCpfFamily', '8000');
+      expectEqual(await flat(page, 'ladder-empty'), 'The schemes you switched on are full for 2026.', 'with nothing left to switch on');
+      await resetToExample(page);
+    });
+
+    await check('reliefs over the cap: one note about it, not two that end the same way', async () => {
+      await setField(page, 'reliefTotal', '80000');
+      expectEqual(await count(page, '[data-testid="warnings"] [data-code="RELIEF_CAP_EXCEEDED_BASELINE"]'), 1, 'the note about the reliefs');
+      expectEqual(await count(page, '[data-testid="warnings"] [data-code="RELIEF_CAP_LIMITS_PLAN"]'), 0, 'the second note');
+      const notes = (await page.locator('[data-testid="warnings"]').innerText()).replace(/\s+/g, ' ');
+      expectEqual((notes.match(/would earn no tax relief/g) || []).length, 1, 'times "would earn no tax relief" is said');
+      // With nothing changed by the plan, nothing in the working is marked as changed.
+      expectEqual(await count(page, '[data-testid="working-table"] .changed'), 0, 'figures marked as changed by a S$0 plan');
+      const lede = (await page.locator('#working .lede').innerText()).replace(/\s+/g, ' ');
+      expectTrue(/Figures the plan changes are shaded/.test(lede), `the lead-in reads "${lede}"`);
+      await resetToExample(page);
+      const changed = await page.locator('[data-testid="working-table"] .changed').count();
+      expectTrue(changed >= 4, `the example's plan should mark the lines it changes (${changed} marked)`);
+      const totals = await page.evaluate(() =>
+        Array.from(document.querySelectorAll('[data-testid="working-table"] tr.is-total')).map((row) => ({
+          label: row.querySelector('th').textContent,
+          marked: row.querySelector('.changed') !== null,
+          same: row.cells[1].textContent === row.cells[2].textContent.replace(' (changed by the plan)', ''),
+        })),
+      );
+      expectEqual(totals.filter((t) => t.same && t.marked).map((t) => t.label).join(', '), '', 'unchanged totals marked as changed');
     });
 
     await check('simulator is collapsed by default and reacts to the step selector', async () => {
       expectTrue(!(await page.locator('#simulator').evaluate((el) => el.open)), 'simulator should start collapsed');
       await page.locator('#simulator > summary').click();
-      const rows1000 = await count(page, '[data-testid="simulator-table"] tbody tr');
+      const rows1000 = await count(page, '[data-testid="simulator-table"] tbody tr[data-step]');
+      const link = () => page.locator('[data-jump="simulator"]').innerText();
+      expectEqual((await link()).trim(), (await page.locator('#simulator-title').innerText()).trim(), 'the section link and its heading');
       await page.locator('#simulatorStep').selectOption('5000');
-      const rows5000 = await count(page, '[data-testid="simulator-table"] tbody tr');
+      const rows5000 = await count(page, '[data-testid="simulator-table"] tbody tr[data-step]');
       expectEqual(rows1000, 25, 'rows at S$1,000 steps up to S$23,300');
       expectEqual(rows5000, 6, 'rows at S$5,000 steps up to S$23,300');
+      expectEqual((await link()).trim(), 'Every extra S$5,000', 'the section link after changing the step');
+      const groups = await page.locator('[data-testid="simulator-table"] tr.group-row').allInnerTexts();
+      expectEqual(groups.map((g) => g.trim().toLowerCase()).join(' | '), 'where you are now | in your plan', 'row groups for the example');
+      await page.locator('#simulatorStep').selectOption('1000');
+      await page.locator('#simulator > summary').click();
     });
 
     await check('theme toggle sets and removes data-theme', async () => {
@@ -794,6 +947,11 @@ async function main() {
       expectTrue(/deadline for YA2026 has passed/.test(summary), 'the copied summary should say the deadline has passed');
       expectTrue(!/^Put S\$/m.test(summary) && !/You save/.test(summary), 'the copied summary still instructs');
       expectEqual(await count(page, '[data-scenario="recommended"] .tag-plan'), 0, '"Recommended" tag after the deadline');
+      // Further down, nothing speaks as if the year were still open or suggests a way to save more.
+      const before = (await page.locator('#before').innerText()).replace(/\s+/g, ' ');
+      expectTrue(!/Switching on|would still save|Aim to transfer/.test(before), `"Before you transfer" still plans ahead: "${before.slice(0, 260)}"`);
+      expectTrue(/The deadline for 2025 has passed/.test(before), 'the checklist should say the deadline has passed');
+      expectEqual(await count(page, '[data-testid="warnings"] [data-code="LEVER_LIMITS_PLAN"]'), 0, 'the note about what stops the plan');
       await page.screenshot({ path: path.join(SHOTS, 'desktop-deadline-passed.png') });
     });
 

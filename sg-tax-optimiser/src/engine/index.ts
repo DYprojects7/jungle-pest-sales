@@ -26,8 +26,18 @@ export { grossTax, marginalRate } from './tax';
  * and warnings. Never throws for a sanitisable input; throws a RangeError for an unsupported `incomeYear`.
  */
 export function plan(input: PlannerInput): PlannerResult {
-  const sanitised = sanitise(input);
-  return planFor(sanitised, getRules(sanitised.incomeYear));
+  const rules = rulesFor(input);
+  return planFor(sanitise(input), rules);
+}
+
+/**
+ * The rule set named by an input as the caller gave it. Looked up before sanitising, so that an `incomeYear` of
+ * the wrong type (or no input at all) is reported as what it is rather than as "income year NaN".
+ */
+function rulesFor(input: PlannerInput): YearRules {
+  const raw: unknown = input;
+  const given = typeof raw === 'object' && raw !== null ? (raw as { incomeYear?: unknown }).incomeYear : undefined;
+  return getRules(given as number);
 }
 
 /**
@@ -35,8 +45,8 @@ export function plan(input: PlannerInput): PlannerResult {
  * (SPEC §6.4). Throws a RangeError for an unsupported `incomeYear`.
  */
 export function evaluate(input: PlannerInput, additional: LeverAmounts): TaxComputation {
-  const sanitised = sanitise(input);
-  return evaluateFor(sanitised, additional, getRules(sanitised.incomeYear));
+  const rules = rulesFor(input);
+  return evaluateFor(sanitise(input), additional, rules);
 }
 
 /** The year's compulsory employee CPF contribution under the given rules (SPEC §6.1). */

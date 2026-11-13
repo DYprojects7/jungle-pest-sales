@@ -182,6 +182,66 @@ export function useScrollEdges(ref: RefObject<HTMLElement | null>): ScrollEdges 
 }
 
 /**
+ * Whether a table should be restacked because it does not fit its box. `boxRef` is the scroll box, whose first
+ * child is the table and whose parent sets the room there is. The table's narrowest unstacked width is
+ * measured, with the restacking taken off for the moment of the measurement, and compared with that room, so
+ * the answer follows the content (three scheme columns need more room than one) and not a fixed breakpoint.
+ * Measured after every render, when the box changes width and when web fonts arrive.
+ */
+export function useStacked(boxRef: RefObject<HTMLElement | null>, enabled: boolean): boolean {
+  const [stacked, setStacked] = useState(false);
+  const measure = useRef<() => void>(() => undefined);
+  measure.current = (): void => {
+    const box = boxRef.current;
+    const table = box?.firstElementChild;
+    const room = box?.parentElement?.clientWidth ?? 0;
+    if (!enabled || !box || !(table instanceof HTMLElement) || room <= 0) return;
+    const was = box.getAttribute('data-stacked');
+    const { minWidth, width } = table.style;
+    if (was !== null) box.removeAttribute('data-stacked');
+    table.style.minWidth = '0';
+    table.style.width = '1px';
+    const needs = table.getBoundingClientRect().width;
+    table.style.minWidth = minWidth;
+    table.style.width = width;
+    if (was !== null) box.setAttribute('data-stacked', was);
+    const next = needs > room + 0.5;
+    setStacked((prev) => (prev === next ? prev : next));
+  };
+  // No dependency list: the figures in the table can change on any render.
+  useLayoutEffect(() => measure.current());
+  useLayoutEffect(() => {
+    const room = boxRef.current?.parentElement;
+    if (!enabled || !room) return undefined;
+    const again = (): void => measure.current();
+    const cleanups: (() => void)[] = [];
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', again);
+      cleanups.push(() => window.removeEventListener('resize', again));
+    } else {
+      let last = -1;
+      const observer = new ResizeObserver((entries) => {
+        const w = Math.round(entries[0]?.contentRect.width ?? 0);
+        if (w === last) return; // only a change of width can change the fit
+        last = w;
+        again();
+      });
+      observer.observe(room);
+      cleanups.push(() => observer.disconnect());
+    }
+    try {
+      const fonts = document.fonts;
+      fonts.addEventListener('loadingdone', again);
+      cleanups.push(() => fonts.removeEventListener('loadingdone', again));
+    } catch {
+      // No font loading events: the fit found at start-up stands until the next render or resize.
+    }
+    return () => cleanups.forEach((stop) => stop());
+  }, [boxRef, enabled]);
+  return enabled && stacked;
+}
+
+/**
  * Whether an element is on screen, ignoring a strip of `bottomInset` pixels at the bottom edge (the space a
  * fixed bar covers). null until it is known, or where the browser cannot tell.
  */

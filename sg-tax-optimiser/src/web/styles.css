@@ -322,25 +322,6 @@ textarea {
   }
 }
 
-/* Between 960px and 1199px the rail gives up 68px, so the results column is wide enough for its tables. */
-@media screen and (min-width: 960px) and (max-width: 1199px) {
-  :root {
-    --panel-w: 336px;
-  }
-
-  .panel-scroll {
-    padding-inline: 20px;
-  }
-
-  .brand {
-    padding-inline: 20px;
-  }
-
-  .readout {
-    padding-inline: 20px;
-  }
-}
-
 /* ----------------------------------------------------------------- brand */
 
 .brand {
@@ -1056,6 +1037,10 @@ legend.field-label {
   color: var(--slab-ink);
 }
 
+.readout-part {
+  white-space: nowrap;
+}
+
 .readout-go {
   display: none;
   font-size: var(--fs-2);
@@ -1579,7 +1564,9 @@ legend.field-label {
   margin-inline: -8px;
 }
 
+/* position: relative, so hidden screen-reader text inside a scrolled-off cell is clipped with the cell. */
 .table-scroll {
+  position: relative;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
@@ -1660,15 +1647,9 @@ legend.field-label {
   background: var(--ground);
 }
 
-.table-wide {
-  min-width: 640px;
-}
-
-.table-mid {
-  min-width: 560px;
-}
-
-/* A nine-column comparison has to fit a 820px column: step the type down until there is room. */
+/* Tables take the width their figures need and no more. One that does not fit is restacked or scrolls (see
+   TableScroll); there is no fixed minimum width. As the column narrows the wide tables step their type and
+   padding down first, so they stay tables for as long as they can. */
 @container (max-width: 900px) {
   .table-wide {
     font-size: var(--fs-2);
@@ -1676,6 +1657,24 @@ legend.field-label {
 
   .table-wide th,
   .table-wide td {
+    padding-inline: 8px;
+  }
+}
+
+@container (max-width: 760px) {
+  .table-wide th,
+  .table-wide td {
+    padding-inline: 6px;
+  }
+}
+
+@container (max-width: 700px) {
+  .table-mid {
+    font-size: var(--fs-2);
+  }
+
+  .table-mid th,
+  .table-mid td {
     padding-inline: 8px;
   }
 }
@@ -1772,6 +1771,18 @@ legend.field-label {
 
 .table-working {
   max-width: 700px;
+}
+
+/* On the narrowest phones the three-column working steps its type down so both figures stay on screen. */
+@container (max-width: 330px) {
+  .table-working {
+    font-size: var(--fs-2);
+  }
+
+  .table-working th,
+  .table-working td {
+    padding-inline: 6px;
+  }
 }
 
 .cell-note {
@@ -1915,6 +1926,19 @@ legend.field-label {
 
 .table-scroll[data-stacked='rows'] > .table td::before {
   flex: 1 1 auto;
+}
+
+/* In a column with room for two blocks side by side (a small laptop beside the inputs), pair them up. */
+@container (min-width: 560px) {
+  .table-scroll[data-stacked='rows'] > .table > tbody {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 32px;
+  }
+
+  .table-scroll[data-stacked='rows'] > .table > tbody > tr {
+    padding-inline: 8px;
+  }
 }
 
 /* A scheme the option puts nothing into, and cells with nothing in them, are left out of the block. */
@@ -2290,6 +2314,37 @@ p.notice {
 .key-open {
   background: var(--chart-open);
   border: 1.5px solid var(--ink-2);
+}
+
+/* ----------------------------------------------------------- narrow rail */
+
+/* Between 960px and 1199px the rail gives up 68px, so the results column is wide enough for its tables.
+   (After the rules it adjusts, which are written for the full-width rail.) */
+@media screen and (min-width: 960px) and (max-width: 1199px) {
+  :root {
+    --panel-w: 336px;
+  }
+
+  .panel-scroll {
+    padding-inline: 20px;
+  }
+
+  .brand {
+    padding-inline: 20px;
+  }
+
+  .readout {
+    padding-inline: 20px;
+  }
+
+  /* One line each in the narrower rail: the strapline under the name, and the saving in the bar. */
+  .brand-sub {
+    font-size: var(--fs-1);
+  }
+
+  .readout-line b {
+    font-size: var(--fs-3);
+  }
 }
 
 /* ----------------------------------------------------------------- print */

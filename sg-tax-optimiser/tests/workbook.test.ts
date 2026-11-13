@@ -808,6 +808,8 @@ const PROFILES: Profile[] = [
   { name: 'RAW text in the minimum rate', input: make({ preferences: { minSavingRate: '7%' } }), raw: { in_minSavingRate: '7%' } },
   { name: 'RAW text in the CPF figure', input: make({ income: { employeeCpfOverride: 'n/a' } }), raw: { in_cpfOverride: 'n/a' } },
   { name: 'RAW negative cash limit', input: make({ preferences: { cashBudget: -5 } }) },
+  // SPEC §6.0: a negative CPF figure is not a figure, so the worked-out contribution is used (not a relief of 0).
+  { name: 'RAW negative CPF figure', input: make({ income: { employeeCpfOverride: -500 } }) },
   { name: 'RAW simulator step 0', input: make({ preferences: { simulatorStep: 0 } }) },
   { name: 'RAW simulator step 99.5', input: make({ preferences: { simulatorStep: 99.5 } }) },
   { name: 'RAW text in the simulator step', input: make({ preferences: { simulatorStep: 'big' } }), raw: { in_simulatorStep: 'big' } },
@@ -1427,7 +1429,7 @@ function assertParity(results: Results, expected: PlannerResult, options: Parity
   const input = expected.input;
   const overrideNote = text(results.value('out_note_cpfOverride'), 'note beside the CPF figure');
   if (input.profile.residency === 'foreigner') expect(overrideNote).toMatch(/^Not used: foreigners/);
-  else if (cpf.source === 'auto') expect(overrideNote).toBe(`Blank, so it is worked out from your pay: ${dollars(cpf.employeeContribution)}. Fill in to use the figure on your payslips or CPF statement.`);
+  else if (cpf.source === 'auto') expect(overrideNote).toBe(`Not filled in, so it is worked out from your pay: ${dollars(cpf.employeeContribution)}. Fill in to use the figure on your payslips or CPF statement.`);
   else if (fired.includes('CPF_OVERRIDE_ABOVE_MAX')) expect(overrideNote).toMatch(new RegExp(`^Above the most possible in a year, so ${escapeRegExp(dollars(cpf.employeeContribution))} is used\\.`));
   else expect(overrideNote).toMatch(new RegExp(`^Using your figure of ${escapeRegExp(dollars(cpf.employeeContribution))} instead of the worked-out S\\$[\\d,]+\\.`));
   const budgetNote = text(results.value('out_note_cashBudget'), 'note beside the cash limit');

@@ -518,7 +518,7 @@ function HatchSwatch({ pattern }: { pattern: string }): JSX.Element {
 
 function LadderTable({ result, active, onActive }: ChartProps): JSX.Element {
   return (
-    <TableScroll label="Savings ladder figures" stackBelow={600}>
+    <TableScroll label="Savings ladder figures" stack="rows">
       <table class="table table-mid" data-testid="ladder-table" role="table">
         <caption class="sr-only">The savings ladder as figures, one row per tier</caption>
         <thead role="rowgroup">

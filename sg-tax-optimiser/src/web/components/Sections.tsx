@@ -68,16 +68,13 @@ function compareRows(result: PlannerResult): Scenario[] {
   return kept;
 }
 
-/** Narrowest box the comparison still fits as a table, by the number of scheme columns it has. */
-const COMPARE_FITS = [520, 590, 660, 750];
-
 export function Compare({ result }: SectionProps): JSX.Element {
   const recommended = result.scenarios.find((s) => s.id === 'recommended');
   const rows = compareRows(result);
   const levers = usableLevers(result).filter((l) => rows.some((s) => s.contributions[l] > 0));
   const past = deadlinePassed(result);
   return (
-    <TableScroll label="Options compared" stackBelow={COMPARE_FITS[levers.length] ?? 750}>
+    <TableScroll label="Options compared" stack="rows">
       <table class="table table-wide table-compare" data-testid="scenario-table" role="table">
         <caption class="sr-only">Ready-made options on the same numbers, compared with your plan</caption>
         <thead role="rowgroup">
@@ -194,7 +191,7 @@ export function MonthlyPlanView({ result }: SectionProps): JSX.Element {
       </div>
 
       {mp.schedule.length > 0 ? (
-        <TableScroll label="Monthly set-aside schedule" stackBelow={480} stack="lines">
+        <TableScroll label="Monthly set-aside schedule" stack="lines">
           <table class="table table-fit" data-testid="monthly-table" role="table">
             <caption class="sr-only">How much to set aside each month until the deadline</caption>
             <thead role="rowgroup">
@@ -286,6 +283,12 @@ export function Simulator(props: SectionProps & { step: number; onStep: (step: n
   const rows = result.simulator;
   const levers = usableLevers(result).filter((l) => rows.some((r) => r.split[l] > 0));
   const used = result.input.preferences.simulatorStep ?? step;
+  // Grouped under headings instead of a column that says "Yes" or "Beyond it" on every line.
+  const groups = [
+    { id: 'start', title: 'Where you are now', rows: rows.filter((r) => r.contribution === 0) },
+    { id: 'plan', title: 'In your plan', rows: rows.filter((r) => r.contribution > 0 && r.withinPlan) },
+    { id: 'beyond', title: 'Beyond your plan', rows: rows.filter((r) => r.contribution > 0 && !r.withinPlan) },
+  ].filter((g) => g.rows.length > 0);
   return (
     <details class="fold" id="simulator">
       <summary>
@@ -329,28 +332,33 @@ export function Simulator(props: SectionProps & { step: number; onStep: (step: n
                       {LEVER_SHORT[l]}
                     </th>
                   ))}
-                  <th scope="col">In your plan</th>
                 </tr>
               </thead>
-              <tbody>
-                {rows.map((r, i) => (
-                  <tr key={r.contribution} class={r.withinPlan && r.contribution > 0 ? 'is-plan' : undefined}>
-                    <th scope="row" class="nowrap">
-                      {dollars(r.contribution)}
+              {groups.map((g) => (
+                <tbody key={g.title} data-group={g.id}>
+                  <tr class="group-row">
+                    <th scope="rowgroup" colSpan={5 + levers.length}>
+                      {g.title}
                     </th>
-                    <td class="num">{i === 0 ? 'n/a' : cents(r.stepSaving)}</td>
-                    <td class="num">{i === 0 ? 'n/a' : centsFigure(r.stepRate)}</td>
-                    <td class="num">{cents(r.taxSaved)}</td>
-                    <td class="num">{cents(r.taxPayable)}</td>
-                    {levers.map((l) => (
-                      <td class="num" key={l}>
-                        {dollars(r.split[l])}
-                      </td>
-                    ))}
-                    <td class="nowrap">{r.contribution === 0 ? 'Start' : r.withinPlan ? 'Yes' : 'Beyond it'}</td>
                   </tr>
-                ))}
-              </tbody>
+                  {g.rows.map((r) => (
+                    <tr key={r.contribution} class={g.id === 'plan' ? 'is-plan' : undefined} data-step>
+                      <th scope="row" class="nowrap">
+                        {dollars(r.contribution)}
+                      </th>
+                      <td class="num">{r.contribution === 0 ? 'n/a' : cents(r.stepSaving)}</td>
+                      <td class="num">{r.contribution === 0 ? 'n/a' : centsFigure(r.stepRate)}</td>
+                      <td class="num">{cents(r.taxSaved)}</td>
+                      <td class="num">{cents(r.taxPayable)}</td>
+                      {levers.map((l) => (
+                        <td class="num" key={l}>
+                          {dollars(r.split[l])}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              ))}
             </table>
           </TableScroll>
         ) : (
@@ -483,7 +491,7 @@ export function TaxWorking({ result }: SectionProps): JSX.Element {
       </TableScroll>
 
       <h3 class="sub-title">The rate table, band by band</h3>
-      <TableScroll label="Tax by band before and after the plan" stackBelow={600}>
+      <TableScroll label="Tax by band before and after the plan" stack="rows">
         <table class="table table-wide table-bands" data-testid="band-table" role="table">
           <caption class="sr-only">How much of your chargeable income falls in each tax band, and the tax on it</caption>
           <thead role="rowgroup">

@@ -170,6 +170,11 @@ function specOptionalMoney(value: unknown): number | null {
   return typeof value === 'number' ? specMoney(value) : null;
 }
 
+/** SPEC §6.0: the CPF override is a figure only when it is a finite number of 0 or more; otherwise "not provided". */
+function specOptionalFigure(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? specMoney(value) : null;
+}
+
 function isLeap(year: number): boolean {
   return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
 }
@@ -239,7 +244,7 @@ export function specSanitise(raw: unknown): FullInput {
       otherTaxableIncome: specMoney(income.otherTaxableIncome),
       employmentExpenses: specMoney(income.employmentExpenses),
       donations: specMoney(income.donations),
-      employeeCpfOverride: specOptionalMoney(income.employeeCpfOverride),
+      employeeCpfOverride: specOptionalFigure(income.employeeCpfOverride),
     },
     existing: {
       srs: specMoney(existing.srs),

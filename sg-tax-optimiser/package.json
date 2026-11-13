@@ -14,13 +14,15 @@
     "build:release": "npm run build && node scripts/copy-release.mjs",
     "build:workbook": "tsx workbook/build.ts",
     "test:e2e": "node tests/e2e/run.cjs",
-    "test:reference": "python3 -m unittest discover -s reference -p 'test_*.py'"
+    "test:reference": "python3 -m unittest discover -s reference -p 'test_*.py'",
+    "test:release": "SGTO_STRICT=1 vitest run"
   },
   "devDependencies": {
     "@preact/preset-vite": "^2.10.6",
     "@types/node": "^26.6.6",
     "exceljs": "^4.4.0",
     "fast-check": "^4.10.2",
+    "jszip": "^3.10.1",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3",
     "vite": "^6.4.6",

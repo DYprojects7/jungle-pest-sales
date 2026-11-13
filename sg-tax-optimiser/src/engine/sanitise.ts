@@ -63,6 +63,16 @@ function optionalMoney(value: unknown): number | null {
 }
 
 /**
+ * An optional figure that REPLACES a calculated one (the employee CPF override, §6.0 and §6.1). Unlike a limit,
+ * reading a meaningless value as 0 would not be the cautious direction: it would remove the CPF relief, overstate
+ * the tax and recommend more than the user's own minimum rate allows. So only a finite number of 0 or more is a
+ * figure; anything else (NaN, ±Infinity, a negative number, a non-number) means "not provided".
+ */
+function optionalFigure(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? money(value) : null;
+}
+
+/**
  * A whole-number input with a legal range: a number is sanitised (not finite or negative -> 0, rounded down)
  * and then clamped to [min, max]; anything that is not a number takes `fallback`.
  */
@@ -140,7 +150,7 @@ export function sanitise(input: PlannerInput): SanitisedInput {
       otherTaxableIncome: money(income.otherTaxableIncome),
       employmentExpenses: money(income.employmentExpenses),
       donations: money(income.donations),
-      employeeCpfOverride: optionalMoney(income.employeeCpfOverride),
+      employeeCpfOverride: optionalFigure(income.employeeCpfOverride),
     },
     existing: {
       srs: money(existing.srs),

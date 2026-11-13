@@ -264,13 +264,18 @@ export function App(): JSX.Element {
                 ) : nothing ? (
                   <b data-testid="bar-nothing">Nothing more to put in this year</b>
                 ) : (
+                  // Two halves that each stay whole, so a narrow bar breaks between them.
                   <>
-                    Save <b data-testid="bar-saved">{cents(p.taxSaved)}</b>
+                    <span class="readout-part">
+                      Save <b data-testid="bar-saved">{cents(p.taxSaved)}</b>
+                    </span>
                     <span class="readout-sep" aria-hidden="true">
                       {' · '}
                     </span>
                     <span class="sr-only">, </span>
-                    lock away <b data-testid="bar-locked">{dollars(p.totalContribution)}</b>
+                    <span class="readout-part">
+                      lock away <b data-testid="bar-locked">{dollars(p.totalContribution)}</b>
+                    </span>
                   </>
                 )}
               </span>

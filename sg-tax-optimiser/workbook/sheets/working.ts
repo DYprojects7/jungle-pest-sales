@@ -637,7 +637,10 @@ export function buildWorking(b: Book): ExcelJS.Worksheet {
   used('u_otherIncome', 'Other taxable income', ($) => moneyOf($('in_otherIncome')), NF.int);
   used('u_expenses', 'Employment expenses', ($) => moneyOf($('in_employmentExpenses')), NF.int);
   used('u_donations', 'Donations', ($) => moneyOf($('in_donations')), NF.int);
-  optional('u_overrideOn', 'u_override', 'Actual employee CPF', 'in_cpfOverride');
+  // SPEC §6.0: the CPF figure replaces a calculated one, so only a number of 0 or more counts as entered. A negative
+  // number is "not entered" (the worked-out figure is used) rather than a figure of 0, which would remove the relief.
+  used('u_overrideOn', 'Actual employee CPF — entered? (1 = yes)', ($) => `IF(${isNum($('in_cpfOverride'))},IF(${$('in_cpfOverride')}>=0,1,0),0)`, NF.plain);
+  used('u_override', 'Actual employee CPF — amount', ($) => moneyOf($('in_cpfOverride')), NF.int);
   used('u_exSrs', 'Already in SRS', ($) => moneyOf($('in_existingSrs')), NF.int);
   used('u_exSelf', 'Already topped up — self', ($) => moneyOf($('in_existingCpfSelf')), NF.int);
   used('u_exFam', 'Already topped up — family', ($) => moneyOf($('in_existingCpfFamily')), NF.int);

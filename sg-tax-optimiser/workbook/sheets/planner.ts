@@ -258,7 +258,7 @@ export function buildPlanner(b: Book): ExcelJS.Worksheet {
     // Says which figure is in use, so a 0 typed to "clear" the cell does not pass unnoticed.
     ($) =>
       `IF(${$('u_res')}=3,${lit('Not used: foreigners on work passes make no CPF contributions.')},` +
-      `IF(${$('u_overrideOn')}=0,"Blank, so it is worked out from your pay: "&${dollarsText($('w_cpfAuto'))}&". Fill in to use the figure on your payslips or CPF statement.",` +
+      `IF(${$('u_overrideOn')}=0,"Not filled in, so it is worked out from your pay: "&${dollarsText($('w_cpfAuto'))}&". Fill in to use the figure on your payslips or CPF statement.",` +
       `IF(${$('u_override')}>${$('w_maxCompulsory')},"Above the most possible in a year, so "&${dollarsText($('w_maxCompulsory'))}&" is used. Clear the cell to have it worked out ("&${dollarsText($('w_cpfAuto'))}&").",` +
       `"Using your figure of "&${dollarsText($('u_override'))}&" instead of the worked-out "&${dollarsText($('w_cpfAuto'))}&". Clear the cell to go back.")))`,
     money('Actual employee CPF', 'Optional. Your own compulsory contributions for the whole year. Leave blank (not 0) to have them calculated.'),

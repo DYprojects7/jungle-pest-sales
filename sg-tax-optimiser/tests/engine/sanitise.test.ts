@@ -131,8 +131,43 @@ describe('sanitiseInput — optional fields and limits', () => {
     expect(limits(null, null, null, null)).toEqual([null, null, null, null]);
     expect(limits(undefined, undefined, undefined, undefined)).toEqual([null, null, null, null]);
     expect(limits(5_000, 2_500.9, 0, 18_000.5)).toEqual([5_000, 2_500, 0, 18_000]);
-    expect(limits(-1, Number.NaN, Number.POSITIVE_INFINITY, -20)).toEqual([0, 0, 0, 0]);
+    // Limits read a meaningless number as a limit of 0 (the cautious direction). The CPF override is a figure that
+    // replaces a calculated one, so a negative or non-finite value means "not provided" instead (SPEC §6.0).
+    expect(limits(-1, Number.NaN, Number.POSITIVE_INFINITY, -20)).toEqual([0, 0, 0, null]);
+    expect(limits(0, 0, 0, Number.NaN)).toEqual([0, 0, 0, null]);
+    expect(limits(0, 0, 0, Number.POSITIVE_INFINITY)).toEqual([0, 0, 0, null]);
+    expect(limits(0, 0, 0, 0)).toEqual([0, 0, 0, 0]);
     expect(limits('5000', 'none', {}, true)).toEqual([null, null, null, null]);
+  });
+
+  it('a meaningless CPF override never removes the CPF relief: the plan equals the plan with no override', () => {
+    // SPEC Appendix A.3 profile: citizen, 28, S$3,500 a month and a S$3,500 bonus. CPF 20% x 45,500 = 9,100;
+    // chargeable income 45,500 - 1,000 - 9,100 = 35,400; tax 200 + 3.5% x 5,400 = 389.00.
+    const a3 = (employeeCpfOverride: unknown) =>
+      plan(
+        loose({
+          ...base,
+          profile: { residency: 'citizen', ageAtYearEnd: 28 },
+          income: { monthlyOrdinaryWage: 3_500, monthsWorked: 12, additionalWages: 3_500, employeeCpfOverride },
+          otherReliefs: 0,
+        }),
+      );
+    const auto = a3(undefined);
+    expect(auto.cpf.source).toBe('auto');
+    expect(auto.cpf.employeeContribution).toBe(9_100);
+    expect(auto.baseline.chargeableIncome).toBe(35_400);
+    expect(auto.baseline.taxPayable).toBe(389);
+    for (const bad of [-1, -0.01, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, '9100', true, {}]) {
+      const result = a3(bad);
+      expect(result.input.income.employeeCpfOverride).toBeNull();
+      expect(computed(result)).toEqual(computed(auto));
+    }
+    // 0 is a real figure (someone with no compulsory CPF): relief 0, chargeable income 44,500, tax 550 + 7% x 4,500.
+    const zero = a3(0);
+    expect(zero.cpf.source).toBe('override');
+    expect(zero.cpf.employeeContribution).toBe(0);
+    expect(zero.baseline.chargeableIncome).toBe(44_500);
+    expect(zero.baseline.taxPayable).toBe(865);
   });
 
   it('enabled flags are true only for a real true', () => {

@@ -87,7 +87,11 @@ function specSanitise(raw: unknown, incomeYear: number) {
       otherTaxableIncome: specMoney(income.otherTaxableIncome),
       employmentExpenses: specMoney(income.employmentExpenses),
       donations: specMoney(income.donations),
-      employeeCpfOverride: specLimit(income.employeeCpfOverride),
+      // §6.0: the override is a figure, not a limit — only a finite number of 0 or more counts; else "not provided".
+      employeeCpfOverride:
+        typeof income.employeeCpfOverride === 'number' && Number.isFinite(income.employeeCpfOverride) && income.employeeCpfOverride >= 0
+          ? specLimit(income.employeeCpfOverride)
+          : null,
     },
     existing: {
       srs: specMoney(existing.srs),
@@ -276,9 +280,13 @@ describe('SPEC §6.0 — sanitiseInput against an independent restatement of the
     const room = (v: unknown) => s({ levers: { cpfSelf: { enabled: true, roomToLimit: v } } }).levers.cpfSelf.roomToLimit;
     const max = (v: unknown) => s({ levers: { cpfFamily: { enabled: true, maxAmount: v } } }).levers.cpfFamily.maxAmount;
     const override = (v: unknown) => s({ income: { employeeCpfOverride: v } }).income.employeeCpfOverride;
-    for (const f of [room, max, override]) {
+    for (const f of [room, max]) {
       expect([undefined, null, 'x', 0, 7_999.9, -2, Number.NaN].map(f)).toEqual([null, null, null, 0, 7_999, 0, 0]);
     }
+    // The CPF override replaces a calculated figure, so a meaningless value is "not provided", never a figure of 0.
+    expect([undefined, null, 'x', 0, 7_999.9, -2, -0.5, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, 1e11].map(override)).toEqual(
+      [null, null, null, 0, 7_999, null, null, null, null, null, 10_000_000_000],
+    );
     // Money: non-negative whole dollars, at most S$10 billion.
     const money = (v: unknown) => s({ otherReliefs: v }).otherReliefs;
     expect([undefined, null, '5000', true, -1, -0.01, 0, 0.99, 4_999.99, 1e10, 1e10 + 0.5, 1e10 + 1, Number.NaN, Number.POSITIVE_INFINITY].map(money)).toEqual(

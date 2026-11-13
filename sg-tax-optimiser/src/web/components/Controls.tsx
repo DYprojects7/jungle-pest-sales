@@ -1,7 +1,7 @@
 import type { ComponentChildren, JSX } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { cleanAmountText, dollars, isBlank, parseAmount, plain } from '../format';
-import { useElementWidth, useScrollEdges } from '../hooks';
+import { useScrollEdges, useStacked } from '../hooks';
 
 // ---------------------------------------------------------------------------
 // Number field: money and other whole numbers
@@ -443,41 +443,39 @@ export function Row(props: {
 }
 
 /**
- * A table that scrolls sideways inside its own box instead of pushing the page wider.
+ * A table that never pushes the page wider.
  *
- * - While it scrolls, the box is a named, focusable region (so keyboard users can reach the hidden columns
- *   without tabbing through every table that already fits), the side with more to see is shaded, and a line
- *   under the table says it scrolls.
- * - With `stackBelow`, a box narrower than that many pixels restacks the table instead: each row becomes a
- *   block of label-and-value lines, so nothing is off screen on a phone. The styles read each cell's
- *   `data-label`.
+ * - With `stack`, a table that does not fit its box is restacked: each row becomes a block of label-and-value
+ *   lines, so nothing is off screen on a phone. The styles read each cell's `data-label`.
+ * - Without it (or where restacking would not help, as with the 25-row simulator) the table scrolls sideways
+ *   inside its own box. While it scrolls, the box is a named, focusable region (so keyboard users can reach the
+ *   hidden columns without tabbing through every table that already fits), the side with more to see is
+ *   shaded, and a line under the table says it scrolls.
  */
 export function TableScroll(props: {
   label: string;
-  /** Restack the table when its box is narrower than this many pixels. */
-  stackBelow?: number;
-  /** 'rows': one label and value per line. 'lines': the row heading and its total on one line, the rest below. */
+  /**
+   * Restack the table when it is too wide for its box. 'rows': one label and value per line. 'lines': the row
+   * heading and its total on one line, the rest below.
+   */
   stack?: 'rows' | 'lines';
   children: ComponentChildren;
 }): JSX.Element {
-  const wrapRef = useRef<HTMLDivElement>(null);
   const ref = useRef<HTMLDivElement>(null);
-  const width = useElementWidth(wrapRef, 4000);
-  const stacked = props.stackBelow !== undefined && width < props.stackBelow;
+  const stacked = useStacked(ref, props.stack !== undefined);
   const edges = useScrollEdges(ref);
   const scrolls = !stacked && (edges.left || edges.right);
   return (
     <div class="table-block">
       <div
         class="table-wrap"
-        ref={wrapRef}
         data-more-left={scrolls && edges.left ? 'true' : undefined}
         data-more-right={scrolls && edges.right ? 'true' : undefined}
       >
         <div
           class="table-scroll"
           ref={ref}
-          data-stacked={stacked ? (props.stack ?? 'rows') : undefined}
+          data-stacked={stacked ? props.stack : undefined}
           role={scrolls ? 'region' : undefined}
           aria-label={scrolls ? props.label : undefined}
           tabIndex={scrolls ? 0 : undefined}

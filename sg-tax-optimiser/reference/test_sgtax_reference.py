@@ -1370,7 +1370,13 @@ class Sanitising(unittest.TestCase):
         self.assertEqual(s({"preferences.cashBudget": 1234.5})["preferences"]["cashBudget"], 1234)
         self.assertEqual(s({"levers.cpfSelf.roomToLimit": 0})["levers"]["cpfSelf"]["roomToLimit"], 0)
         self.assertEqual(s({"levers.cpfFamily.maxAmount": 99.9})["levers"]["cpfFamily"]["maxAmount"], 99)
-        self.assertEqual(s({"income.employeeCpfOverride": -1})["income"]["employeeCpfOverride"], 0)
+        # SPEC 6.0: the override is a figure, not a limit - negative or non-finite means "not provided".
+        self.assertIsNone(s({"income.employeeCpfOverride": -1})["income"]["employeeCpfOverride"])
+        self.assertIsNone(s({"income.employeeCpfOverride": float("nan")})["income"]["employeeCpfOverride"])
+        self.assertIsNone(s({"income.employeeCpfOverride": float("inf")})["income"]["employeeCpfOverride"])
+        self.assertIsNone(s({"income.employeeCpfOverride": "12000"})["income"]["employeeCpfOverride"])
+        self.assertEqual(s({"income.employeeCpfOverride": 0})["income"]["employeeCpfOverride"], 0)
+        self.assertEqual(s({"income.employeeCpfOverride": 12000.9})["income"]["employeeCpfOverride"], 12000)
 
     def test_priority(self):
         def p(value):

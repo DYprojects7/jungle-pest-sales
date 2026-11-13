@@ -233,6 +233,24 @@ def _optional_money(v):
     return _money(v) if _is_number(v) else None
 
 
+def _optional_figure(v):
+    """SPEC 6.0: the employee CPF override is a figure only when it is a finite number of 0 or more.
+
+    NaN, +/-Infinity, a negative number or a non-number all mean "not provided" (the auto-calculation is used).
+    An integer too large for a double is not finite, as a JSON parser would read it.
+    """
+    if not _is_number(v):
+        return None
+    if isinstance(v, int):
+        try:
+            v = float(v)
+        except OverflowError:
+            return None
+    if not math.isfinite(v) or v < 0:
+        return None
+    return _money(v)
+
+
 def _clamped_int(v, lo, hi, default):
     """Missing/None/non-number -> default; otherwise sanitise (not as money: no S$10bn clamp), then clamp to lo..hi."""
     if not _is_number(v):
@@ -372,7 +390,7 @@ def sanitise_input(raw):
             "otherTaxableIncome": _money(income.get("otherTaxableIncome")),
             "employmentExpenses": _money(income.get("employmentExpenses")),
             "donations": _money(income.get("donations")),
-            "employeeCpfOverride": _optional_money(income.get("employeeCpfOverride")),
+            "employeeCpfOverride": _optional_figure(income.get("employeeCpfOverride")),
         },
         "existing": {
             "srs": _money(existing.get("srs")),

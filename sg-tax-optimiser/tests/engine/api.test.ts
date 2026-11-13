@@ -132,6 +132,15 @@ describe('income years', () => {
     expect(() => plan({ ...input, incomeYear: '2026' } as unknown as PlannerInput)).toThrow(RangeError);
     expect(() => plan({} as PlannerInput)).toThrow(RangeError);
     expect(() => plan(undefined as unknown as PlannerInput)).toThrow(RangeError);
+    // A year of the wrong type is named as what it is, not as "income year NaN".
+    expect(() => plan({ ...input, incomeYear: '2026' } as unknown as PlannerInput)).toThrow(
+      'The income year must be a number, not the string "2026". Supported: 2025, 2026, 2027.',
+    );
+    expect(() => evaluate({ ...input, incomeYear: null } as unknown as PlannerInput, nothing)).toThrow(
+      'The income year must be a number, not null. Supported: 2025, 2026, 2027.',
+    );
+    expect(() => plan({} as PlannerInput)).toThrow('The income year must be a number, not undefined. Supported: 2025, 2026, 2027.');
+    expect(() => plan(null as unknown as PlannerInput)).toThrow('The income year must be a number, not undefined.');
   });
 
   it('defaultIncomeYear: today\'s year when supported, otherwise the nearest supported year', () => {
