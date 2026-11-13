@@ -30,7 +30,7 @@ export function getRules(incomeYear: number): YearRules {
  * otherwise the nearest supported year.
  */
 export function defaultIncomeYear(today: string): number {
-  const year = Number(today.slice(0, 4));
+  const year = Number(String(today ?? '').slice(0, 4));
   const first = SUPPORTED_INCOME_YEARS[0]!;
   const last = SUPPORTED_INCOME_YEARS[SUPPORTED_INCOME_YEARS.length - 1]!;
   if (!Number.isFinite(year)) return last;

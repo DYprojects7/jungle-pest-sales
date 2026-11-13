@@ -304,7 +304,7 @@ export type BindingConstraint =
   | 'cashBudget'
   /** All enabled schemes are at their limits. */
   | 'leverLimits'
-  /** Nothing to do: no tax payable, or nothing enabled. */
+  /** Nothing to do: no tax is payable. */
   | 'none';
 
 export interface Plan {
@@ -370,7 +370,7 @@ export interface SimulatorRow {
   taxSaved: number;
   /** Tax saved by the last step (difference from the previous row; 0 for the first row). */
   stepSaving: number;
-  /** stepSaving / step size (0 for the first row). */
+  /** stepSaving / (this row's contribution - the previous row's contribution); 0 for the first row. */
   stepRate: number;
   /** True when this row's contribution is within the recommended plan total. */
   withinPlan: boolean;

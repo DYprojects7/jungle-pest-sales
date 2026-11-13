@@ -106,7 +106,7 @@ trail (claims, quotes, URLs, verdicts) is in `docs/RESEARCH.md` and `docs/resear
 Supported income years: **2026 (YA2027, primary)**, 2025 (YA2026, for back-testing against a Notice of
 Assessment) and 2027 (YA2028, *projected* — flagged as such everywhere it is shown).
 
-### 5.1 Resident income tax rates (YA2024 onwards — unchanged for YA2026, YA2027)
+### 5.1 Resident income tax rates (YA2024 onwards — used for all three supported income years)
 
 | Chargeable income | Rate | Tax on the band | Cumulative tax at top of band |
 |---|---|---|---|
@@ -223,11 +223,20 @@ Symbols in `code` refer to fields in `src/engine/types.ts`.
 - Tax is computed exactly and rounded to cents half-up **once**, at the end of the gross-tax calculation
   (implementation hint: rates have at most one decimal place of a percent, so `rate × 1000` is an integer; do the
   bracket sum in integer "mills" = dollars × rate-per-mille, then `round(mills / 10) / 100`).
+- Money inputs are also clamped to at most S$10,000,000,000 so that integer arithmetic stays exact.
+- Numeric fields that are clamped (`monthsWorked`, `birthMonth`, `ageAtYearEnd`, `simulatorStep`) are first
+  sanitised like money (not finite or `< 0` → 0, then floored) and then clamped; a missing or non-number value takes
+  the default (12, 12, 0, 1,000). `prYear` is 3 unless it is exactly 1 or 2. An unknown `residency` is treated as
+  `citizen`. Optional limits (`cashBudget`, `roomToLimit`, `maxAmount`, `employeeCpfOverride`) apply only when they
+  are numbers (then sanitised like money, so a negative limit is 0); `null`, missing or non-number means no limit.
+  `minSavingRate` is clamped to 0…1 without flooring (not a number → 0).
+- `today` is read as its leading `YYYY-MM-DD`. If it cannot be parsed, 1 January of the income year is used.
 - The engine is pure. `today` comes from the input.
 
 ### 6.1 Compulsory employee CPF contribution (auto-calculation)
 
-Applies when `residency` is `citizen` or `pr`. For `foreigner` the contribution is 0 (`source: 'none'`).
+Applies when `residency` is `citizen` or `pr`. For `foreigner` the contribution is 0 (`source: 'none'`) and every
+other field of the CPF computation is 0 (twelve zero monthly rates).
 
 **Rate table.** `citizen`, or `pr` with `prYear = 3` → `cpf.fullRates`; `pr` with `prYear = 1` → `cpf.prYear1Rates`;
 `prYear = 2` → `cpf.prYear2Rates`. (Simplification: the PR year is treated as constant for the whole income year.)
@@ -269,12 +278,15 @@ employeeAW = floor(employeeRate(band(12)) × additionalWagesSubject)
 ```
 employeeContribution = Σ employeeOW(m) + employeeAW
 employerContribution = round(Σ employerRate(band(m)) × owSubject(m) + employerRate(band(12)) × additionalWagesSubject)   (informational)
-monthlyEmployeeRates[m−1] = employeeRate(band(m)) for worked months, else 0
+monthlyEmployeeRates[m−1] = employeeRate(band(m)) for worked months, else 0      (the band's full rate, even for low wages)
 ```
+
+`round` for the employer figure is half-up to the nearest dollar. The reference implementation reports
+`employerContribution = 0` for first- and second-year SPRs; the field is informational and is not compared.
 
 **Override.** If `income.employeeCpfOverride` is a number, `employeeContribution = min(override, maxCompulsory)`
 with `maxCompulsory = floor(fullRates[0].employeeRate × annualWageCeiling)`; `source: 'override'`; the wage
-breakdown fields are still reported from the auto-calculation; `employerContribution = 0`. If the override exceeded
+breakdown fields and `monthlyEmployeeRates` are still reported from the auto-calculation; `employerContribution = 0`. If the override exceeded
 `maxCompulsory`, emit `CPF_OVERRIDE_ABOVE_MAX`. For foreigners the override is ignored (contribution 0,
 `source: 'none'`).
 
@@ -334,9 +346,10 @@ year and that the saving is realised when the PTR balance would otherwise have r
 |-------|----------------------------------------|---------------|
 | `srs` | `srs.capCitizenPr` for citizen/PR; `srs.capForeigner` for foreigner | `ageAtYearEnd ≥ 18` |
 | `cpfSelf` | `cpfTopUp.selfReliefCap` | citizen or PR (has a CPF account) |
-| `cpfFamily` | `cpfTopUp.familyReliefCap` | always (the recipient must be an eligible family member with a CPF account) |
+| `cpfFamily` | `cpfTopUp.familyReliefCap` | `residency` is listed in `cpfTopUp.familyGiverResidency` — citizens and PRs only: IRAS requires the giver to be a Singapore Citizen or PR (the recipient must also be an eligible family member) |
 
-For an ineligible lever `statutoryCap = 0`. Then, per lever:
+For an ineligible lever `statutoryCap = 0`, so an existing contribution to it earns no relief and raises no
+warning. Then, per lever:
 
 ```
 used = min(existing, statutoryCap)
@@ -346,7 +359,8 @@ roomIfEnabled = max(0, statutoryCap − used)
 room = roomIfEnabled if (eligible and enabled) else 0
 ```
 
-`EXISTING_EXCEEDS_CAP` is emitted when an existing contribution is larger than a non-zero statutory cap.
+`EXISTING_EXCEEDS_CAP` is emitted (once, listing every lever concerned) when an existing contribution is larger than
+a non-zero statutory cap.
 
 ### 6.6 The optimiser
 
@@ -374,7 +388,9 @@ plan.taxSaved  = round2(taxBefore − taxAfter);  plan.savingRate = taxSaved / X
 ```
 
 **Binding constraint.** `'none'` if `baseline.taxPayable = 0`. Otherwise the constraint with the smallest value among
-`U, C, L, B`, ties resolved in the order `usefulRoom`, `reliefCap`, `leverLimits`, `cashBudget`.
+`U, C, L, B`, ties resolved in the order `usefulRoom`, `reliefCap`, `leverLimits`, `cashBudget`. (So with tax payable
+and no scheme enabled, `L = 0` and the result is `leverLimits` unless `U` or `C` is also 0.) `minSavingRate` is
+compared with bracket rates as ordinary floating-point numbers, so an input of `0.07` includes the 7% bracket.
 
 **Unrealised saving.** `taxPayable(after X) − taxPayable(after min(U, C))`, i.e. the additional tax that could still be
 saved at or above the user's minimum rate if the schemes or the budget had more room. It is 0 when the binding
@@ -401,6 +417,7 @@ ignoring budget and minimum rate) into tiers of constant saving rate, in the ord
 2. Dollars `[min(L, C), L)` exceed the relief cap: one tier with `rate = 0`, `zeroReason = 'reliefCap'`.
 
 Adjacent tiers with the same `rate` and `zeroReason` are merged; empty tiers are dropped.
+Here the tax after contributing `c` is `N(min(c, C))`, so the over-cap tier saves nothing.
 `taxSaved = N(fromContribution) − N(toContribution)` (realised, so it reflects any PIT rebate),
 `cumulativeTaxSaved = N(0) − N(toContribution)`, `usedByPlan = overlap([from, to), [0, X))`.
 
@@ -410,7 +427,7 @@ Step `s = preferences.simulatorStep` (default 1,000; minimum 100). Rows for cont
 `c_i = min(i × s, L)`, `i = 0 … ceil(L / s)`. For each row: `split` = allocation of `c_i` across enabled levers in
 priority order (ignoring budget and minimum rate); `taxPayable`, `taxSaved = baseline − taxPayable`;
 `stepSaving = taxSaved_i − taxSaved_{i−1}`; `stepRate = stepSaving / (c_i − c_{i−1})`;
-`withinPlan = c_i ≤ X`. Row 0 has `stepSaving = stepRate = 0`.
+`withinPlan = c_i ≤ X`. Row 0 has `stepSaving = stepRate = 0`. When `L = 0` the simulator is the single row 0.
 
 ### 6.9 Scenarios
 
@@ -429,7 +446,7 @@ and `cpfSelf` (those are preferences) but respect eligibility, existing contribu
 
 For each: `taxPayable`, `taxSaved`, `savingRate = taxSaved / total`, and
 `wastedContribution = total − min(total, usefulRoom(0), C)` — dollars that buy no tax reduction.
-(For an ineligible lever `roomIfEnabled = 0`.)
+(For an ineligible lever `roomIfEnabled = 0`.) Scenarios are listed in the order of the table.
 
 ### 6.10 Monthly plan
 
@@ -443,7 +460,9 @@ monthsRemaining = 12                         if today's year < incomeYear
 
 Schedule (when `monthsRemaining = n > 0` and `X > 0`): `n` rows from the first counted month to December. For each
 lever with amount `x`: `base = floor(x / n)`, `extra = x − base × n`; the first `extra` rows get `base + 1`, the rest
-`base` (whole dollars that sum exactly to `x`). `fullYearMonthly[lever] = ceil(x / 12)`, `total` = their sum.
+`base` (whole dollars that sum exactly to `x`). `fullYearMonthly[lever] = ceil(x / 12)`, `total` = their sum; it is
+reported even when the schedule is empty. When `today` is before the income year the schedule runs January to
+December of the income year. The plan itself does not change after the deadline; only `DEADLINE_PASSED` is added.
 
 ### 6.11 Warnings
 
@@ -466,7 +485,8 @@ lever with amount `x`: `base = floor(x / n)`, `extra = x − base × n`; the fir
 | `PROJECTED_RULES` | caution | `rules.status = 'projected'` |
 | `PIT_REBATE_APPLIED` | info | `baseline.pitRebate > 0` |
 
-Each warning carries a ready-to-display `message` and machine-readable `params`.
+Each warning carries a ready-to-display `message` and machine-readable `params`. At most one warning is emitted per
+code, in the order of the table.
 
 ---
 
