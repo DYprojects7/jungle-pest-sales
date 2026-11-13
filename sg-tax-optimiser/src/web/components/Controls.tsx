@@ -26,6 +26,11 @@ interface NumberFieldBase {
   caution?: string | null;
   /** A short tag beside the label, e.g. "Example value" while the field still holds the example's figure. */
   flag?: string | null;
+  /**
+   * Set on an optional field that the plan is waiting for (the top-up that can still earn relief, from 55):
+   * while it is empty the field is tagged "Needed" and outlined, and assistive technology is told it is required.
+   */
+  needed?: boolean;
   testid?: string;
 }
 
@@ -60,7 +65,7 @@ export type NumberFieldProps = RequiredNumberField | OptionalNumberField;
  * is how somebody says "this one is right for me too".
  */
 export function NumberField(props: NumberFieldProps): JSX.Element {
-  const { id, label, prefix, suffix, min, max, hint, placeholder, caution, flag, testid } = props;
+  const { id, label, prefix, suffix, min, max, hint, placeholder, caution, flag, needed, testid } = props;
   const [draft, setDraft] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const lastSent = useRef<number | null>(props.value);
@@ -126,6 +131,8 @@ export function NumberField(props: NumberFieldProps): JSX.Element {
   };
 
   const shown = draft ?? (props.value === null ? '' : plain(props.value));
+  /** Asked for and still empty. */
+  const waiting = needed === true && props.value === null;
   const describedBy = [hint ? `${id}-hint` : '', note ? `${id}-note` : '', caution ? `${id}-caution` : '']
     .filter(Boolean)
     .join(' ');
@@ -136,13 +143,17 @@ export function NumberField(props: NumberFieldProps): JSX.Element {
         <label class="field-label" for={id}>
           {label}
         </label>
-        {flag ? (
+        {waiting ? (
+          <span class="tag tag-needed" data-testid={`${id}-needed`}>
+            Needed
+          </span>
+        ) : flag ? (
           <span class="tag tag-example" data-testid={`${id}-flag`}>
             {flag}
           </span>
         ) : null}
       </div>
-      <div class={`input-wrap${suffix ? ' has-suffix' : ''}`}>
+      <div class={`input-wrap${suffix ? ' has-suffix' : ''}${waiting ? ' is-needed' : ''}`}>
         {prefix ? (
           <span class="affix affix-pre" aria-hidden="true">
             {prefix}
@@ -159,6 +170,7 @@ export function NumberField(props: NumberFieldProps): JSX.Element {
           value={shown}
           data-testid={testid}
           aria-describedby={describedBy || undefined}
+          aria-required={needed ? 'true' : undefined}
           onMouseDown={(e) => {
             // A click that brings focus should leave everything selected, not drop a caret into the number.
             selectOnRelease.current = document.activeElement !== e.currentTarget;
@@ -367,7 +379,7 @@ interface RadioListProps<T extends string> {
   name: string;
   legend: ComponentChildren;
   value: T;
-  options: { value: T; title: string; detail?: string; note?: string }[];
+  options: { value: T; title: string; detail?: string; note?: ComponentChildren }[];
   onChange: (value: T) => void;
   /** Options without notes sit closer together. */
   compact?: boolean;

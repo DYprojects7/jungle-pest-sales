@@ -140,7 +140,7 @@ describe('BELOW_MIN_SAVING_RATE', () => {
     expect(w.severity).toBe('info');
     expect(w.params).toEqual({ marginalRate: 0.035, minSavingRate: 0.07 });
     expect(w.message).toBe(
-      'Every extra dollar you contribute would save at most 3.5% in tax, below the 7% minimum you set, ' +
+      'Every extra dollar you contribute would save at most 3.5% in tax, below your 7% minimum, ' +
         'so nothing is recommended. Lower the minimum to see these smaller savings.',
     );
   });

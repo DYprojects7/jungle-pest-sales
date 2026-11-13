@@ -3,8 +3,31 @@ import { SUPPORTED_INCOME_YEARS, getRules } from '../../engine';
 import type { PlannerResult, PrYear, ReliefCatalogItem, Residency } from '../../engine/types';
 import { centsPerDollar, dayAndMonth, dollars, monthName, pct } from '../format';
 import type { Depth, Order, PayMode, ReliefMode, UiState } from '../state';
-import { customRateOptions, exampleLeft, monthlyWage, oddPay, reliefItemAmount, switchPayMode, switchReliefMode } from '../state';
-import { DEPTH_LABEL, ORDER_LABEL, depthExplanation } from '../text';
+import {
+  customRateOf,
+  customRateOptions,
+  exampleLeft,
+  monthlyWage,
+  oddPay,
+  reliefItemAmount,
+  reliefsUntouched,
+  switchPayMode,
+  switchReliefMode,
+} from '../state';
+import {
+  DEPTHS,
+  LEVERS,
+  ORDER_LABEL,
+  balanceCaution,
+  depthExplanation,
+  depthLabel,
+  fact,
+  factsFor,
+  familyCaution,
+  foreignerDepthNote,
+  orderWhy,
+  residencyHint,
+} from '../text';
 import { CheckField, NumberField, RadioList, SegmentedField, SelectField } from './Controls';
 
 /** Largest amount a money field accepts. Far above any salary; it only keeps typos from running away. */
@@ -30,6 +53,19 @@ export function Inputs({ ui, example, result, update }: InputsProps): JSX.Elemen
   const warning = (code: string): string | null => result.warnings.find((w) => w.code === code)?.message ?? null;
   const left = exampleLeft(ui, example);
   const flag = (name: string): string | null => (left.includes(name) ? EXAMPLE_FLAG : null);
+  const facts = factsFor(result);
+  // From 55 the engine asks for the top-up that can still earn relief: one of these two notes is then present,
+  // the first while the field is empty and the second once it is filled.
+  const roomWaiting = warning('CPF_SELF_ROOM_UNCONFIRMED') !== null;
+  const roomAsked = roomWaiting || warning('AGE_55_PLUS_TOPUP') !== null;
+  // What to count in a family top-up, with the year's matched amounts: the engine's own caution, whole.
+  const familyHint = familyCaution(result);
+  // The custom minimum: the rate the person picked, or their default until they have picked one.
+  const customRate = customRateOf(ui);
+  // The helper is open on the untouched example: nothing is itemised and the example's total is still counted.
+  const helperOnExample = ui.reliefMode === 'itemised' && reliefsUntouched(ui);
+  // "Which first?" only means something when there is more than one scheme to put in order.
+  const severalSchemes = LEVERS.filter((l) => levers[l].eligible).length > 1;
 
   const setPayMode = (mode: PayMode): void => {
     if (mode === ui.payMode) return;
@@ -40,11 +76,13 @@ export function Inputs({ ui, example, result, update }: InputsProps): JSX.Elemen
   const annual = ui.payMode === 'annual';
   const partYear = ui.monthsWorked < 12;
   const odd = oddPay(ui);
+  // Someone with no CPF (a foreigner on a work pass) is not told their pay is "before CPF".
+  const beforeCpf = foreigner ? '' : ', before CPF';
   const salaryHint = !annual
-    ? 'Basic pay and fixed allowances, before CPF.'
+    ? `Basic pay and fixed allowances${beforeCpf}.`
     : partYear
-      ? `What twelve months would pay, before CPF. Only the ${ui.monthsWorked === 1 ? 'month' : `${ui.monthsWorked} months`} you worked ${ui.monthsWorked === 1 ? 'is' : 'are'} counted.`
-      : `Twelve months of basic pay and fixed allowances, before CPF. Treated as ${dollars(monthlyWage(ui))} a month` +
+      ? `What twelve months would pay${beforeCpf}. Only the ${ui.monthsWorked === 1 ? 'month' : `${ui.monthsWorked} months`} you worked ${ui.monthsWorked === 1 ? 'is' : 'are'} counted.`
+      : `Twelve months of basic pay and fixed allowances${beforeCpf}. Treated as ${dollars(monthlyWage(ui))} a month` +
         (odd > 0 ? `, with the odd ${dollars(odd)} counted as extra pay.` : '.');
 
   const setItem = (id: string, value: number): void => {
@@ -75,11 +113,7 @@ export function Inputs({ ui, example, result, update }: InputsProps): JSX.Elemen
             { value: 'foreigner', label: 'Foreigner' },
           ]}
           onChange={(residency) => update({ residency })}
-          hint={
-            foreigner
-              ? 'A foreigner who is a Singapore tax resident for the year. Non-residents are taxed differently and are not covered.'
-              : undefined
-          }
+          hint={<span data-testid="residency-hint">{residencyHint(ui.residency, year)}</span>}
         />
         {ui.residency === 'pr' ? (
           <SegmentedField<PrYear>
@@ -177,7 +211,7 @@ export function Inputs({ ui, example, result, update }: InputsProps): JSX.Elemen
           maxNote={MAX_AMOUNT_NOTE}
           flag={flag('bonus')}
           onChange={(bonus) => update({ bonus })}
-          hint="13th month, performance bonus, commissions."
+          hint="13th month, bonuses, and commissions or incentives paid less often than monthly. Those paid every month belong in the salary."
         />
         <SelectField
           id="monthsWorked"
@@ -215,7 +249,7 @@ export function Inputs({ ui, example, result, update }: InputsProps): JSX.Elemen
               max={MAX_AMOUNT}
               maxNote={MAX_AMOUNT_NOTE}
               onChange={(otherIncome) => update({ otherIncome })}
-              hint="Net rental income or taxable benefits, for example. No CPF is paid on it."
+              hint={`Net rental income or taxable benefits, for example.${foreigner ? '' : ' No CPF is paid on it.'}`}
             />
             <NumberField
               id="expenses"
@@ -278,10 +312,36 @@ export function Inputs({ ui, example, result, update }: InputsProps): JSX.Elemen
       </section>
 
       {/* ------------------------------------------------------------------ */}
+      {/* Asked straight after the pay, not at the end of the form: it decides whether the answer is one the
+          person can afford. */}
+      <section class="group" aria-labelledby="g-cash">
+        <h3 class="group-title" id="g-cash">
+          Cash to spare
+        </h3>
+        <NumberField
+          optional
+          id="cashLimit"
+          label="How much cash can you spare this year? (optional)"
+          prefix="S$"
+          placeholder="No limit"
+          value={ui.cashLimit}
+          max={MAX_AMOUNT}
+          maxNote={MAX_AMOUNT_NOTE}
+          onChange={(cashLimit) => update({ cashLimit })}
+          hint={`The most you are willing to lock away before ${dayAndMonth(rules.contributionDeadline)}. The plan never goes above it. Leave empty for no limit.`}
+        />
+      </section>
+
+      {/* ------------------------------------------------------------------ */}
       <section class="group" aria-labelledby="g-existing">
         <h3 class="group-title" id="g-existing">
           Already contributed in {year}
         </h3>
+        <p class="field-hint" data-testid="existing-hint">
+          {foreigner
+            ? 'Include anything your employer paid into your SRS.'
+            : 'Include anything your employer paid into your SRS or topped up to your CPF in cash.'}
+        </p>
         <NumberField
           id="existingSrs"
           label="SRS"
@@ -313,6 +373,7 @@ export function Inputs({ ui, example, result, update }: InputsProps): JSX.Elemen
             max={levers.cpfFamily.statutoryCap}
             maxNote={`Only the first ${dollars(levers.cpfFamily.statutoryCap)} of top-ups to family earns relief each year, so that is what counts.`}
             onChange={(existingCpfFamily) => update({ existingCpfFamily })}
+            hint="Leave out any part the Government matched."
           />
         ) : null}
         {warning('EXISTING_EXCEEDS_CAP') ? <p class="field-note">{warning('EXISTING_EXCEEDS_CAP')}</p> : null}
@@ -347,7 +408,7 @@ export function Inputs({ ui, example, result, update }: InputsProps): JSX.Elemen
             maxNote={`All personal reliefs together are capped at ${dollars(rules.personalReliefCap)}.`}
             flag={flag('other reliefs')}
             onChange={(reliefTotal) => update({ reliefTotal })}
-            hint="Spouse, child, parent, NSman and similar reliefs. Leave out CPF, SRS and Earned Income Relief: those are worked out for you."
+            hint={`Spouse, child, parent, NSman and similar reliefs. Leave out ${foreigner ? '' : 'CPF, '}SRS and Earned Income Relief: those are worked out for you.`}
           />
         ) : (
           <ReliefHelper
@@ -355,8 +416,19 @@ export function Inputs({ ui, example, result, update }: InputsProps): JSX.Elemen
             values={ui.reliefItems}
             total={result.input.otherReliefs}
             onChange={setItem}
+            // On the untouched example the helper opens empty and the example's total is still the one counted.
+            exampleTotal={helperOnExample ? ui.reliefTotal : null}
+            flag={flag('other reliefs')}
+            onNone={() => update({ reliefItems: {} })}
           />
         )}
+        <CheckField
+          id="hasPtr"
+          label="I have unused Parenthood Tax Rebate"
+          checked={ui.hasPtr}
+          onChange={(hasPtr) => update({ hasPtr })}
+          detail={`Any Parenthood Tax Rebate you have not used up, including the rebate for a child born in ${year}. No amount is needed: ticking this adds a caution beside the plan.`}
+        />
       </section>
 
       {/* ------------------------------------------------------------------ */}
@@ -392,14 +464,23 @@ export function Inputs({ ui, example, result, update }: InputsProps): JSX.Elemen
                   <NumberField
                     optional
                     id="cpfSelfRoom"
-                    label="Room left in your CPF accounts (optional)"
+                    // Optional below 55; asked for from 55, where the CPF Board accepts top-ups that earn no relief.
+                    label={`Top-up that can still earn relief${roomAsked ? '' : ' (optional)'}`}
                     prefix="S$"
-                    placeholder="Not sure"
+                    placeholder={roomAsked ? 'Enter a figure' : 'Not sure'}
+                    needed={roomAsked}
                     value={ui.cpfSelfRoom}
                     max={MAX_AMOUNT}
                     maxNote={MAX_AMOUNT_NOTE}
                     onChange={(cpfSelfRoom) => update({ cpfSelfRoom })}
-                    hint={`How much you can still top up before the Full Retirement Sum (${dollars(rules.cpfTopUp.fullRetirementSum)}) and the Basic Healthcare Sum (${dollars(rules.cpfTopUp.basicHealthcareSum)}). Leave empty if the limits are far off.`}
+                    hint={
+                      roomAsked
+                        ? // Where to find the figure and why it matters are the engine's own caution, whole (the
+                          // same line is in the checklist under "Before you transfer").
+                          `${balanceCaution(result)} Enter S$0 if you have already set aside the Full Retirement Sum (${dollars(rules.cpfTopUp.fullRetirementSum)}).`.trim()
+                        : `${fact(facts, 'limits', 'cpfSelf')} Leave this empty if those limits are far off.`
+                    }
+                    caution={roomWaiting ? 'Until this is filled in, your own CPF is left out of the plan.' : null}
                   />
                 ) : null}
               </CheckField>
@@ -423,17 +504,16 @@ export function Inputs({ ui, example, result, update }: InputsProps): JSX.Elemen
                     max={MAX_AMOUNT}
                     maxNote={MAX_AMOUNT_NOTE}
                     onChange={(cpfFamilyMax) => update({ cpfFamilyMax })}
+                    // The matched amounts are worded once, by the engine (the same line is in the checklist
+                    // under "Before you transfer"), so the form and the checklist cannot drift apart.
+                    hint={familyHint ? <span data-testid="family-hint">{familyHint}</span> : undefined}
                   />
                 ) : null}
               </CheckField>
             ) : null}
           </div>
-          {foreigner ? (
-            <p class="field-hint" data-testid="foreigner-note">
-              CPF top-ups are not offered. Foreigners on work passes have no CPF account, and relief for topping up
-              family members is only for Citizens and PRs.
-            </p>
-          ) : null}
+          {/* Why a foreigner has no CPF option is said once on the page, in the engine's words: the line under
+              the lock-up facts ("Before you transfer"), where the missing columns would otherwise be. */}
         </fieldset>
 
         <SegmentedField<Depth>
@@ -441,50 +521,57 @@ export function Inputs({ ui, example, result, update }: InputsProps): JSX.Elemen
           legend="How far down the ladder?"
           columns={2}
           value={ui.depth}
-          options={(['worth', 'top', 'every', 'custom'] as Depth[]).map((d) => ({ value: d, label: DEPTH_LABEL[d] }))}
+          options={DEPTHS.map((d) => ({ value: d, label: depthLabel(d, ui.residency) }))}
+          // Opening "Custom" picks no rate: until the person picks one from the list below, a custom minimum
+          // is the default for their residency (customRateOf), never a figure left from another residency.
           onChange={(depth) => update({ depth })}
-          hint={depthExplanation(ui.depth, result)}
+          hint={<span data-testid="depth-hint">{depthExplanation(ui.depth, result)}</span>}
         />
+        {foreigner ? (
+          <p class="field-hint" data-testid="depth-foreigner-note">
+            {foreignerDepthNote(rules)}
+          </p>
+        ) : null}
         {ui.depth === 'custom' ? (
           <SelectField
             id="customRate"
             label="Smallest saving per dollar"
-            value={String(ui.customRate)}
-            options={customRateOptions(rules, baseline.marginalRate, ui.customRate).map((rate) => ({
+            value={String(customRate)}
+            options={customRateOptions(rules, baseline.marginalRate, customRate).map((rate) => ({
               value: String(rate),
               label: `${centsPerDollar(rate)} or more`,
             }))}
             onChange={(v) => update({ customRate: Number(v) })}
-            hint={`Dollars taxed in the ${pct(ui.customRate)} bracket and above go into the plan. The choices are the tax rates at or below your current one.`}
+            hint={`Dollars taxed in the ${pct(customRate)} bracket and above go into the plan. The choices are the tax rates at or below your current one.`}
           />
         ) : null}
 
-        <NumberField
-          optional
-          id="cashLimit"
-          label="Cash limit (optional)"
-          prefix="S$"
-          placeholder="No limit"
-          value={ui.cashLimit}
-          max={MAX_AMOUNT}
-          maxNote={MAX_AMOUNT_NOTE}
-          onChange={(cashLimit) => update({ cashLimit })}
-          hint={`The most you are willing to lock away before ${dayAndMonth(rules.contributionDeadline)}.`}
-        />
-
-        <RadioList<Order>
-          name="order"
-          legend="Which first?"
-          value={ui.order}
-          options={(['flexibility', 'interest', 'family'] as Order[]).map((o) => ({
-            value: o,
-            title: ORDER_LABEL[o].title,
-            detail: ORDER_LABEL[o].route,
-            note: ORDER_LABEL[o].why,
-          }))}
-          onChange={(order) => update({ order })}
-        />
-        <p class="field-hint">The order does not change the tax you save. It only decides which scheme fills up first.</p>
+        {severalSchemes ? (
+          <>
+            <RadioList<Order>
+              name="order"
+              legend="Which first?"
+              value={ui.order}
+              options={(['flexibility', 'interest', 'family'] as Order[]).map((o) => ({
+                value: o,
+                title: ORDER_LABEL[o].title,
+                detail: ORDER_LABEL[o].route,
+                // The reasons are the lock-up facts themselves, so they cannot drift from "Before you transfer".
+                note: orderWhy(o, facts).map((why, i) => (
+                  <span key={why.term}>
+                    {i > 0 ? ' ' : ''}
+                    {why.term ? <b class="term">{why.term}: </b> : null}
+                    {why.text}
+                  </span>
+                )),
+              }))}
+              onChange={(order) => update({ order })}
+            />
+            <p class="field-hint">
+              The order does not change the tax you save. It only decides which scheme fills up first.
+            </p>
+          </>
+        ) : null}
       </section>
     </div>
   );
@@ -507,9 +594,18 @@ interface ReliefHelperProps {
   /** The total the engine used. */
   total: number;
   onChange: (id: string, value: number) => void;
+  /**
+   * Set while the helper is open on the untouched example: the example's total, which is still the figure in
+   * use because nothing has been itemised. null once the person has entered something.
+   */
+  exampleTotal: number | null;
+  /** "Example value", when the total should carry that tag. */
+  flag: string | null;
+  /** The person has none of these reliefs: count S$0 instead of the example's total. */
+  onNone: () => void;
 }
 
-function ReliefHelper({ catalog, values, total, onChange }: ReliefHelperProps): JSX.Element {
+function ReliefHelper({ catalog, values, total, onChange, exampleTotal, flag, onNone }: ReliefHelperProps): JSX.Element {
   const group = (g: ReliefCatalogItem['group']): ReliefCatalogItem[] => catalog.filter((item) => item.group === g);
   const renderItems = (items: ReliefCatalogItem[]): JSX.Element[] =>
     items.map((item) => <ReliefItem key={item.id} item={item} value={values[item.id] ?? 0} onChange={onChange} />);
@@ -522,6 +618,18 @@ function ReliefHelper({ catalog, values, total, onChange }: ReliefHelperProps): 
         The helper only adds up amounts. It does not check whether you qualify, so pick the reliefs you already
         claim or know you can.
       </p>
+      {/* Said at the top, where the person lands after choosing Itemise: the list is empty, the example is not. */}
+      {exampleTotal !== null ? (
+        <div class="field-note field-note-action" data-testid="relief-example-note">
+          <p>
+            Nothing is itemised yet, so the example's {dollars(exampleTotal)} is still counted. It goes as soon as
+            you enter a relief below.
+          </p>
+          <button type="button" class="btn btn-small" data-testid="relief-none" onClick={onNone}>
+            I have none of these
+          </button>
+        </div>
+      ) : null}
       {open.map((g) => (
         <div class="helper-group" key={g}>
           <h4 class="helper-title">{GROUP_TITLE[g]}</h4>
@@ -535,7 +643,14 @@ function ReliefHelper({ catalog, values, total, onChange }: ReliefHelperProps): 
         </details>
       ) : null}
       <p class="aside-figure aside-total">
-        <span>Other reliefs in total</span>
+        <span>
+          Other reliefs in total
+          {flag ? (
+            <span class="tag tag-example tag-after" data-testid="relief-total-flag">
+              {flag}
+            </span>
+          ) : null}
+        </span>
         <strong data-testid="relief-total">{dollars(total)}</strong>
       </p>
     </div>

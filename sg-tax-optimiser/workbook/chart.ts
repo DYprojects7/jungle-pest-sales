@@ -1,5 +1,5 @@
 /**
- * Adds charts to a written .xlsx file.
+ * Adds charts to a written .xlsx file, and gives the file's parts fixed dates.
  *
  * ExcelJS cannot write charts, so the build adds them afterwards: the workbook is a zip of XML parts, and a chart
  * is three small parts (the chart, the drawing that places it on the sheet, and their relationships) plus one
@@ -7,19 +7,19 @@
  * in the order the file format requires, with cell references and no cached values, so Excel, LibreOffice and
  * Google Sheets each draw the chart from the sheet's own numbers.
  *
+ * The chart is a stacked area chart on an evenly spaced bottom axis: every application draws one the same way,
+ * and a filled block reads as a rung of the ladder where a line would not.
+ *
  * `jszip` is the zip library ExcelJS itself depends on.
  */
 import JSZip from 'jszip';
 
-/** One line of an XY (scatter) chart. References are absolute and sheet-qualified, e.g. `Ladder!$AK$29:$AK$136`. */
+/** One filled series. References are absolute and sheet-qualified, e.g. `Ladder!$AL$29:$AL$229`. */
 export interface ChartSeries {
   nameRef: string;
-  xRef: string;
-  yRef: string;
-  /** RGB, e.g. "1E6B45". */
+  valuesRef: string;
+  /** Fill colour, RGB, e.g. "1E6B45". */
   color: string;
-  /** Line width in points. */
-  widthPt: number;
 }
 
 export interface ChartSpec {
@@ -33,6 +33,10 @@ export interface ChartSpec {
   yTitle: string;
   xNumFmt: string;
   yNumFmt: string;
+  /** The labels of the evenly spaced positions along the bottom axis (text: an amount, or nothing). */
+  categoriesRef: string;
+  /** One axis label for every this many points. */
+  labelEvery: number;
   series: ChartSeries[];
 }
 
@@ -50,8 +54,6 @@ const TYPE = {
   chartContent: 'application/vnd.openxmlformats-officedocument.drawingml.chart+xml',
 } as const;
 const XML_HEAD = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
-/** English Metric Units per point (line widths). */
-const EMU_PER_POINT = 12700;
 const FONT = 'Calibri';
 const INK = '1F2933';
 const MUTED = '5B6B7B';
@@ -74,34 +76,54 @@ function richText(text: string, sizePt: number, bold: boolean, rotated = false):
   );
 }
 
-function seriesXml(series: ChartSeries, index: number): string {
-  const width = Math.round(series.widthPt * EMU_PER_POINT);
+function seriesXml(series: ChartSeries, index: number, categoriesRef: string): string {
   return (
     `<c:ser><c:idx val="${index}"/><c:order val="${index}"/>` +
     `<c:tx><c:strRef><c:f>${esc(series.nameRef)}</c:f></c:strRef></c:tx>` +
-    `<c:spPr><a:ln w="${width}" cap="flat"><a:solidFill><a:srgbClr val="${series.color}"/></a:solidFill><a:miter lim="800000"/></a:ln></c:spPr>` +
-    `<c:marker><c:symbol val="none"/></c:marker>` +
-    `<c:xVal><c:numRef><c:f>${esc(series.xRef)}</c:f></c:numRef></c:xVal>` +
-    `<c:yVal><c:numRef><c:f>${esc(series.yRef)}</c:f></c:numRef></c:yVal>` +
-    `<c:smooth val="0"/></c:ser>`
+    `<c:spPr><a:solidFill><a:srgbClr val="${series.color}"/></a:solidFill><a:ln w="9525"><a:solidFill><a:srgbClr val="${series.color}"/></a:solidFill></a:ln></c:spPr>` +
+    `<c:cat><c:strRef><c:f>${esc(categoriesRef)}</c:f></c:strRef></c:cat>` +
+    `<c:val><c:numRef><c:f>${esc(series.valuesRef)}</c:f></c:numRef></c:val>` +
+    `</c:ser>`
   );
 }
 
-function axisXml(options: { id: number; crossId: number; position: 'b' | 'l'; title: string; numFmt: string; gridlines: boolean }): string {
-  const line = (rgb: string): string => `<c:spPr><a:ln w="9525"><a:solidFill><a:srgbClr val="${rgb}"/></a:solidFill></a:ln></c:spPr>`;
+const axisLine = (rgb: string): string => `<c:spPr><a:ln w="9525"><a:solidFill><a:srgbClr val="${rgb}"/></a:solidFill></a:ln></c:spPr>`;
+
+/**
+ * The bottom axis: evenly spaced positions. Only every `labelEvery`-th position has a label (the cells in between
+ * hold empty text), the labels are kept level, and the label and tick intervals say the same, so an application
+ * that honours the interval and one that thins labels by itself both show the same round figures.
+ */
+function categoryAxisXml(options: { id: number; crossId: number; title: string; numFmt: string; labelEvery: number }): string {
   return (
-    `<c:valAx><c:axId val="${options.id}"/><c:scaling><c:orientation val="minMax"/><c:min val="0"/></c:scaling>` +
-    `<c:delete val="0"/><c:axPos val="${options.position}"/>` +
-    (options.gridlines ? `<c:majorGridlines>${line(GRID)}</c:majorGridlines>` : '') +
-    `<c:title>${richText(options.title, 9, false, options.position === 'l')}</c:title>` +
+    `<c:catAx><c:axId val="${options.id}"/><c:scaling><c:orientation val="minMax"/></c:scaling>` +
+    `<c:delete val="0"/><c:axPos val="b"/>` +
+    `<c:title>${richText(options.title, 9, false)}</c:title>` +
     `<c:numFmt formatCode="${esc(options.numFmt)}" sourceLinked="0"/>` +
     `<c:majorTickMark val="out"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/>` +
-    line(EDGE) +
+    axisLine(EDGE) +
+    `<c:txPr><a:bodyPr rot="0" vert="horz"/><a:lstStyle/><a:p><a:pPr><a:defRPr sz="900"><a:solidFill><a:srgbClr val="${MUTED}"/></a:solidFill><a:latin typeface="${FONT}"/></a:defRPr></a:pPr><a:endParaRPr lang="en-US"/></a:p></c:txPr>` +
+    `<c:crossAx val="${options.crossId}"/><c:crosses val="autoZero"/>` +
+    `<c:auto val="0"/><c:lblAlgn val="ctr"/><c:lblOffset val="100"/>` +
+    `<c:tickLblSkip val="${options.labelEvery}"/><c:tickMarkSkip val="${options.labelEvery}"/><c:noMultiLvlLbl val="1"/></c:catAx>`
+  );
+}
+
+/** The left axis: the saving per dollar, from zero. The areas start on it (`midCat`), so the first block has no gap. */
+function valueAxisXml(options: { id: number; crossId: number; title: string; numFmt: string }): string {
+  return (
+    `<c:valAx><c:axId val="${options.id}"/><c:scaling><c:orientation val="minMax"/><c:min val="0"/></c:scaling>` +
+    `<c:delete val="0"/><c:axPos val="l"/>` +
+    `<c:majorGridlines>${axisLine(GRID)}</c:majorGridlines>` +
+    `<c:title>${richText(options.title, 9, false, true)}</c:title>` +
+    `<c:numFmt formatCode="${esc(options.numFmt)}" sourceLinked="0"/>` +
+    `<c:majorTickMark val="out"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/>` +
+    axisLine(EDGE) +
     `<c:crossAx val="${options.crossId}"/><c:crosses val="autoZero"/><c:crossBetween val="midCat"/></c:valAx>`
   );
 }
 
-/** The chart part: an XY chart with straight lines and no markers. */
+/** The chart part: a stacked area chart, one filled series over the other. */
 export function chartXml(spec: ChartSpec): string {
   const xAxis = 510_001;
   const yAxis = 510_002;
@@ -110,15 +132,15 @@ export function chartXml(spec: ChartSpec): string {
     `<c:date1904 val="0"/><c:roundedCorners val="0"/>` +
     `<c:chart><c:title>${richText(spec.title, 11, true)}</c:title><c:autoTitleDeleted val="0"/>` +
     `<c:plotArea><c:layout/>` +
-    `<c:scatterChart><c:scatterStyle val="lineMarker"/><c:varyColors val="0"/>` +
-    spec.series.map(seriesXml).join('') +
+    `<c:areaChart><c:grouping val="stacked"/><c:varyColors val="0"/>` +
+    spec.series.map((series, index) => seriesXml(series, index, spec.categoriesRef)).join('') +
     `<c:dLbls><c:showLegendKey val="0"/><c:showVal val="0"/><c:showCatName val="0"/><c:showSerName val="0"/><c:showPercent val="0"/><c:showBubbleSize val="0"/></c:dLbls>` +
-    `<c:axId val="${xAxis}"/><c:axId val="${yAxis}"/></c:scatterChart>` +
-    axisXml({ id: xAxis, crossId: yAxis, position: 'b', title: spec.xTitle, numFmt: spec.xNumFmt, gridlines: false }) +
-    axisXml({ id: yAxis, crossId: xAxis, position: 'l', title: spec.yTitle, numFmt: spec.yNumFmt, gridlines: true }) +
+    `<c:axId val="${xAxis}"/><c:axId val="${yAxis}"/></c:areaChart>` +
+    categoryAxisXml({ id: xAxis, crossId: yAxis, title: spec.xTitle, numFmt: spec.xNumFmt, labelEvery: spec.labelEvery }) +
+    valueAxisXml({ id: yAxis, crossId: xAxis, title: spec.yTitle, numFmt: spec.yNumFmt }) +
     `</c:plotArea>` +
     `<c:legend><c:legendPos val="b"/><c:overlay val="0"/></c:legend>` +
-    `<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart>` +
+    `<c:plotVisOnly val="1"/><c:dispBlanksAs val="zero"/></c:chart>` +
     `<c:spPr><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill><a:ln w="9525"><a:solidFill><a:srgbClr val="${EDGE}"/></a:solidFill></a:ln></c:spPr>` +
     `<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz="900"><a:solidFill><a:srgbClr val="${MUTED}"/></a:solidFill><a:latin typeface="${FONT}"/></a:defRPr></a:pPr><a:endParaRPr lang="en-US"/></a:p></c:txPr>` +
     `</c:chartSpace>`
@@ -178,8 +200,30 @@ async function sheetPath(zip: JSZip, sheetName: string): Promise<string> {
 /** Elements that must come after `<drawing>` in a worksheet part. */
 const AFTER_DRAWING = ['<legacyDrawing', '<legacyDrawingHF', '<picture', '<oleObjects', '<controls', '<webPublishItems', '<tableParts', '<extLst', '</worksheet>'];
 
-/** Returns the .xlsx with the charts added. Each chart must be on a sheet that has no drawing yet. */
-export async function addCharts(xlsx: Buffer | Uint8Array, charts: ChartSpec[]): Promise<Buffer> {
+/**
+ * The date given to every part of the file. A zip records a time for each entry; left alone it is the moment of
+ * the build, so two builds of the same workbook would differ byte for byte.
+ */
+export const DEFAULT_PART_DATE = new Date(Date.UTC(2020, 0, 1));
+
+/** Writes the zip with every entry (folders included) dated `date`, in a fixed order of compression. */
+async function generate(zip: JSZip, date: Date): Promise<Buffer> {
+  zip.forEach((_path, entry) => {
+    entry.date = date;
+  });
+  return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE', compressionOptions: { level: 9 }, platform: 'DOS' });
+}
+
+/** Returns the .xlsx unchanged except that every part carries the fixed date. */
+export async function withFixedDates(xlsx: Buffer | Uint8Array, date: Date = DEFAULT_PART_DATE): Promise<Buffer> {
+  return generate(await JSZip.loadAsync(xlsx), date);
+}
+
+/**
+ * Returns the .xlsx with the charts added and every part dated `date`. Each chart must be on a sheet that has no
+ * drawing yet.
+ */
+export async function addCharts(xlsx: Buffer | Uint8Array, charts: ChartSpec[], date: Date = DEFAULT_PART_DATE): Promise<Buffer> {
   const zip = await JSZip.loadAsync(xlsx);
   let contentTypes = await text(zip, '[Content_Types].xml');
   let number = 1;
@@ -219,5 +263,5 @@ export async function addCharts(xlsx: Buffer | Uint8Array, charts: ChartSpec[]):
   }
 
   zip.file('[Content_Types].xml', contentTypes);
-  return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE', compressionOptions: { level: 9 } });
+  return generate(zip, date);
 }

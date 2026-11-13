@@ -5,7 +5,8 @@
  *   npm run build && node scripts/build-artifact.mjs && node tests/e2e/run.cjs
  *
  * Opens dist/index.html from a file:// URL in Chromium, checks the worked examples in SPEC Appendix A against
- * what the page shows, exercises the inputs, and saves screenshots to .tmp/screens/.
+ * what the page shows, exercises the inputs, and saves screenshots to .tmp/screens/. One check builds a second
+ * copy of the page with a shop address (VITE_BUY_URL) into .tmp/e2e-shop/ to see the link to the workbook.
  * Prints a PASS/FAIL line per check and exits non-zero if any check fails.
  *
  * The browser clock is fixed at 13 Nov 2026 (Singapore) unless a check says otherwise, so the deadline figures
@@ -19,7 +20,11 @@ const { pathToFileURL } = require('node:url');
 const { chromium } = require('playwright');
 
 const ROOT = path.resolve(__dirname, '..', '..');
-const DIST = path.join(ROOT, 'dist', 'index.html');
+// The page under test is the build in dist/. SGTO_E2E_FILE points the same checks at another copy, for example
+// the file that ships: SGTO_E2E_FILE=release/sg-tax-optimiser.html node tests/e2e/run.cjs
+const DIST = process.env.SGTO_E2E_FILE ? path.resolve(ROOT, process.env.SGTO_E2E_FILE) : path.join(ROOT, 'dist', 'index.html');
+// How long a step may wait for the page, in ms (Playwright's own default when unset).
+const STEP_TIMEOUT = Number(process.env.SGTO_E2E_TIMEOUT) || 0;
 const ARTIFACT = path.join(ROOT, 'dist', 'artifact.html');
 const SHOTS = path.join(ROOT, '.tmp', 'screens');
 const PAGE_URL = pathToFileURL(DIST).href;
@@ -123,6 +128,7 @@ async function newPage(browser, opts) {
     locale: 'en-SG',
   });
   await context.clock.setFixedTime(now);
+  if (STEP_TIMEOUT > 0) context.setDefaultTimeout(STEP_TIMEOUT);
   if (fonts === 'block') await context.route(FONT_HOSTS, (route) => route.abort());
   if (fonts === 'hang') await context.route(FONT_HOSTS, () => {});
   const page = await context.newPage();
@@ -279,10 +285,54 @@ async function copiedSummary(page) {
   return page.evaluate(() => window.__copied);
 }
 
+/** The whole page as it reads, with every folded section opened so nothing is left out. */
+async function pageText(page) {
+  await page.evaluate(() => document.querySelectorAll('details').forEach((d) => (d.open = true)));
+  return (await page.locator('body').innerText()).replace(/\s+/g, ' ');
+}
+
+/** True when the element with this id comes before the other in the page. */
+async function comesBefore(page, firstId, secondId) {
+  return page.evaluate(
+    ([a, b]) => {
+      const first = document.getElementById(a);
+      const second = document.getElementById(b);
+      return !!first && !!second && !!(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING);
+    },
+    [firstId, secondId],
+  );
+}
+
+/** Where a block sits: top and bottom in the viewport, and what element comes straight before it. */
+async function placed(page, selector) {
+  return page.locator(selector).first().evaluate((el) => {
+    const box = el.getBoundingClientRect();
+    return { top: Math.round(box.top + window.scrollY), bottom: Math.round(box.bottom + window.scrollY) };
+  });
+}
+
+/** The product critic's modest earner: 29, S$5,200 a month, S$10,400 bonus, no other reliefs. */
+async function enterModest(page) {
+  await setField(page, 'age', '29');
+  await setField(page, 'salary', '5200');
+  await setField(page, 'bonus', '10400');
+  await setField(page, 'reliefTotal', '0');
+}
+
+/** A foreigner on S$7,000 a month with a S$7,000 bonus and no other reliefs. */
+async function enterForeigner(page) {
+  await choose(page, 'residency-foreigner');
+  await setField(page, 'salary', '7000');
+  await setField(page, 'bonus', '7000');
+  await setField(page, 'reliefTotal', '0');
+}
+
 /** SPEC Appendix A.2, entered from the opening example. */
 async function enterA2(page) {
   await choose(page, 'residency-pr');
   await setField(page, 'age', '57');
+  // At 57 the top-up that can still earn relief must be entered (SPEC 6.5); A.2 has S$50,000 of room.
+  await setField(page, 'cpfSelfRoom', '50000');
   await setField(page, 'salary', '14000');
   await setField(page, 'bonus', '40000');
   await setField(page, 'reliefTotal', '30000');
@@ -304,7 +354,7 @@ async function enterA3(page) {
 
 async function main() {
   if (!fs.existsSync(DIST)) {
-    console.error('FAIL  dist/index.html not found. Run "npm run build" first.');
+    console.error(`FAIL  ${path.relative(ROOT, DIST)} not found. Run "npm run build" first.`);
     process.exit(1);
   }
   fs.mkdirSync(SHOTS, { recursive: true });
@@ -349,7 +399,7 @@ async function main() {
       expectTrue(box && box.y >= 0 && box.y + box.height <= 900, 'the tax saved figure is not in the first screen');
       const headline = await text(page, 'reco-headline');
       expectTrue(
-        headline.includes('S$15,300 into SRS') && headline.includes('S$8,000 into your CPF'),
+        headline.includes('S$15,300 into SRS') && headline.includes('S$8,000 into your CPF as a cash top-up'),
         `headline reads "${headline}"`,
       );
       expectTrue((await text(page, 'reco-reason')).length > 20, 'no reason sentence under the recommendation');
@@ -373,10 +423,12 @@ async function main() {
       const reason = await flat(page, 'reco-reason');
       expectTrue(!reason.includes('2,359.50'), `the reason still quotes the unreachable S$2,359.50: "${reason}"`);
       expectTrue(!/next dollar of income/i.test(reason), `the reason mislabels the rate: "${reason}"`);
+      // The scheme is named as its tick box names it: "CPF cash top-up to family".
       expectTrue(
-        reason.includes('Switching on the family CPF top-up would raise the saving to S$3,478.00'),
+        reason.includes('Switching on the CPF cash top-up to family would raise the saving to S$3,478.00'),
         `reason reads "${reason}"`,
       );
+      expectEqual((await page.locator('label[for="useCpfFamily"]').innerText()).trim(), 'CPF cash top-up to family', 'the tick box it names');
       const notes = (await page.locator('[data-testid="warnings"]').innerText()).replace(/\s+/g, ' ');
       expectTrue(!notes.includes('2,359.50'), 'the notes under "Before you transfer" quote the unreachable saving');
       // Doing what the sentence says gives exactly the figure it quoted.
@@ -502,7 +554,10 @@ async function main() {
       await page.locator('#simulator').evaluate((el) => (el.open = true));
       await page.locator('#simulatorStep').selectOption('2000');
       await choose(page, 'order-interest');
-      expectTrue((await flat(page, 'reco-headline')).startsWith('Put S$8,000 into your CPF and S$15,300 into SRS'), 'the order was applied');
+      expectTrue(
+        (await flat(page, 'reco-headline')).startsWith('Put S$8,000 into your CPF as a cash top-up and S$15,300 into SRS'),
+        'the order was applied',
+      );
       await page.locator('#incomeYear').selectOption('2027');
       expectEqual(await text(page, 'ya'), 'YA2028', 'the income year was applied');
       expectEqual(await count(page, '[data-testid="example-flag"]'), 1, 'still labelled as the example');
@@ -666,7 +721,7 @@ async function main() {
     });
 
     await check('the offer button under a S$0 plan switches to Every tax dollar', async () => {
-      await choose(page, 'depth-worth');
+      await choose(page, 'depth-default');
       expectEqual(await text(page, 'reco-tax-saved'), 'S$0.00', 'back at the 7% minimum');
       const offer = (await page.locator('.slab-offer').innerText()).replace(/\s+/g, ' ');
       expectTrue(offer.includes('2.53 cents back per dollar'), `the offer reads "${offer}"`);
@@ -683,11 +738,13 @@ async function main() {
     });
 
     await check('itemised reliefs add up, and long choices are listed in full instead of cut short in a drop-down', async () => {
+      // A total the person typed is carried into the helper, the way Monthly and Annual keep the pay.
+      await setField(page, 'reliefTotal', '5000');
       await choose(page, 'reliefMode-itemised');
-      // Like Monthly and Annual, the switch keeps the reliefs: the typed total goes into "Any other relief".
       expectEqual(await text(page, 'relief-total'), 'S$5,000', 'the typed total carries into the helper');
       expectEqual(await page.locator('#relief-other').inputValue(), '5,000', '"Any other relief" after the switch');
       expectEqual(await text(page, 'reco-tax-saved'), 'S$2,679.50', 'the plan does not change on switching');
+      expectEqual(await count(page, '[data-testid="relief-example-note"]'), 0, 'no example note on a typed total');
       await setField(page, 'relief-other', '0');
       expectEqual(await text(page, 'relief-total'), 'S$0', 'itemised total once that is cleared');
       await page.locator('#relief-spouse').check();
@@ -712,7 +769,7 @@ async function main() {
     await check('foreigner: CPF schemes are hidden, the reason is given, and no CPF rule values are listed', async () => {
       expectEqual(await count(page, '#useCpfSelf'), 1, 'CPF self is offered to a citizen');
       const citizenRules = (await page.locator('.sources .rows').innerText()).replace(/\s+/g, ' ');
-      expectTrue(/CPF top-up relief, self/.test(citizenRules), 'a citizen should see the CPF rule values');
+      expectTrue(/CPF cash top-up relief, self/.test(citizenRules), 'a citizen should see the CPF rule values');
       await choose(page, 'residency-foreigner');
       expectEqual(await count(page, '#useCpfSelf'), 0, 'CPF top-up (self) checkbox');
       expectEqual(await count(page, '#useCpfFamily'), 0, 'CPF top-up (family) checkbox');
@@ -720,11 +777,14 @@ async function main() {
       expectEqual(await count(page, '#existingCpfFamily'), 0, 'CPF family already-contributed field');
       expectEqual(await count(page, '[data-testid="reco-cpf-self"]'), 0, 'CPF row in the recommendation');
       expectEqual(await count(page, '#useSrs'), 1, 'SRS stays');
-      const note = await text(page, 'foreigner-note');
-      expectTrue(/no CPF account/i.test(note), `explanation reads "${note}"`);
+      // The reason is given once, in the engine's words, where the missing columns of the lock-up facts would
+      // be. (It used to be said a second time, in the page's own words, under "Schemes to use".)
+      expectEqual(await count(page, '[data-testid="foreigner-note"]'), 0, 'a second "not open" line under "Schemes to use"');
+      const note = await flat(page, 'facts-not-open');
+      expectTrue(/Foreigners on work passes do not contribute to CPF/.test(note), `explanation reads "${note}"`);
       expectEqual(await text(page, 'reco-srs'), 'S$35,700', 'foreigner SRS cap');
       const rules = (await page.locator('.sources .rows').innerText()).replace(/\s+/g, ' ');
-      expectTrue(!/CPF top-up relief|ceiling for CPF|Retirement Sum|Healthcare Sum/.test(rules), `rule values read "${rules}"`);
+      expectTrue(!/top-up relief|ceiling for CPF|Retirement Sum|Healthcare Sum/.test(rules), `rule values read "${rules}"`);
       expectTrue(/SRS cap for you S\$35,700/.test(rules), 'the SRS cap should still be listed');
       // No CPF-named options that are "SRS only" under another name.
       const options = await page.locator('[data-testid="scenario-table"] tbody tr').evaluateAll((rows) => rows.map((r) => r.getAttribute('data-scenario')));
@@ -773,11 +833,13 @@ async function main() {
       expectEqual(await text(page, 'reco-tax-saved'), 'S$3,000.00', 'A.2 tax saved');
       const headline = await flat(page, 'reco-headline');
       expectTrue(
-        headline.startsWith("Put S$8,000 into your CPF, S$10,300 into SRS and S$1,700 into family members' CPF."),
+        headline.startsWith(
+          "Put S$8,000 into your CPF as a cash top-up, S$10,300 into SRS and S$1,700 into family members' CPF as a cash top-up.",
+        ),
         `headline reads "${headline}"`,
       );
       const slip = await page.locator('.slip .row dt').allInnerTexts();
-      expectEqual(slip.slice(0, 3).join(' | '), 'CPF top-up, self | SRS | CPF top-up, family', 'order of the scheme rows');
+      expectEqual(slip.slice(0, 3).join(' | '), 'CPF cash top-up, self | SRS | CPF cash top-up, family', 'order of the scheme rows');
       const reason = await flat(page, 'reco-reason');
       expectEqual(
         reason,
@@ -838,7 +900,7 @@ async function main() {
       );
       const plan = await stackedBlock(page, '[data-scenario="recommended"]');
       expectTrue(plan.startsWith('Tax saved S$3,000.00 | Cash locked away S$20,000'), `the plan block reads "${plan}"`);
-      expectTrue(/Wasted dollars None/.test(plan) && /CPF top-up, family S\$1,700/.test(plan), `the plan block reads "${plan}"`);
+      expectTrue(/Wasted dollars None/.test(plan) && /CPF cash top-up, family S\$1,700/.test(plan), `the plan block reads "${plan}"`);
       const o = await overflow(page);
       expectTrue(o.scrollWidth <= o.innerWidth, `scrollWidth ${o.scrollWidth} > innerWidth ${o.innerWidth}`);
       await page.screenshot({ path: path.join(SHOTS, 'desktop-1024-a2.png'), fullPage: true });
@@ -975,6 +1037,35 @@ async function main() {
       expectTrue(summary.includes(await flat(page, 'reco-reason')), 'the summary reason should match the card');
     });
 
+    await check('Copy summary when the browser refuses the clipboard: the whole summary is shown, selected, to copy by hand', async () => {
+      for (const [how, breakClipboard] of [
+        ['the clipboard rejects', () => Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: () => Promise.reject(new Error('denied')) } })],
+        ['there is no clipboard', () => Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined })],
+      ]) {
+        const own = await newPage(browser, { width: 1280, height: 900, label: 'copy-by-hand', fonts: 'block' });
+        const p = own.page;
+        // The 57-year-old with the room not entered: the caution must travel with the plan this way too.
+        await setField(p, 'age', '57');
+        await p.evaluate(breakClipboard);
+        expectEqual(await count(p, '[data-testid="summary-text"]'), 0, `${how}: the box before the button is pressed`);
+        await p.locator('[data-testid="copy-summary"]').click();
+        const box = p.locator('[data-testid="summary-text"]');
+        await box.waitFor({ timeout: 3000 });
+        const shown = await box.inputValue();
+        expectTrue(shown.startsWith('Singapore Tax Optimiser: plan for YA2027') && shown.includes('Put S$15,300 into SRS. You save S$1,759.50 in tax.'), `${how}: the summary reads "${shown.slice(0, 80)}"`);
+        expectTrue(shown.includes('Check before you transfer:') && shown.includes('Your own CPF is left out until you enter how much you can still top up with relief (S$0 if you have set aside the Full Retirement Sum).'), `${how}: the summary should carry the caution`);
+        expectTrue(shown.trim().endsWith(await flat(p, 'disclaimer')), `${how}: the summary should end with the disclaimer on the page`);
+        // Selected from end to end and in focus, so one keystroke copies it; and the button does not claim "Copied".
+        const state = await box.evaluate((el) => ({ focused: document.activeElement === el, from: el.selectionStart, to: el.selectionEnd, length: el.value.length, readOnly: el.readOnly }));
+        expectTrue(state.focused && state.from === 0 && state.to === state.length && state.readOnly, `${how}: the box is ${JSON.stringify(state)}`);
+        expectEqual((await p.locator('[data-testid="copy-summary"]').innerText()).trim(), 'Copy summary', `${how}: the button`);
+        expectTrue(/copy it from here/.test(await p.locator('label[for="summary-text"]').innerText()), `${how}: the instruction above the box`);
+        const o = await overflow(p);
+        expectTrue(o.scrollWidth <= o.innerWidth, `${how}: scrollWidth ${o.scrollWidth} > innerWidth ${o.innerWidth}`);
+        await own.context.close();
+      }
+    });
+
     await check('deadline passed (income year 2025): nothing tells the user to put money in now', async () => {
       await page.locator('#incomeYear').selectOption('2025');
       const headline = await flat(page, 'reco-headline');
@@ -1010,6 +1101,1015 @@ async function main() {
     });
 
     await desktop.context.close();
+
+    // ------------------------------------------------------------------ safeguards from the rule audit
+    // Each of these opens its own copy of the page, so none depends on what an earlier check left behind.
+    const VERSION = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
+    const DISCLAIMER =
+      'This is an estimate for planning, not tax, legal or financial advice. It is not affiliated with IRAS or the ' +
+      'CPF Board. Check your eligibility and limits with IRAS, the CPF Board and your SRS bank before transferring ' +
+      'money. CPF top-ups cannot be reversed.';
+    const LEFT_OUT = 'Your own CPF is left out until you enter how much you can still top up with relief';
+
+    await check('shared facts: nine lock-up rows per scheme, the cautions, what is left out and the disclaimer, as the engine words them', async () => {
+      const own = await newPage(browser, { width: 1280, height: 900, label: 'facts', fonts: 'block' });
+      const p = own.page;
+      const heads = (await p.locator('[data-testid="facts-table"] thead th').allInnerTexts()).map((h) => h.trim());
+      expectEqual(heads.slice(1).join(' | '), 'SRS | CPF cash top-up, self | CPF cash top-up, family', 'columns for a citizen');
+      const rows = await p.locator('[data-testid="facts-table"] tbody tr').evaluateAll((trs) => trs.map((tr) => tr.getAttribute('data-fact')));
+      expectEqual(rows.join(' '), 'relief lockedUntil sooner earns taxLater limits noRelief who deadline', 'the nine facts');
+      const cell = async (factId, column) =>
+        (await p.locator(`[data-testid="facts-table"] tr[data-fact="${factId}"] td`).nth(column).innerText()).replace(/\s+/g, ' ');
+      // Sentences the rule audit asked for, which the page's old table did not have.
+      expectTrue(/If you have left Singapore, there is no tax-free amount/.test(await cell('taxLater', 0)), `"Tax later" for SRS reads "${await cell('taxLater', 0)}"`);
+      expectTrue(/A voluntary contribution to all three CPF accounts/.test(await cell('noRelief', 1)), `"No relief for" reads "${await cell('noRelief', 1)}"`);
+      expectTrue(/the first S\$2,000 a year topped up for a member on the Matched Retirement Savings Scheme, and the first S\$1,000 a year to MediSave/.test(await cell('noRelief', 2)), `family "No relief for" reads "${await cell('noRelief', 2)}"`);
+      expectTrue(/It cannot be withdrawn at 55 or used for housing/.test(await cell('lockedUntil', 1)), `"Locked until" for CPF reads "${await cell('lockedUntil', 1)}"`);
+      expectTrue(/earned no more than S\$8,000 in 2025 \(the year before the top-up\)/.test(await cell('who', 2)), `"Who qualifies" reads "${await cell('who', 2)}"`);
+      const cautions = await p.locator('[data-testid="transfer-cautions"] li').allInnerTexts();
+      expectEqual(cautions.length, 6, 'things only the person can check, for a citizen');
+      expectTrue(/at least 183 days in 2026/.test(cautions[0]), `the first caution reads "${cautions[0]}"`);
+      expectTrue(cautions.some((c) => /choose the retirement top-up \(Special or Retirement Account\) or the MediSave top-up/.test(c)), 'the caution about which CPF transaction to choose');
+      expectEqual((await p.locator('[data-testid="not-modelled"] li').count()), 8, 'entries under "What this does not model"');
+      expectEqual(await flat(p, 'disclaimer'), DISCLAIMER, 'the disclaimer');
+      // The reasons under "Which first?" are those same facts, so the two cannot drift apart.
+      const why = (await p.locator('#order-flexibility-detail').innerText()).replace(/\s+/g, ' ');
+      expectTrue(why.includes(await cell('sooner', 0)) && why.includes(await cell('sooner', 1)), `"Flexibility first" reads "${why}"`);
+      const interest = (await p.locator('#order-interest-detail').innerText()).replace(/\s+/g, ' ');
+      expectTrue(interest.includes(await cell('earns', 1)) && interest.includes(await cell('earns', 0)), `"Guaranteed interest first" reads "${interest}"`);
+      // From 55 the account-limits row is the one for a Retirement Account.
+      await setField(p, 'age', '57');
+      expectTrue(/accepts top-ups to your Retirement Account up to the Enhanced Retirement Sum \(S\$440,800\)/.test(await cell('limits', 1)), `"Account limits" at 57 reads "${await cell('limits', 1)}"`);
+      await own.context.close();
+    });
+
+    await check('foreigner: SRS is the only column, one line says CPF top-ups are not open, and no other CPF sentence is on the page', async () => {
+      const own = await newPage(browser, { width: 1280, height: 900, label: 'foreigner-cpf', fonts: 'block' });
+      const p = own.page;
+      await enterForeigner(p);
+      const heads = (await p.locator('[data-testid="facts-table"] thead th').allInnerTexts()).map((h) => h.trim());
+      expectEqual(heads.slice(1).join(' | '), 'SRS', 'columns for a foreigner');
+      const line = await flat(p, 'facts-not-open');
+      expectTrue(/CPF top-ups do not earn tax relief/.test(line) && /S\$35,700 a year into SRS/.test(line), `the line under the facts reads "${line}"`);
+      expectEqual(await count(p, '[data-testid="warnings"] [data-code="FOREIGNER_NO_CPF"]'), 0, 'the same line said a second time in the notes');
+      expectTrue(/taxed as a non-resident: 15% or the resident rates/.test((await p.locator('tr[data-fact="taxLater"] td').first().innerText()).replace(/\s+/g, ' ')), 'the foreigner\'s "Tax later"');
+      expectTrue(/give their SRS bank a declaration each year/.test((await p.locator('tr[data-fact="who"] td').first().innerText()).replace(/\s+/g, ' ')), 'the foreigner\'s "Who qualifies"');
+      // Everything the page says, with every folded part opened and the five months that raise one more caution.
+      await p.locator('#monthsWorked').selectOption('5');
+      await choose(p, 'depth-every');
+      await choose(p, 'payMode-annual');
+      // The line read out to screen readers settles a moment after the last change; it is part of the page too.
+      await p.waitForTimeout(1100);
+      let body = await pageText(p);
+      expectTrue(/Aim to transfer a few working days before 31 December 2026/.test(body), 'the checklist should be on the page being read');
+      // What may name CPF on a foreigner's page: the product's strapline, the ONE line that says CPF top-ups are
+      // not open to them, and two sentences of the shared wording that the page renders as the engine gives
+      // them (the disclaimer; a passing mention in what the tool leaves out). The last line of the checklist no
+      // longer names the CPF Board for someone who cannot make a CPF top-up.
+      expectEqual(await count(p, '[data-testid="foreigner-note"]'), 0, 'a second line, in other words, saying CPF top-ups are not open');
+      expectEqual(body.split(line).length - 1, 1, 'times the "not open" line is on the page');
+      // (The disclaimer, which is the engine's and is the same for everyone, ends "CPF top-ups cannot be reversed.")
+      expectEqual((body.split(DISCLAIMER).join(' ').match(/CPF top-ups/g) || []).length, 1, 'sentences about CPF top-ups on a foreigner\'s page, the disclaimer aside');
+      const allowed = [
+        'Year-end SRS and CPF planner',
+        line,
+        DISCLAIMER,
+        'Investment returns inside SRS or CPF, and what your balances will be at retirement.',
+      ];
+      expectTrue(
+        body.includes('Banks stop taking same-day SRS contributions before midnight on the last day.'),
+        'the checklist should end with the bank cut-off alone for a foreigner',
+      );
+      for (const sentence of allowed) {
+        expectTrue(body.includes(sentence), `expected to find "${sentence.slice(0, 60)}" on the page`);
+        body = body.split(sentence).join(' ');
+      }
+      const left = body.match(/[^.]*\b(CPF|Retirement Account|Special Account)\b[^.]*\./g) || [];
+      expectEqual(left.map((sentence) => sentence.trim()).join(' || '), '', 'CPF sentences on a foreigner\'s page');
+      // "Which first?" orders schemes; with one scheme there is nothing to order.
+      expectEqual(await count(p, '#order-flexibility'), 0, '"Which first?" for someone with one scheme');
+      const working = (await p.locator('[data-testid="working-table"]').innerText()).replace(/\s+/g, ' ');
+      expectTrue(/SRS relief/.test(working) && /Earned Income Relief/.test(working), 'the working should keep the reliefs that apply');
+      expectEqual(await count(p, '[data-testid="monthly-deadlines"] li'), 1, 'cut-off lines in the monthly plan');
+      expectTrue(/^SRS:/.test((await p.locator('[data-testid="monthly-deadlines"] li').first().innerText()).trim()), 'the one cut-off line is the bank\'s');
+      await noJunk(p, 'foreigner, everything open');
+      await own.context.close();
+    });
+
+    await check('age 57, room blank: own CPF is left out, the card and the caution under it say why, and the field is asked for', async () => {
+      const own = await newPage(browser, { width: 1280, height: 900, label: 'age-57', fonts: 'block' });
+      const p = own.page;
+      // Below 55 the field is optional and a blank means "not limiting".
+      expectEqual((await p.locator('label[for="cpfSelfRoom"]').innerText()).trim(), 'Top-up that can still earn relief (optional)', 'the label at 35');
+      expectEqual(await p.locator('#cpfSelfRoom').getAttribute('aria-required'), null, 'aria-required at 35');
+      expectEqual(await count(p, '[data-testid="cpfSelfRoom-needed"]'), 0, '"Needed" at 35');
+      expectTrue(/Leave this empty if those limits are far off/.test(await p.locator('#cpfSelfRoom-hint').innerText()), 'the hint at 35');
+      await setField(p, 'age', '57');
+      expectEqual(await text(p, 'reco-srs'), 'S$15,300', 'SRS at 57');
+      expectEqual(await text(p, 'reco-cpf-self'), 'Left out', 'own CPF at 57 with the room blank');
+      expectEqual(await text(p, 'reco-tax-saved'), 'S$1,759.50', 'tax saved at 57 with the room blank');
+      expectEqual(await text(p, 'reco-locked'), 'S$15,300', 'cash locked away');
+      const headline = await flat(p, 'reco-headline');
+      expectEqual(headline, 'Put S$15,300 into SRS. You save S$1,759.50 in tax.', 'headline');
+      const reason = await flat(p, 'reco-reason');
+      expectTrue(reason.includes(`${LEFT_OUT}.`), `the card reads "${reason}"`);
+      expectTrue(!/filled every scheme you switched on|no room left for it/.test(reason), `the card calls the schemes full: "${reason}"`);
+      // The engine's caution, in its own words, straight under the card.
+      const caution = p.locator('[data-testid="plan-cautions"] [data-code="CPF_SELF_ROOM_UNCONFIRMED"]');
+      const said = (await caution.locator('p').innerText()).replace(/\s+/g, ' ');
+      expectEqual(
+        said,
+        'From age 55 the CPF Board accepts top-ups up to the Enhanced Retirement Sum (S$440,800), but only the part up to the Full Retirement Sum (S$220,400) earns relief, and a top-up cannot be reversed. Your own CPF is left out until you enter how much you can still top up with relief (S$0 if you have set aside the Full Retirement Sum).',
+        'the caution',
+      );
+      // The field: asked for, marked while blank, and it says where to find the figure.
+      expectEqual((await p.locator('label[for="cpfSelfRoom"]').innerText()).trim(), 'Top-up that can still earn relief', 'the label at 57');
+      expectEqual(await text(p, 'cpfSelfRoom-needed'), 'Needed', 'the mark on the blank field');
+      expectEqual(await p.locator('#cpfSelfRoom').getAttribute('aria-required'), 'true', 'aria-required at 57');
+      const hint = (await p.locator('#cpfSelfRoom-hint').innerText()).replace(/\s+/g, ' ');
+      expectEqual(
+        hint,
+        'Log in to CPF and open the Retirement dashboard to see how much you can still top up with tax relief. From 55 the CPF Board accepts more than that, and the extra earns no relief and cannot be taken back. Enter S$0 if you have already set aside the Full Retirement Sum (S$220,400).',
+        'the hint: where to find the figure, and that S$0 is an answer',
+      );
+      // Where to find it is the engine's own caution, the same sentence as in the checklist lower down.
+      const checklist = (await p.locator('[data-testid="transfer-cautions"] li').allInnerTexts()).map((c) => c.replace(/\s+/g, ' ').trim());
+      expectTrue(checklist.some((c) => c.startsWith('Log in to CPF') && hint.startsWith(c)), 'the hint should open with the checklist\'s own line about the Retirement dashboard');
+      expectTrue(/left out of the plan/.test(await p.locator('#cpfSelfRoom-caution').innerText()), 'the note under the blank field');
+      // A way to jump to it.
+      await p.locator('[data-testid="caution-enter-room"]').click();
+      await p.waitForFunction(() => document.activeElement && document.activeElement.id === 'cpfSelfRoom', null, { timeout: 3000 });
+      await p.waitForFunction(
+        () => {
+          const box = document.getElementById('cpfSelfRoom').getBoundingClientRect();
+          return box.top >= 0 && box.bottom <= window.innerHeight;
+        },
+        null,
+        { timeout: 3000 },
+      );
+      await p.screenshot({ path: path.join(SHOTS, 'desktop-57-room-blank.png') });
+      // The comparison respects the same rule: nothing is assumed about their own CPF.
+      const options = await p.locator('[data-testid="scenario-table"] tbody tr').evaluateAll((trs) => trs.map((tr) => tr.getAttribute('data-scenario')));
+      expectEqual(options.join(' '), 'none srsOnly recommended', 'options compared while the room is blank');
+      expectTrue(/Your own CPF is left out of them until you enter/.test((await p.locator('#compare .lede').innerText()).replace(/\s+/g, ' ')), 'the comparison should say why it has no CPF option');
+      const summary = await (async () => {
+        await recordClipboard(p);
+        return copiedSummary(p);
+      })();
+      expectTrue(summary.includes(said), 'the copied summary should carry the caution');
+      expectTrue(summary.includes('Check before you transfer:'), 'the copied summary should head the cautions');
+      await own.context.close();
+    });
+
+    await check('age 57, room filled: the plan uses it (S$3,000, then S$0, then more than S$8,000), and nothing is marked as needed', async () => {
+      const own = await newPage(browser, { width: 1280, height: 900, label: 'age-57-filled', fonts: 'block' });
+      const p = own.page;
+      await setField(p, 'age', '57');
+      await setField(p, 'cpfSelfRoom', '3000');
+      expectEqual(await text(p, 'reco-cpf-self'), 'S$3,000', 'own CPF with S$3,000 of room');
+      expectEqual(await text(p, 'reco-tax-saved'), 'S$2,104.50', 'tax saved with S$3,000 of room');
+      expectEqual(await count(p, '[data-testid="plan-cautions"]'), 0, 'cautions under the card once the room is entered');
+      expectEqual(await count(p, '[data-testid="cpfSelfRoom-needed"]'), 0, '"Needed" once the room is entered');
+      expectEqual(await count(p, '#cpfSelfRoom-caution'), 0, 'the note under the field once it is filled');
+      const note = (await p.locator('[data-testid="warnings"] [data-code="AGE_55_PLUS_TOPUP"] p').innerText()).replace(/\s+/g, ' ');
+      expectTrue(/The plan uses the room you entered \(S\$3,000\); check it against your CPF Retirement dashboard/.test(note), `the note reads "${note}"`);
+      expectTrue((await flat(p, 'reco-headline')).startsWith('Put S$15,300 into SRS and S$3,000 into your CPF as a cash top-up.'), 'headline with the room entered');
+      // S$0 is an answer: the Full Retirement Sum is already set aside.
+      await setField(p, 'cpfSelfRoom', '0');
+      expectEqual(await text(p, 'reco-cpf-self'), 'S$0', 'own CPF with no room');
+      expectEqual(await count(p, '[data-testid="plan-cautions"]'), 0, 'cautions with S$0 entered');
+      expectTrue(/^You have filled every scheme you switched on/.test(await flat(p, 'reco-reason')), `the reason with S$0 reads "${await flat(p, 'reco-reason')}"`);
+      // Any figure confirms it, one above the yearly cap included.
+      await setField(p, 'cpfSelfRoom', '50000');
+      expectEqual(await text(p, 'reco-cpf-self'), 'S$8,000', 'own CPF with plenty of room');
+      // Emptied again, it is asked for again.
+      await setField(p, 'cpfSelfRoom', '');
+      expectEqual(await text(p, 'reco-cpf-self'), 'Left out', 'own CPF once the field is emptied');
+      expectEqual(await count(p, '[data-testid="cpfSelfRoom-needed"]'), 1, '"Needed" once the field is emptied');
+      // With nothing else switched on, the plan is "nothing yet", never "the schemes are full".
+      await p.locator('#useSrs').uncheck();
+      expectEqual(await flat(p, 'reco-headline'), 'Nothing to put in yet.', 'headline with only the unconfirmed CPF switched on');
+      expectTrue((await flat(p, 'reco-reason')).startsWith(`Nothing can go in yet. ${LEFT_OUT}`), `the reason reads "${await flat(p, 'reco-reason')}"`);
+      expectTrue(/There is no ladder to draw yet/.test(await flat(p, 'ladder-empty')), `the ladder reads "${await flat(p, 'ladder-empty')}"`);
+      await noJunk(p, 'age 57');
+      await own.context.close();
+    });
+
+    await check('Appendix A.2b: the same person with the room left blank gets SRS S$10,300 + family S$8,000 and saves S$2,745.00', async () => {
+      const own = await newPage(browser, { width: 1280, height: 900, label: 'a2b', fonts: 'block' });
+      const p = own.page;
+      await enterA2(p);
+      await setField(p, 'cpfSelfRoom', '');
+      expectEqual(await text(p, 'reco-srs'), 'S$10,300', 'A.2b SRS');
+      expectEqual(await text(p, 'reco-cpf-family'), 'S$8,000', 'A.2b family');
+      expectEqual(await text(p, 'reco-cpf-self'), 'Left out', 'A.2b own CPF');
+      expectEqual(await text(p, 'reco-tax-after'), 'S$9,501.00', 'A.2b tax after');
+      expectEqual(await text(p, 'reco-tax-saved'), 'S$2,745.00', 'A.2b tax saved');
+      const codes = await p.locator('[data-testid="plan-cautions"] > li').evaluateAll((items) => items.map((li) => li.getAttribute('data-code')));
+      expectEqual(codes.join(' '), 'CPF_SELF_ROOM_UNCONFIRMED FAMILY_TOPUP_CHECKS', 'cautions under the card');
+      await own.context.close();
+    });
+
+    await check('cautions sit with the recommendation: directly under the card, on the first screen, and are not repeated lower down', async () => {
+      const own = await newPage(browser, { width: 1280, height: 900, label: 'cautions', fonts: 'block' });
+      const p = own.page;
+      expectEqual(await count(p, '[data-testid="plan-cautions"]'), 0, 'cautions on the untouched example');
+      await setField(p, 'age', '57');
+      await p.locator('#useCpfFamily').check();
+      await p.locator('#hasPtr').check();
+      const codes = await p.locator('[data-testid="plan-cautions"] > li').evaluateAll((items) => items.map((li) => li.getAttribute('data-code')));
+      expectEqual(codes.join(' '), 'CPF_SELF_ROOM_UNCONFIRMED FAMILY_TOPUP_CHECKS PARENTHOOD_TAX_REBATE', 'cautions under the card');
+      await p.evaluate(() => window.scrollTo(0, 0));
+      const card = await placed(p, '#recommendation');
+      const block = await placed(p, '.answer-checks');
+      const hero = await p.locator('[data-testid="reco-tax-saved"]').boundingBox();
+      expectTrue(hero && hero.y >= 0 && hero.y + hero.height <= 900, 'the cautions must not push the answer off the first screen');
+      expectTrue(block.top >= card.bottom && block.top - card.bottom <= 24, `the cautions start ${block.top - card.bottom}px under the card`);
+      expectTrue(block.top < 900, `the cautions start at ${block.top}px, below the first screen`);
+      // Nothing comes between the card and its cautions.
+      expectTrue(await p.evaluate(() => document.querySelector('.answer-checks').previousElementSibling.id === 'recommendation'), 'the cautions should follow the card directly');
+      // Each is said once on the page.
+      for (const code of codes) {
+        expectEqual(await count(p, `[data-code="${code}"]`), 1, `times ${code} is shown`);
+        expectEqual(await count(p, `[data-testid="warnings"] [data-code="${code}"]`), 0, `${code} in the list lower down`);
+      }
+      const family = (await p.locator('[data-code="FAMILY_TOPUP_CHECKS"] p').innerText()).replace(/\s+/g, ' ');
+      expectEqual(
+        family,
+        'Family top-ups: the part the Government matches earns you no relief — the first S$2,000 a year for a member on the Matched Retirement Savings Scheme, S$1,000 for MediSave. The amounts here are top-ups beyond that, to a family member who qualifies.',
+        'the family caution',
+      );
+      await recordClipboard(p);
+      const summary = await copiedSummary(p);
+      for (const code of codes) {
+        const message = (await p.locator(`[data-code="${code}"] p`).innerText()).replace(/\s+/g, ' ');
+        expectTrue(summary.includes(`- ${message}`), `the copied summary is missing the ${code} caution`);
+      }
+      // The live region tells a screen-reader user that there are things to check.
+      await p.waitForFunction(() => /3 things to check before you act/.test(document.querySelector('[data-testid="live"]').textContent), null, { timeout: 4000 });
+      await own.context.close();
+
+      // On a phone the cautions are the next thing after the card, with the newcomer's lines folded under them.
+      const phone = await newPage(browser, { width: 390, height: 844, label: 'cautions-phone', touch: true, fonts: 'block' });
+      const q = phone.page;
+      await q.locator('[data-testid="toggle-inputs"]').click();
+      await setField(q, 'age', '57');
+      await q.locator('[data-testid="toggle-inputs"]').click();
+      const phoneCard = await placed(q, '#recommendation');
+      const phoneBlock = await placed(q, '.answer-checks');
+      expectTrue(phoneBlock.top >= phoneCard.bottom && phoneBlock.top - phoneCard.bottom <= 24, `on a phone the cautions start ${phoneBlock.top - phoneCard.bottom}px under the card`);
+      const heroPhone = await q.locator('[data-testid="reco-tax-saved"]').boundingBox();
+      expectTrue(heroPhone && heroPhone.y + heroPhone.height <= 844, 'on a phone the answer stays on the first screen');
+      // The jump opens the folded form and lands in the field.
+      expectTrue(!(await q.locator('#cpfSelfRoom').isVisible()), 'the form should start folded');
+      await q.locator('[data-testid="caution-enter-room"]').tap();
+      await q.waitForFunction(() => document.activeElement && document.activeElement.id === 'cpfSelfRoom', null, { timeout: 4000 });
+      expectTrue(await q.locator('#cpfSelfRoom').isVisible(), 'the field should be on screen after the jump');
+      const o = await overflow(q);
+      expectTrue(o.scrollWidth <= o.innerWidth, `scrollWidth ${o.scrollWidth} > innerWidth ${o.innerWidth}`);
+      await phone.context.close();
+    });
+
+    await check('Parenthood Tax Rebate tick-box: under Other reliefs, raises the caution, changes no figure, and is remembered', async () => {
+      const own = await newPage(browser, { width: 1280, height: 900, label: 'ptr', fonts: 'block' });
+      const p = own.page;
+      expectTrue(await p.evaluate(() => !!document.querySelector('section[aria-labelledby="g-reliefs"] #hasPtr')), 'the tick-box should be under Other reliefs');
+      expectEqual((await p.locator('label[for="hasPtr"]').innerText()).trim(), 'I have unused Parenthood Tax Rebate', 'the label');
+      // The line under it covers every unused rebate, one first claimed this year included: a parent whose
+      // child was born in the income year is exactly who the caution is for. (It used to say "left over from
+      // earlier years".)
+      const detail = (await p.locator('#hasPtr-detail').innerText()).replace(/\s+/g, ' ').trim();
+      expectEqual(
+        detail,
+        'Any Parenthood Tax Rebate you have not used up, including the rebate for a child born in 2026. No amount is needed: ticking this adds a caution beside the plan.',
+        'the line under the tick-box',
+      );
+      expectTrue(!/earlier years/.test(detail), `the line still narrows the rebate to earlier years: "${detail}"`);
+      expectTrue(!(await p.locator('#hasPtr').isChecked()), 'the box starts unticked');
+      await p.locator('#hasPtr').check();
+      const said = (await p.locator('[data-testid="plan-cautions"] [data-code="PARENTHOOD_TAX_REBATE"] p').innerText()).replace(/\s+/g, ' ');
+      expectEqual(
+        said,
+        'With unused Parenthood Tax Rebate your tax bill this year may already be S$0. This plan would then save no cash now: it makes the rebate last longer, so the benefit arrives in a later year.',
+        'the caution',
+      );
+      await expectExample(p, 'with the box ticked');
+      expectEqual(await count(p, '[data-testid="example-flag-plan"]'), 0, 'ticking the box makes the numbers the person\'s own');
+      await p.reload();
+      await p.waitForSelector('[data-testid="reco-tax-saved"]');
+      expectTrue(await p.locator('#hasPtr').isChecked(), 'the box after a reload');
+      expectEqual(await count(p, '[data-code="PARENTHOOD_TAX_REBATE"]'), 1, 'the caution after a reload');
+      await p.locator('#hasPtr').uncheck();
+      expectEqual(await count(p, '[data-code="PARENTHOOD_TAX_REBATE"]'), 0, 'the caution once unticked');
+      await own.context.close();
+    });
+
+    await check('residency: one line under every choice says what a tax resident is (183 days in the income year)', async () => {
+      const own = await newPage(browser, { width: 1280, height: 900, label: 'residency', fonts: 'block' });
+      const p = own.page;
+      for (const choice of ['citizen', 'pr', 'foreigner']) {
+        await choose(p, `residency-${choice}`);
+        const hint = await flat(p, 'residency-hint');
+        // "Broadly": 183 days is the main test, not the only one (SPEC 5.4), as the checklist also says.
+        expectTrue(
+          hint.startsWith('This tool is for tax residents: broadly, people who stayed or worked in Singapore for at least 183 days in 2026.'),
+          `under ${choice} the line reads "${hint}"`,
+        );
+      }
+      expectTrue(/A non-resident gets no personal reliefs and no SRS relief/.test(await flat(p, 'residency-hint')), 'the foreigner\'s line');
+      await p.locator('#incomeYear').selectOption('2027');
+      expectTrue(/183 days in 2027/.test(await flat(p, 'residency-hint')), 'the line names the income year on screen');
+      await own.context.close();
+    });
+
+    await check('default preset: named by its figure, 7 cents for citizens and PRs and 11.5 cents for foreigners, and it moves with the residency', async () => {
+      const own = await newPage(browser, { width: 1280, height: 900, label: 'preset', fonts: 'block' });
+      const p = own.page;
+      const label = async () => (await p.locator('label[for="depth-default"]').innerText()).trim();
+      const minimum = () => p.evaluate(() => JSON.parse(window.localStorage.getItem('sgto:v1')).ui);
+      expectEqual(await label(), '7 cents or more', 'the default for a citizen');
+      expectTrue(await p.locator('#depth-default').isChecked(), 'the default is selected on opening');
+      expectEqual(await count(p, '[data-testid="depth-foreigner-note"]'), 0, 'the foreigner\'s line for a citizen');
+      await choose(p, 'residency-pr');
+      expectEqual(await label(), '7 cents or more', 'the default for a PR');
+      // The foreigner of the brief: S$7,000 a month, S$7,000 bonus, no other reliefs.
+      await enterForeigner(p);
+      expectEqual(await label(), '11.5 cents or more', 'the default for a foreigner');
+      expectTrue(await p.locator('#depth-default').isChecked(), 'the default stays selected when the residency changes');
+      expectEqual(await text(p, 'reco-srs'), 'S$10,000', 'SRS for the foreigner at the default');
+      expectEqual(await text(p, 'reco-rate'), '11.5 cents', 'saving per dollar for the foreigner at the default');
+      expectEqual(await text(p, 'reco-tax-saved'), 'S$1,150.00', 'tax saved for the foreigner at the default');
+      expectEqual(
+        await flat(p, 'reco-reason'),
+        'Beyond this, each extra dollar would save 7 cents or less, below the default minimum of 11.5 cents.',
+        'the reason for the foreigner at the default',
+      );
+      expectEqual(
+        await flat(p, 'depth-foreigner-note'),
+        'A foreigner who has left Singapore pays at least 7.5 cents per dollar in tax to take SRS out, so the 7% rung would be a loss. That is why your default is 11.5 cents or more. You can still choose to go deeper.',
+        'the line that says why',
+      );
+      expectEqual(await flat(p, 'depth-hint'), 'Only lock away dollars that each save at least 11.5 cents in tax.', 'the line under the control');
+      const caution = async () => (await p.locator('[data-testid="plan-cautions"] [data-code="SRS_NON_RESIDENT_WITHDRAWAL"] p').innerText()).replace(/\s+/g, ' ');
+      expectEqual(
+        await caution(),
+        "If you have left Singapore when you withdraw, SRS is taxed as a non-resident's: at least 7.5 cents per dollar withdrawn at retirement age or under the 10-year rule for foreigners, and at least 20 cents if earlier.",
+        'the caution at the default',
+      );
+      expectEqual(await count(p, '[data-code="TAX_RESIDENCY_CHECK"]'), 0, 'the residency check for a full year');
+      await p.evaluate(() => window.scrollTo(0, 0));
+      await p.screenshot({ path: path.join(SHOTS, 'desktop-foreigner.png') });
+      // They can still go deeper, and are then told how much of the plan loses money on the way out.
+      await choose(p, 'depth-every');
+      expectEqual(await text(p, 'reco-srs'), 'S$35,700', 'SRS for the foreigner with every tax dollar');
+      expectTrue((await caution()).endsWith('S$25,700 of this plan saves less than 7.5 cents per dollar today.'), `the caution reads "${await caution()}"`);
+      // A custom minimum starts from this person's default, not from the 7 cents they never chose.
+      await choose(p, 'depth-custom');
+      expectEqual(await p.locator('#customRate').inputValue(), '0.115', 'where a custom minimum starts for a foreigner');
+      expectEqual(await text(p, 'reco-srs'), 'S$10,000', 'SRS for the foreigner on opening Custom');
+      await choose(p, 'depth-default');
+      // Opening Custom is not picking a rate, so it starts from the default of whoever is looking now. As a
+      // citizen it opens on 7 cents; back as a foreigner it must open on 11.5 cents again, never on 7.
+      await choose(p, 'residency-citizen');
+      await choose(p, 'depth-custom');
+      expectEqual(await p.locator('#customRate').inputValue(), '0.07', 'where a custom minimum starts for a citizen');
+      await choose(p, 'depth-default');
+      await choose(p, 'residency-foreigner');
+      await choose(p, 'depth-custom');
+      expectEqual(await p.locator('#customRate').inputValue(), '0.115', 'Custom for a foreigner after a citizen had looked at it');
+      expectEqual(await text(p, 'reco-srs'), 'S$10,000', 'SRS for the foreigner on opening Custom again');
+      expectTrue(!/of this plan saves less/.test(await caution()), `a minimum nobody chose brought in dollars that lose money: "${await caution()}"`);
+      // With Custom open and nothing picked, the figure follows the residency the way the default does.
+      await choose(p, 'residency-citizen');
+      expectEqual(await p.locator('#customRate').inputValue(), '0.07', 'an unpicked custom minimum after switching to citizen');
+      await choose(p, 'residency-foreigner');
+      expectEqual(await p.locator('#customRate').inputValue(), '0.115', 'an unpicked custom minimum after switching back');
+      // A rate the person does pick is theirs: it stays through a change of residency and a reload.
+      await p.locator('#customRate').selectOption('0.07');
+      expectEqual(await text(p, 'reco-srs'), 'S$35,700', 'SRS once the foreigner has picked 7 cents');
+      expectTrue((await caution()).endsWith('S$25,700 of this plan saves less than 7.5 cents per dollar today.'), 'the caution for a picked 7 cents');
+      await choose(p, 'residency-pr');
+      await choose(p, 'residency-foreigner');
+      expectEqual(await p.locator('#customRate').inputValue(), '0.07', 'a picked rate after a change of residency');
+      await p.reload();
+      await p.waitForSelector('[data-testid="reco-tax-saved"]');
+      expectEqual(await p.locator('#customRate').inputValue(), '0.07', 'a picked rate after a reload');
+      await choose(p, 'depth-default');
+      // Five months of work: asked to check that they are a tax resident at all.
+      await p.locator('#monthsWorked').selectOption('5');
+      const check5 = (await p.locator('[data-testid="plan-cautions"] [data-code="TAX_RESIDENCY_CHECK"] p').innerText()).replace(/\s+/g, ' ');
+      expectEqual(
+        check5,
+        'You worked here for half the year or less. You are a tax resident only if you were in Singapore for at least 183 days (IRAS has further rules for stays that span two years). Non-residents get no reliefs, so this plan would not apply.',
+        'the caution for five months',
+      );
+      await p.locator('#monthsWorked').selectOption('7');
+      expectEqual(await count(p, '[data-code="TAX_RESIDENCY_CHECK"]'), 0, 'the residency check at seven months');
+      await p.locator('#monthsWorked').selectOption('12');
+      // Back to a citizen with the default still selected: the rate goes back to 7 cents.
+      await choose(p, 'residency-citizen');
+      expectEqual(await label(), '7 cents or more', 'the default once a citizen again');
+      expectEqual((await minimum()).depth, 'default', 'the stored choice is the preset, not a rate');
+      expectEqual(await text(p, 'reco-rate'), '7 cents', 'saving per dollar for a citizen on the same pay');
+      expectEqual(await text(p, 'reco-locked'), 'S$23,300', 'a citizen on the same pay goes down to the 7% rung');
+      // No label passes a judgement.
+      const labels = (await p.locator('fieldset:has(#depth-default) label').allInnerTexts()).join(' | ');
+      expectTrue(!/worth/i.test(labels), `the labels read "${labels}"`);
+      expectTrue(!/worth it/i.test(await pageText(p)), '"worth it" is still on the page');
+      await own.context.close();
+    });
+
+    await check('a foreigner\'s S$0 plan: the way to Every tax dollar says what those dollars cost on the way out', async () => {
+      const own = await newPage(browser, { width: 1280, height: 900, label: 'foreigner-offer', fonts: 'block' });
+      const p = own.page;
+      const CAVEAT = 'of that plan saves less than 7.5 cents per dollar, the least you would pay in tax to take SRS out after leaving Singapore.';
+      // S$7,000 a month and a S$7,000 bonus over five months: nothing clears the foreigner's default.
+      await enterForeigner(p);
+      await p.locator('#monthsWorked').selectOption('5');
+      expectEqual(await text(p, 'reco-tax-saved'), 'S$0.00', 'tax saved at the default');
+      expectEqual(await flat(p, 'reco-headline'), 'Nothing more to put in this year.', 'headline');
+      const offer = await flat(p, 'offer');
+      expectTrue(
+        offer.startsWith('Going all the way down the ladder would save S$620.00 by locking away S$21,000: 2.95 cents back per dollar.'),
+        `the offer reads "${offer}"`,
+      );
+      expectEqual(await flat(p, 'offer-caveat'), `All ${CAVEAT}`, 'what the offered plan costs on the way out');
+      expectTrue(
+        await p.evaluate(() => {
+          const caveat = document.querySelector('[data-testid="offer-caveat"]');
+          const button = document.querySelector('[data-testid="offer-every"]');
+          return !!(caveat.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING) && caveat.parentElement === button.parentElement;
+        }),
+        'the cost should be read before the button, in the same block',
+      );
+      // The note lower down points to the same view, so it carries the same sentence.
+      const note = (await p.locator('[data-testid="warnings"] [data-code="BELOW_MIN_SAVING_RATE"] p').innerText()).replace(/\s+/g, ' ');
+      expectTrue(note.endsWith(`to see a plan with these smaller savings. All ${CAVEAT}`), `the note reads "${note}"`);
+      await p.evaluate(() => window.scrollTo(0, 0));
+      await p.screenshot({ path: path.join(SHOTS, 'desktop-foreigner-nothing.png') });
+      // They can still go deeper, and the engine's caution then counts the same dollars.
+      await p.locator('[data-testid="offer-every"]').click();
+      expectEqual(await text(p, 'reco-srs'), 'S$21,000', 'SRS with every tax dollar');
+      expectEqual(await text(p, 'reco-tax-saved'), 'S$620.00', 'tax saved with every tax dollar');
+      expectEqual(await count(p, '[data-testid="offer"]'), 0, 'the offer once it has been taken');
+      const caution = (await p.locator('[data-testid="plan-cautions"] [data-code="SRS_NON_RESIDENT_WITHDRAWAL"] p').innerText()).replace(/\s+/g, ' ');
+      expectTrue(caution.endsWith('S$21,000 of this plan saves less than 7.5 cents per dollar today.'), `the caution reads "${caution}"`);
+      // A whole year on S$5,000 a month: the same, in that plan's own figures.
+      await choose(p, 'depth-default');
+      await p.locator('#monthsWorked').selectOption('12');
+      await setField(p, 'salary', '5000');
+      await setField(p, 'bonus', '0');
+      expectTrue((await flat(p, 'offer')).startsWith('Going all the way down the ladder would save S$1,814.00 by locking away S$35,700: 5.08 cents back per dollar.'), `the offer reads "${await flat(p, 'offer')}"`);
+      expectEqual(await flat(p, 'offer-caveat'), `All ${CAVEAT}`, 'the cost for S$5,000 a month');
+      // A minimum of 15 cents picked on a higher salary, then S$7,000 a month again: nothing clears it, and
+      // going all the way down would bring in S$10,000 at 11.5 cents, which does clear the cost of leaving.
+      // Only the rest is counted.
+      await setField(p, 'salary', '15000');
+      await setField(p, 'bonus', '7000');
+      await choose(p, 'depth-custom');
+      await p.locator('#customRate').selectOption('0.15');
+      await setField(p, 'salary', '7000');
+      expectEqual(
+        await flat(p, 'reco-reason'),
+        'Nothing clears your minimum. Each extra dollar would save 11.5 cents or less in tax, and you asked for at least 15 cents.',
+        'the reason at a 15 cent minimum the person picked',
+      );
+      expectTrue(/by locking away S\$35,700:/.test(await flat(p, 'offer')), `the offer reads "${await flat(p, 'offer')}"`);
+      expectEqual(await flat(p, 'offer-caveat'), `S$25,700 ${CAVEAT}`, 'the cost when part of the offered plan clears it');
+      // A citizen is told nothing of the kind (Appendix A.3).
+      await choose(p, 'depth-default');
+      await choose(p, 'residency-citizen');
+      await enterA3(p);
+      expectTrue((await flat(p, 'offer')).includes('2.53 cents back per dollar'), `a citizen's offer reads "${await flat(p, 'offer')}"`);
+      expectEqual(await count(p, '[data-testid="offer-caveat"]'), 0, 'a cost of leaving for a citizen');
+      const citizenNote = (await p.locator('[data-testid="warnings"] [data-code="BELOW_MIN_SAVING_RATE"] p').innerText()).replace(/\s+/g, ' ');
+      expectTrue(citizenNote.endsWith('to see these smaller savings.'), `a citizen's note reads "${citizenNote}"`);
+      await noJunk(p, 'foreigner with nothing recommended');
+      await own.context.close();
+    });
+
+    await check('a higher saving is credited only to a scheme that would receive money (57, own CPF off, room not entered)', async () => {
+      const own = await newPage(browser, { width: 1280, height: 900, label: 'what-if', fonts: 'block' });
+      const p = own.page;
+      await setField(p, 'age', '57');
+      await p.locator('#useCpfSelf').uncheck();
+      expectEqual(await text(p, 'reco-srs'), 'S$15,300', 'SRS');
+      expectEqual(await count(p, '[data-testid="reco-cpf-self"]'), 0, 'a row for the own CPF that is switched off');
+      const reason = await flat(p, 'reco-reason');
+      // The whole increase is the family top-up: the own CPF would be switched on and get nothing, because
+      // from 55 it is left out until its room is entered. (The card used to credit both.)
+      expectTrue(
+        reason.endsWith('Switching on the CPF cash top-up to family would raise the saving to S$2,679.50, if you have a family member who qualifies.'),
+        `the card reads "${reason}"`,
+      );
+      expectTrue(!/top-up to yourself/.test(reason), `the card credits the own CPF: "${reason}"`);
+      const note = (await p.locator('[data-testid="warnings"] [data-code="LEVER_LIMITS_PLAN"] p').innerText()).replace(/\s+/g, ' ');
+      expectEqual(note, reason, 'the note under "About your numbers"');
+      await recordClipboard(p);
+      const summary = await copiedSummary(p);
+      expectTrue(summary.includes(`Why it stops there: ${reason}`), 'the copied summary should give the same reason');
+      // Doing exactly what the sentence says gives exactly the saving it quotes.
+      await p.locator('#useCpfFamily').check();
+      expectEqual(await text(p, 'reco-tax-saved'), 'S$2,679.50', 'tax saved with the family top-up switched on');
+      expectEqual(await text(p, 'reco-cpf-family'), 'S$8,000', 'the family top-up');
+      // With the room entered the own CPF would receive money, so then it is named.
+      await p.locator('#useCpfFamily').uncheck();
+      await p.locator('#useCpfSelf').check();
+      await setField(p, 'cpfSelfRoom', '8000');
+      await p.locator('#useCpfSelf').uncheck();
+      expectTrue(
+        (await flat(p, 'reco-reason')).includes('Switching on the CPF cash top-up to yourself and the CPF cash top-up to family would raise the saving to S$3,344.80'),
+        `with the room entered the card reads "${await flat(p, 'reco-reason')}"`,
+      );
+      await own.context.close();
+    });
+
+    await check('numbers saved by the previous version still load: the old default preset is the default, and nothing is ticked', async () => {
+      const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1, timezoneId: 'Asia/Singapore', locale: 'en-SG' });
+      await context.clock.setFixedTime(FIXED_NOW);
+      await context.route(FONT_HOSTS, (route) => route.abort());
+      const p = await context.newPage();
+      watch(p, 'old-state');
+      await p.goto(PAGE_URL);
+      await p.waitForSelector('[data-testid="reco-tax-saved"]');
+      // What version 1.0.0 stored: the preset was called 'worth', and there was no tick-box.
+      const previous = {
+        isExample: false, edited: ['salary', 'age'], incomeYear: 2026, residency: 'citizen', prYear: 3, age: 41, birthMonth: 12,
+        payMode: 'monthly', salary: 12000, salaryOther: null, bonus: 15000, monthsWorked: 12, otherIncome: 0, expenses: 0,
+        donations: 0, cpfOverrideOn: false, cpfOverride: null, existingSrs: 0, existingCpfSelf: 0, existingCpfFamily: 0,
+        reliefMode: 'total', reliefTotal: 5000, reliefItems: {}, useSrs: true, useCpfSelf: true, useCpfFamily: false,
+        cpfSelfRoom: null, cpfFamilyMax: null, depth: 'worth', customRate: 0.07, cashLimit: 9000, order: 'flexibility', simulatorStep: 1000,
+      };
+      const load = async (ui) => {
+        await p.evaluate((value) => window.localStorage.setItem('sgto:v1', value), JSON.stringify({ v: 1, theme: 'system', ui }));
+        await p.reload();
+        await p.waitForSelector('[data-testid="reco-tax-saved"]');
+      };
+      await load(previous);
+      expectEqual(await p.locator('#salary').inputValue(), '12,000', 'saved salary');
+      expectEqual(await p.locator('#age').inputValue(), '41', 'saved age');
+      expectEqual(await p.locator('#cashLimit').inputValue(), '9,000', 'saved cash limit');
+      expectTrue(await p.locator('#depth-default').isChecked(), 'the old default preset loads as the default');
+      expectTrue(!(await p.locator('#hasPtr').isChecked()), 'the tick-box that did not exist loads unticked');
+      expectEqual(await text(p, 'reco-locked'), 'S$9,000', 'the saved plan');
+      expectEqual(await flat(p, 'example-left'), "Still using the example's bonus and other reliefs.", 'what was still the example\'s');
+      // A foreigner's saved default becomes the foreigner's default, which no longer recommends the 7% rung.
+      await load({ ...previous, residency: 'foreigner', salary: 7000, bonus: 7000, reliefTotal: 0, cashLimit: null });
+      expectTrue(await p.locator('#depth-default').isChecked(), 'a foreigner\'s old default');
+      expectEqual(await text(p, 'reco-srs'), 'S$10,000', 'a foreigner\'s saved plan at the new default');
+      // Someone of 57 who had left the room blank: their own CPF is now left out until they enter it.
+      await load({ ...previous, age: 57, cashLimit: null });
+      expectEqual(await text(p, 'reco-cpf-self'), 'Left out', 'own CPF for saved numbers at 57');
+      expectEqual(await count(p, '[data-code="CPF_SELF_ROOM_UNCONFIRMED"]'), 1, 'the caution for saved numbers at 57');
+      await context.close();
+    });
+
+    await check('how long the cash is locked: on the card for each scheme in the plan, and sensible past those ages', async () => {
+      const own = await newPage(browser, { width: 1280, height: 900, label: 'horizon', fonts: 'block' });
+      const p = own.page;
+      const lines = async () => (await p.locator('[data-testid="reco-horizon"] li').allInnerTexts()).map((l) => l.replace(/\s+/g, ' ').trim()).join(' ');
+      expectEqual(await lines(), 'SRS: locked until 64, about 29 years. CPF: paid out monthly from 65, about 30 years.', 'for a 35-year-old');
+      expectTrue(await p.evaluate(() => !!document.querySelector('#recommendation [data-testid="reco-horizon"]')), 'the lines should be on the card');
+      // 64 is the age a first contribution made now locks in. The card says so straight under the lines, so
+      // someone with an older SRS account is not told the wrong age, and "Locked until" gives the ages.
+      const NOTE = 'If you have paid into SRS before, your SRS age was set by your first contribution and may be lower than 64.';
+      const note = async () => ((await count(p, '[data-testid="reco-horizon-note"]')) > 0 ? flat(p, 'reco-horizon-note') : '');
+      expectEqual(await note(), NOTE, 'the condition on the SRS age for a 35-year-old');
+      expectTrue(
+        await p.evaluate(() => document.querySelector('[data-testid="reco-horizon-note"]').previousElementSibling === document.querySelector('[data-testid="reco-horizon"]')),
+        'the condition should sit straight under the lock-up lines, on the card',
+      );
+      expectTrue(/64 if that is on or after 1 July 2026, 63 if it was between 1 July 2022 and 30 June 2026, 62 if earlier/.test((await p.locator('tr[data-fact="lockedUntil"] td').first().innerText()).replace(/\s+/g, ' ')), 'the ages are in the "Locked until" fact');
+      await p.locator('#useCpfSelf').uncheck();
+      expectEqual(await lines(), 'SRS: locked until 64, about 29 years.', 'with SRS alone in the plan');
+      await p.locator('#useCpfSelf').check();
+      await p.locator('#useSrs').uncheck();
+      expectEqual(await lines(), 'CPF: paid out monthly from 65, about 30 years.', 'with the CPF top-up alone in the plan');
+      expectEqual(await note(), '', 'the SRS condition with no SRS in the plan');
+      await p.locator('#useSrs').check();
+      await p.locator('#useCpfFamily').check();
+      expectTrue((await lines()).endsWith('Family top-up: You cannot take it back. A top-up cannot be reversed.'), `with a family top-up: "${await lines()}"`);
+      await p.locator('#useCpfFamily').uncheck();
+      await setField(p, 'age', '64');
+      await setField(p, 'cpfSelfRoom', '8000');
+      expectEqual(await lines(), 'SRS: locked until 64, an age you have already reached. CPF: paid out monthly from 65, about 1 year.', 'at 64');
+      expectEqual(await note(), '', 'the SRS condition for someone who has reached the age shown');
+      await setField(p, 'age', '70');
+      expectEqual(await lines(), 'SRS: locked until 64, an age you have already reached. CPF: paid out monthly from 65, an age you have already reached.', 'at 70');
+      // A PR of 57 who has already put S$5,000 into SRS this year: certainly not a first contribution.
+      await resetToExample(p);
+      await choose(p, 'residency-pr');
+      await setField(p, 'age', '57');
+      await setField(p, 'existingSrs', '5000');
+      expectEqual(await lines(), 'SRS: locked until 64, about 7 years.', 'for a PR of 57 with SRS already this year');
+      expectEqual(await note(), NOTE, 'the condition for someone who has contributed before');
+      // A foreigner of 34: the retirement age is not the only way out, and for them not the first. The line
+      // names the 10-year rule that the caution under the card and the "Tax later" fact describe.
+      await resetToExample(p);
+      await enterForeigner(p);
+      await setField(p, 'age', '34');
+      expectEqual(
+        await lines(),
+        'SRS: locked until 64, about 30 years, or until you can use the 10-year rule for foreigners if that comes first.',
+        'for a foreigner of 34',
+      );
+      expectEqual(await note(), NOTE, 'the condition for a foreigner');
+      expectTrue(/under the 10-year rule for foreigners/.test(await flat(p, 'plan-cautions')), 'the caution under the card names the same rule');
+      expectTrue(/after keeping the account for 10 years \(the rule for foreigners\)/.test((await p.locator('tr[data-fact="taxLater"] td').first().innerText()).replace(/\s+/g, ' ')), 'the rule is given in full under "Tax later"');
+      await recordClipboard(p);
+      expectTrue(
+        (await copiedSummary(p)).includes(`How long it is locked: SRS: locked until 64, about 30 years, or until you can use the 10-year rule for foreigners if that comes first. ${NOTE}`),
+        'the foreigner\'s copied summary should carry both conditions',
+      );
+      // A foreigner past the age shown has nothing left to qualify.
+      await setField(p, 'age', '66');
+      expectEqual(await lines(), 'SRS: locked until 64, an age you have already reached.', 'for a foreigner of 66');
+      expectEqual(await note(), '', 'the condition for a foreigner of 66');
+      await resetToExample(p);
+      await setField(p, 'age', '70');
+      await setField(p, 'cpfSelfRoom', '8000');
+      // A S$0 plan locks nothing away, and a closed year is not described as if it were open.
+      await enterA3(p);
+      expectEqual(await count(p, '[data-testid="reco-horizon"]'), 0, 'lock-up lines on a S$0 plan');
+      await resetToExample(p);
+      await p.locator('#incomeYear').selectOption('2025');
+      expectEqual(await count(p, '[data-testid="reco-horizon"]'), 0, 'lock-up lines after the deadline');
+      await p.locator('#incomeYear').selectOption('2026');
+      await recordClipboard(p);
+      expectTrue(
+        (await copiedSummary(p)).includes(`How long it is locked: SRS: locked until 64, about 29 years. CPF: paid out monthly from 65, about 30 years. ${NOTE}`),
+        'the copied summary should say how long the cash is locked, with the condition on the SRS age',
+      );
+      await own.context.close();
+    });
+
+    await check('a CPF amount is always a "cash top-up": headline, card rows, tables, monthly plan and the copied summary', async () => {
+      const own = await newPage(browser, { width: 1280, height: 900, label: 'cash-top-up', fonts: 'block' });
+      const p = own.page;
+      await p.locator('#useCpfFamily').check();
+      const headline = await flat(p, 'reco-headline');
+      expectTrue(
+        headline.startsWith("Put S$15,300 into SRS, S$8,000 into your CPF as a cash top-up and S$8,000 into family members' CPF as a cash top-up."),
+        `headline reads "${headline}"`,
+      );
+      const slip = await p.locator('.slip .row dt').allInnerTexts();
+      expectEqual(slip.slice(0, 3).join(' | '), 'SRS | CPF cash top-up, self | CPF cash top-up, family', 'the card rows');
+      for (const id of ['scenario-table', 'monthly-table']) {
+        const heads = (await p.locator(`[data-testid="${id}"] thead th`).allInnerTexts()).map((h) => h.replace(/\s+/g, ' ').trim());
+        expectTrue(heads.includes('CPF cash top-up, self') && heads.includes('CPF cash top-up, family'), `${id} headings read ${JSON.stringify(heads)}`);
+      }
+      const fullYear = await flat(p, 'full-year');
+      expectTrue(
+        fullYear.includes("S$1,275 into SRS, S$667 into your CPF as a cash top-up and S$667 into family members' CPF as a cash top-up"),
+        `the January line reads "${fullYear}"`,
+      );
+      await recordClipboard(p);
+      const summary = await copiedSummary(p);
+      expectTrue(summary.includes('- CPF cash top-up, self: S$8,000') && summary.includes('- CPF cash top-up, family: S$8,000'), 'the summary rows');
+      expectTrue(summary.includes('(SRS S$7,650; CPF cash top-up, self S$4,000; CPF cash top-up, family S$4,000)'), 'the summary\'s monthly lines');
+      // Nowhere, on the page or in the summary, is an amount put just "into your CPF".
+      const body = await pageText(p);
+      for (const [where, words] of [['the page', body], ['the copied summary', summary]]) {
+        const bare = /into (your|family members') CPF(?! as a cash top-up)/.exec(words);
+        expectTrue(!bare, `${where} says "${bare && words.slice(Math.max(0, bare.index - 30), bare.index + 50)}"`);
+      }
+      // The bar's target is the card, and the announcement a screen reader hears is worded the same way.
+      await p.waitForFunction(() => /into your CPF as a cash top-up/.test(document.querySelector('[data-testid="live"]').textContent), null, { timeout: 4000 });
+      await own.context.close();
+    });
+
+    await check('hints: what counts as bonus, what to include in "Already contributed", and the matched amounts beside the family option', async () => {
+      const own = await newPage(browser, { width: 1280, height: 900, label: 'hints', fonts: 'block' });
+      const p = own.page;
+      const bonus = (await p.locator('#bonus-hint').innerText()).replace(/\s+/g, ' ');
+      expectTrue(/commissions or incentives paid less often than monthly/.test(bonus) && /Those paid every month belong in the salary/.test(bonus), `the bonus hint reads "${bonus}"`);
+      expectEqual(await flat(p, 'existing-hint'), 'Include anything your employer paid into your SRS or topped up to your CPF in cash.', 'the hint under "Already contributed"');
+      expectEqual((await p.locator('#existingCpfFamily-hint').innerText()).trim(), 'Leave out any part the Government matched.', 'the hint on the family amount');
+      await p.locator('#useCpfFamily').check();
+      // The matched amounts are worded once, by the engine: the hint is the checklist's own line, whole, so
+      // the form and the checklist cannot drift apart (it used to be a hand-written near-copy).
+      const checklist = async () => (await p.locator('[data-testid="transfer-cautions"] li').allInnerTexts()).map((c) => c.replace(/\s+/g, ' ').trim());
+      const family = await flat(p, 'family-hint');
+      expectEqual(
+        family,
+        'For a family top-up, check that the family member qualifies and count only what the Government does not match: the first S$2,000 a year topped up for a member on the Matched Retirement Savings Scheme, and the first S$1,000 a year to MediSave for a member on the Matched MediSave Scheme earns you no relief. A top-up cannot be reversed.',
+        'the family hint for 2026',
+      );
+      expectTrue((await checklist()).includes(family), 'the family hint should be one of the lines under "Check before you move money"');
+      expectEqual(await p.locator('#cpfFamilyMax').getAttribute('aria-describedby'), 'cpfFamilyMax-hint', 'the hint is tied to its field');
+      // Income year 2025: the Matched MediSave Scheme had not started, so no MediSave figure is given.
+      await p.locator('#incomeYear').selectOption('2025');
+      const family2025 = await flat(p, 'family-hint');
+      expectTrue(
+        /count only what the Government does not match: the first S\$2,000 a year topped up for a member on the Matched Retirement Savings Scheme earns you no relief\./.test(family2025) && !/MediSave/.test(family2025),
+        `the family hint for 2025 reads "${family2025}"`,
+      );
+      expectTrue((await checklist()).includes(family2025), 'the 2025 family hint should be the checklist\'s line for 2025');
+      const caution2025 = (await p.locator('[data-testid="plan-cautions"] [data-code="FAMILY_TOPUP_CHECKS"] p').innerText()).replace(/\s+/g, ' ');
+      expectTrue(/Matched Retirement Savings Scheme\. The amounts here/.test(caution2025) && !/MediSave/.test(caution2025), `the family caution for 2025 reads "${caution2025}"`);
+      const noRelief2025 = (await p.locator('tr[data-fact="noRelief"] td').nth(2).innerText()).replace(/\s+/g, ' ');
+      expectTrue(/Matched Retirement Savings Scheme\.$/.test(noRelief2025) && !/MediSave/.test(noRelief2025), `"No relief for" in 2025 reads "${noRelief2025}"`);
+      await noJunk(p, 'income year 2025 with a family top-up');
+      // A foreigner is not told about CPF in the "Already contributed" hint.
+      await p.locator('#incomeYear').selectOption('2026');
+      await choose(p, 'residency-foreigner');
+      expectEqual(await flat(p, 'existing-hint'), 'Include anything your employer paid into your SRS.', 'the hint for a foreigner');
+      await own.context.close();
+    });
+
+    await check('cash limit: asked near the top as "How much cash can you spare this year?", and the plan stays within it', async () => {
+      const own = await newPage(browser, { width: 1280, height: 900, label: 'cash', fonts: 'block' });
+      const p = own.page;
+      expectEqual((await p.locator('label[for="cashLimit"]').innerText()).trim(), 'How much cash can you spare this year? (optional)', 'the question');
+      expectEqual(await p.locator('#cashLimit').inputValue(), '', 'no limit on opening');
+      // Straight after the pay, before everything else the form asks.
+      for (const later of ['existingSrs', 'reliefTotal', 'useSrs', 'depth-default', 'order-flexibility']) {
+        expectTrue(await comesBefore(p, 'cashLimit', later), `the cash question should come before #${later}`);
+      }
+      expectTrue(await comesBefore(p, 'bonus', 'cashLimit'), 'the cash question should follow the pay');
+      const groups = await p.locator('#inputs .group-title').allInnerTexts();
+      expectEqual(groups.map((g) => g.trim()).slice(0, 3).join(' | '), 'About you | Income | Cash to spare', 'the first three groups of the form');
+      expectEqual(await count(p, '#inputs input[id="cashLimit"]'), 1, 'cash limit fields');
+      await enterModest(p);
+      expectEqual(await text(p, 'reco-locked'), 'S$17,240', 'the modest earner with no limit');
+      await setField(p, 'cashLimit', '5000');
+      expectEqual(await flat(p, 'reco-headline'), 'Put S$5,000 into SRS. You save S$350.00 in tax.', 'the modest earner with S$5,000 to spare');
+      await own.context.close();
+      // On a phone the answer to it is on the short card, so it can be seen without opening the form.
+      const phone = await newPage(browser, { width: 390, height: 844, label: 'cash-phone', touch: true, fonts: 'block' });
+      await phone.page.locator('[data-testid="toggle-inputs"]').click();
+      await setField(phone.page, 'cashLimit', '5000');
+      await phone.page.locator('[data-testid="toggle-inputs"]').click();
+      expectTrue(/Cash to spare: S\$5,000/.test(await flat(phone.page, 'inputs-summary')), `the short card reads "${await flat(phone.page, 'inputs-summary')}"`);
+      await phone.context.close();
+    });
+
+    await check('monthly plan: says when an instalment is more than the monthly salary and points to the cash limit; cut-offs only for schemes in the plan', async () => {
+      const own = await newPage(browser, { width: 1280, height: 900, label: 'monthly', fonts: 'block' });
+      const p = own.page;
+      // The opening example: two cut-off lines, one per scheme in the plan, in the shared wording.
+      const cutOffs = async () => (await p.locator('[data-testid="monthly-deadlines"] li').allInnerTexts()).map((l) => l.replace(/\s+/g, ' ').trim());
+      expectEqual((await cutOffs()).length, 2, 'cut-off lines for the example');
+      expectTrue(/^SRS: 31 December, or your bank's earlier cut-off\./.test((await cutOffs())[0]), `the first reads "${(await cutOffs())[0]}"`);
+      expectTrue(/^CPF cash top-up: The money must reach the CPF Board by 31 December\./.test((await cutOffs())[1]), `the second reads "${(await cutOffs())[1]}"`);
+      await enterModest(p);
+      const note = await flat(p, 'monthly-affordability');
+      expectTrue(
+        note.includes('S$8,620 a month is more than your monthly salary. It would have to come from your bonus or savings.'),
+        `the note reads "${note}"`,
+      );
+      await p.locator('[data-testid="monthly-cash-limit"]').click();
+      await p.waitForFunction(() => document.activeElement && document.activeElement.id === 'cashLimit', null, { timeout: 3000 });
+      // Within what they can spare, the instalments are below the salary and the note goes.
+      await setField(p, 'cashLimit', '5000');
+      expectEqual(await count(p, '[data-testid="monthly-affordability"]'), 0, 'the note once the instalments fit the salary');
+      expectEqual((await cutOffs()).length, 1, 'cut-off lines for an SRS-only plan');
+      expectTrue(!/CPF/.test((await cutOffs()).join(' ')), `an SRS-only plan is told "${(await cutOffs()).join(' ')}"`);
+      // No salary entered: nothing to compare with.
+      await setField(p, 'cashLimit', '');
+      await setField(p, 'salary', '0');
+      await setField(p, 'bonus', '120000');
+      expectTrue((await count(p, '[data-testid="monthly-table"] tbody tr')) > 0, 'a plan with only a bonus still has a schedule');
+      expectEqual(await count(p, '[data-testid="monthly-affordability"]'), 0, 'the note with no salary entered');
+      // A CPF-only plan hears about the CPF Board and not about banks.
+      await resetToExample(p);
+      await p.locator('#useSrs').uncheck();
+      expectEqual((await cutOffs()).length, 1, 'cut-off lines for a CPF-only plan');
+      expectTrue(/^CPF cash top-up:/.test((await cutOffs())[0]) && !/bank/i.test((await cutOffs())[0]), `a CPF-only plan is told "${(await cutOffs())[0]}"`);
+      // A S$0 plan has no cut-off to meet.
+      await resetToExample(p);
+      await enterA3(p);
+      expectEqual(await count(p, '[data-testid="monthly-deadlines"]'), 0, 'cut-off lines under a S$0 plan');
+      expectEqual(await count(p, '[data-testid="monthly-affordability"]'), 0, 'the note under a S$0 plan');
+      await own.context.close();
+    });
+
+    await check('"New to this?": under the card, three or four short lines, open on a wide screen and folded on a phone', async () => {
+      const own = await newPage(browser, { width: 1280, height: 900, label: 'new-to-this', fonts: 'block' });
+      const p = own.page;
+      const block = p.locator('[data-testid="new-to-this"]');
+      expectEqual((await block.locator('summary').innerText()).trim(), 'New to this?', 'the heading');
+      expectTrue(await block.evaluate((el) => el.open), 'open on a wide screen');
+      expectTrue(await p.evaluate(() => document.querySelector('[data-testid="new-to-this"]').previousElementSibling.id === 'recommendation'), 'straight under the card when there is no caution');
+      const lines = (await block.locator('li').allInnerTexts()).map((l) => l.replace(/\s+/g, ' ').trim());
+      expectTrue(lines.length >= 3 && lines.length <= 4, `${lines.length} lines`);
+      expectTrue(/^SRS: .*voluntary retirement account at DBS, OCBC or UOB\. You must open it before your first contribution\.$/.test(lines[0]), `the SRS line reads "${lines[0]}"`);
+      expectTrue(/^CPF cash top-up: .*Special or Retirement Account, or MediSave.*It is not a "contribution to my three CPF accounts"\.$/.test(lines[1]), `the CPF line reads "${lines[1]}"`);
+      expectTrue(/The bank and the CPF Board report both to IRAS for you\.$/.test(lines[2]), `the last line reads "${lines[2]}"`);
+      expectTrue(lines.every((l) => l.length <= 240), 'the lines should be short');
+      // It can be folded away, and stays folded while the numbers change.
+      await block.locator('summary').click();
+      await setField(p, 'salary', '9000');
+      expectTrue(!(await block.evaluate((el) => el.open)), 'stays folded once folded');
+      await own.context.close();
+      const phone = await newPage(browser, { width: 390, height: 844, label: 'new-to-this-phone', touch: true, fonts: 'block' });
+      const folded = phone.page.locator('[data-testid="new-to-this"]');
+      expectTrue(!(await folded.evaluate((el) => el.open)), 'folded on a phone');
+      expectTrue((await folded.evaluate((el) => el.getBoundingClientRect().height)) <= 48, 'one line tall on a phone');
+      await folded.locator('summary').tap();
+      expectTrue(await folded.locator('li').first().isVisible(), 'opens on a tap');
+      const o = await overflow(phone.page);
+      expectTrue(o.scrollWidth <= o.innerWidth, `scrollWidth ${o.scrollWidth} > innerWidth ${o.innerWidth}`);
+      await phone.context.close();
+    });
+
+    await check('Itemise on the untouched example: the helper opens empty, the example\'s S$5,000 stays counted and stays labelled', async () => {
+      const own = await newPage(browser, { width: 1280, height: 900, label: 'itemise', fonts: 'block' });
+      const p = own.page;
+      // The whole page is still the example: switching the view does not make its numbers somebody's own.
+      await choose(p, 'reliefMode-itemised');
+      expectEqual(await p.locator('#relief-other').inputValue(), '0', '"Any other relief" on the untouched example');
+      expectEqual(await text(p, 'relief-total'), 'S$5,000', 'the total still counted');
+      expectTrue(/the example's S\$5,000 is still counted/.test(await flat(p, 'relief-example-note')), `the note reads "${await flat(p, 'relief-example-note')}"`);
+      await expectExample(p, 'after switching to Itemise');
+      expectEqual(await count(p, '[data-testid="example-flag-plan"]'), 1, 'still labelled as the example');
+      await choose(p, 'reliefMode-total');
+      expectEqual(await p.locator('#reliefTotal').inputValue(), '5,000', 'the total after switching back');
+      expectEqual(await count(p, '[data-testid="example-flag-plan"]'), 1, 'still the example after switching back');
+      // The critic's case: 29, S$5,200 a month, S$10,400 bonus, other reliefs never touched.
+      await setField(p, 'age', '29');
+      await setField(p, 'salary', '5200');
+      await setField(p, 'bonus', '10400');
+      expectEqual(await flat(p, 'example-left'), "Still using the example's other reliefs.", 'before tapping Itemise');
+      expectEqual(await text(p, 'reliefTotal-flag'), 'Example value', 'the tag before tapping Itemise');
+      const before = await flat(p, 'reco-headline');
+      expectEqual(before, 'Put S$12,240 into SRS. You save S$856.80 in tax.', 'the plan with the example\'s S$5,000');
+      await choose(p, 'reliefMode-itemised');
+      expectEqual(await flat(p, 'example-left'), "Still using the example's other reliefs.", 'the panel note after tapping Itemise');
+      expectEqual(await text(p, 'relief-total-flag'), 'Example value', 'the tag on the helper\'s total');
+      expectEqual(await p.locator('#relief-other').inputValue(), '0', 'the example total must not be carried into the helper');
+      expectEqual(await flat(p, 'reco-headline'), before, 'the plan after tapping Itemise');
+      await p.screenshot({ path: path.join(SHOTS, 'desktop-itemise-example.png') });
+      // Entering a relief replaces the example's figure with the person's own list.
+      await p.locator('#relief-spouse').check();
+      expectEqual(await text(p, 'relief-total'), 'S$2,000', 'the total once a relief is entered');
+      expectEqual(await count(p, '[data-testid="example-left"]'), 0, 'the panel note once a relief is entered');
+      expectEqual(await count(p, '[data-testid="relief-example-note"]'), 0, 'the helper note once a relief is entered');
+      expectEqual(await count(p, '[data-testid="relief-total-flag"]'), 0, 'the tag once a relief is entered');
+      // Someone with none of them says so with one press, and gets the S$0 plan the critic expected.
+      await p.locator('[data-testid="reset"]').click();
+      await setField(p, 'age', '29');
+      await setField(p, 'salary', '5200');
+      await setField(p, 'bonus', '10400');
+      await choose(p, 'reliefMode-itemised');
+      await p.locator('[data-testid="relief-none"]').click();
+      expectEqual(await text(p, 'relief-total'), 'S$0', 'the total after "I have none of these"');
+      expectEqual(await flat(p, 'reco-headline'), 'Put S$15,300 into SRS and S$1,940 into your CPF as a cash top-up. You save S$1,206.80 in tax.', 'the plan with no other reliefs');
+      expectEqual(await count(p, '[data-testid="example-left"]'), 0, 'the panel note after "I have none of these"');
+      await own.context.close();
+    });
+
+    await check('polish: "the default minimum" until the person chooses one; a simulator row at the plan\'s own total', async () => {
+      const own = await newPage(browser, { width: 1280, height: 900, label: 'polish', fonts: 'block' });
+      const p = own.page;
+      await enterA3(p);
+      expectEqual(
+        await flat(p, 'reco-reason'),
+        'Nothing clears the minimum. Each extra dollar would save 3.5 cents or less in tax, and the default minimum is 7 cents.',
+        'a S$0 plan at a minimum the person never chose',
+      );
+      const note = (await p.locator('[data-testid="warnings"] [data-code="BELOW_MIN_SAVING_RATE"] p').innerText()).replace(/\s+/g, ' ');
+      expectTrue(/below the default minimum of 7 cents/.test(note) && !/you set|you asked/.test(note), `the note reads "${note}"`);
+      // Having used the control and come back to the default preset, it is still the default: nobody is told
+      // they "asked for" the figure of a preset. (The page used to say "you asked for" from the first touch.)
+      await choose(p, 'depth-every');
+      await choose(p, 'depth-default');
+      expectEqual(
+        await flat(p, 'reco-reason'),
+        'Nothing clears the minimum. Each extra dollar would save 3.5 cents or less in tax, and the default minimum is 7 cents.',
+        'the same plan with the default preset selected again',
+      );
+      const noteAgain = (await p.locator('[data-testid="warnings"] [data-code="BELOW_MIN_SAVING_RATE"] p').innerText()).replace(/\s+/g, ' ');
+      expectTrue(/below the default minimum of 7 cents/.test(noteAgain) && !/you set|you asked/.test(noteAgain), `the note reads "${noteAgain}"`);
+      // A minimum they choose themselves is theirs, at the same figure.
+      await choose(p, 'depth-custom');
+      expectEqual(await p.locator('#customRate').inputValue(), '0.07', 'the custom minimum');
+      expectEqual(
+        await flat(p, 'reco-reason'),
+        'Nothing clears your minimum. Each extra dollar would save 3.5 cents or less in tax, and you asked for at least 7 cents.',
+        'the same plan at a minimum the person chose',
+      );
+      const noteOwn = (await p.locator('[data-testid="warnings"] [data-code="BELOW_MIN_SAVING_RATE"] p').innerText()).replace(/\s+/g, ' ');
+      expectTrue(/below the 7 cents minimum you set/.test(noteOwn), `the note for a chosen minimum reads "${noteOwn}"`);
+      // The default that moved with the residency is the default too.
+      await choose(p, 'depth-default');
+      await choose(p, 'residency-foreigner');
+      await setField(p, 'salary', '5000');
+      await setField(p, 'bonus', '0');
+      expectEqual(
+        await flat(p, 'reco-reason'),
+        'Nothing clears the minimum. Each extra dollar would save 7 cents or less in tax, and the default minimum is 11.5 cents.',
+        'a foreigner back on the default preset after using the control',
+      );
+      // The modest earner's plan is S$17,240: in S$1,000 steps no row lands on it, so one is added.
+      await p.locator('[data-testid="reset"]').click();
+      await enterModest(p);
+      expectEqual(
+        await flat(p, 'reco-reason'),
+        'Beyond this, each extra dollar would save 3.5 cents or less, below the default minimum of 7 cents.',
+        'where a plan stops at a minimum the person never chose',
+      );
+      await p.locator('#simulator').evaluate((el) => (el.open = true));
+      const row = p.locator('[data-testid="simulator-table"] tr[data-plan-total]');
+      expectEqual(await row.count(), 1, 'rows at the plan\'s own total');
+      const cells = (await row.locator('th, td').allInnerTexts()).map((c) => c.replace(/\s+/g, ' ').trim());
+      expectTrue(/^S\$17,240/.test(cells[0]) && /Your plan's total/.test(cells[0]), `the row is headed "${cells[0]}"`);
+      expectEqual(cells.slice(1, 5).join(' | '), 'S$16.80 | 7 | S$1,206.80 | S$550.00', 'the step that ends on the plan total');
+      expectEqual(cells.slice(5).join(' | '), 'S$15,300 | S$1,940', 'its split is the plan\'s own');
+      expectEqual(await row.evaluate((tr) => tr.parentElement.getAttribute('data-group')), 'plan', 'the row sits in "In your plan"');
+      const next = (await p.locator('[data-testid="simulator-table"] tbody[data-group="beyond"] tr[data-step]').first().locator('th, td').allInnerTexts()).map((c) => c.replace(/\s+/g, ' ').trim());
+      expectEqual(next.slice(0, 3).join(' | '), 'S$18,000 | S$26.60 | 3.5', 'the first step beyond the plan shows its own rate');
+      expectEqual(await count(p, '[data-testid="simulator-table"] tbody tr[data-step]'), 26, 'rows: the engine\'s 25 and the one at the plan total');
+      // A step that does land on it adds nothing: S$23,300 is already the example's last row.
+      await p.locator('[data-testid="reset"]').click();
+      expectEqual(await count(p, '[data-testid="simulator-table"] tbody tr[data-step]'), 25, 'rows for the example');
+      expectEqual(await count(p, '[data-testid="simulator-table"] tr[data-plan-total]'), 1, 'the example\'s last row is marked as the plan total');
+      await own.context.close();
+    });
+
+    await check('version in the footer, and no link to a shop in a build that was given no shop address', async () => {
+      const own = await newPage(browser, { width: 1280, height: 900, label: 'footer', fonts: 'block' });
+      const p = own.page;
+      expectEqual(await text(p, 'version'), `version ${VERSION}`, 'the version in the footer');
+      expectTrue(await p.evaluate(() => !!document.querySelector('footer [data-testid="version"]')), 'the version should be in a footer element');
+      expectEqual(await count(p, '[data-testid="shop-link"], [data-testid="shop-link-foot"], .shop'), 0, 'shop links without a shop address');
+      expectTrue(!/Get the Excel/.test(await pageText(p)), 'the link text is showing without a shop address');
+      expectEqual(await count(p, 'a[href=""], a:not([href])'), 0, 'links that go nowhere');
+      await own.context.close();
+    });
+
+    await check('built with a shop address (VITE_BUY_URL): one link to the workbook under the card and one in the footer', async () => {
+      const shopDir = path.join(ROOT, '.tmp', 'e2e-shop');
+      const address = 'https://example.com/sg-tax-workbook?from=calculator';
+      fs.rmSync(shopDir, { recursive: true, force: true });
+      execFileSync(process.execPath, [path.join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js'), 'build', '--outDir', shopDir, '--emptyOutDir', '--logLevel', 'error'], {
+        cwd: ROOT,
+        env: { ...process.env, VITE_BUY_URL: address },
+        stdio: 'pipe',
+      });
+      const built = fs.readFileSync(path.join(shopDir, 'index.html'), 'utf8');
+      expectTrue(!/\bfetch\s*\(|XMLHttpRequest|sendBeacon|WebSocket|EventSource|\beval\s*\(/.test(built), 'the build with a shop link contains a network API');
+      const shop = await newPage(browser, { width: 1280, height: 900, label: 'shop', fonts: 'block', url: pathToFileURL(path.join(shopDir, 'index.html')).href });
+      const p = shop.page;
+      await expectExample(p, 'the build with a shop address');
+      for (const id of ['shop-link', 'shop-link-foot']) {
+        const link = p.locator(`[data-testid="${id}"] a`);
+        expectEqual(await link.count(), 1, `${id}: links`);
+        expectEqual((await link.innerText()).trim(), 'Get the Excel / Google Sheets workbook', `${id}: text`);
+        expectEqual(await link.getAttribute('href'), address, `${id}: address`);
+        expectEqual(await link.getAttribute('target'), '_blank', `${id}: target`);
+        expectEqual(await link.getAttribute('rel'), 'noopener', `${id}: rel`);
+      }
+      expectEqual(await count(p, `a[href="${address}"]`), 2, 'links to the shop on the page');
+      expectTrue(await p.evaluate(() => !!document.querySelector('.answer [data-testid="shop-link"]') && !!document.querySelector('footer [data-testid="shop-link-foot"]')), 'one under the card and one in the footer');
+      const o = await overflow(p);
+      expectTrue(o.scrollWidth <= o.innerWidth, `scrollWidth ${o.scrollWidth} > innerWidth ${o.innerWidth}`);
+      await p.screenshot({ path: path.join(SHOTS, 'desktop-shop-link.png') });
+      await shop.context.close();
+      // The page itself still asks for nothing: opening it made no request beyond the fonts stylesheet.
+    });
+
+    // Screenshots to look at: the 57-year-old with the room blank, the foreigner, and the foreigner for whom
+    // nothing is recommended (five months of work), wide and narrow, light and dark.
+    for (const [name, setup] of [
+      ['57-blank', async (p) => setField(p, 'age', '57')],
+      ['foreigner', async (p) => enterForeigner(p)],
+      [
+        'foreigner-nothing',
+        async (p) => {
+          await enterForeigner(p);
+          await p.locator('#monthsWorked').selectOption('5');
+        },
+      ],
+    ]) {
+      for (const [width, height] of [[1280, 900], [390, 844]]) {
+        for (const scheme of ['light', 'dark']) {
+          await check(`${name} at ${width}px, ${scheme}: the answer is on the first screen, nothing overflows, nothing is clipped`, async () => {
+            const view = await newPage(browser, { width, height, colorScheme: scheme, label: `${name}-${width}-${scheme}`, touch: width < 960 });
+            const p = view.page;
+            if (width < 960) await p.locator('[data-testid="toggle-inputs"]').click();
+            await setup(p);
+            if (width < 960) await p.locator('[data-testid="toggle-inputs"]').click();
+            await p.evaluate(() => window.scrollTo(0, 0));
+            await p.waitForTimeout(150);
+            const hero = await p.locator('[data-testid="reco-tax-saved"]').boundingBox();
+            expectTrue(hero && hero.y >= 0 && hero.y + hero.height <= height, 'the tax-saved figure is not on the first screen');
+            const o = await overflow(p);
+            expectTrue(o.scrollWidth <= o.innerWidth, `scrollWidth ${o.scrollWidth} > innerWidth ${o.innerWidth}`);
+            // No line of the card or of the cautions runs past its box.
+            const clipped = await p.evaluate(() =>
+              Array.from(document.querySelectorAll('.answer p, .answer li, .answer dt, .answer dd, .answer h2, .answer h3, .answer summary, .answer button'))
+                .filter((el) => el.getClientRects().length > 0 && el.scrollWidth > el.clientWidth + 1)
+                .map((el) => el.textContent.trim().slice(0, 40)),
+            );
+            expectEqual(clipped.join(' | '), '', 'text wider than its box');
+            await p.screenshot({ path: path.join(SHOTS, `${name}-${width}-${scheme}-fold.png`) });
+            await p.screenshot({ path: path.join(SHOTS, `${name}-${width}-${scheme}.png`), fullPage: true });
+            await view.context.close();
+          });
+        }
+      }
+    }
 
     // ------------------------------------------------------------------ desktop, dark
     const desktopDark = await newPage(browser, { width: 1280, height: 900, colorScheme: 'dark', label: 'desktop-dark' });
@@ -1145,7 +2245,7 @@ async function main() {
         expectEqual(
           await stackedBlock(p, '[data-scenario="recommended"]'),
           'Tax saved S$2,679.50 | Cash locked away S$23,300 | Saved per dollar (cents) 11.5 | Wasted dollars None | ' +
-            'SRS S$15,300 | CPF top-up, self S$8,000 | Tax S$3,959.50',
+            'SRS S$15,300 | CPF cash top-up, self S$8,000 | Tax S$3,959.50',
           'the plan block of the comparison',
         );
         // A scheme an option puts nothing into is left out of its block.

@@ -93,8 +93,9 @@ function belowMinSavingRate(ctx: EngineContext, optimisation: Optimisation): Pla
     code: 'BELOW_MIN_SAVING_RATE',
     severity: 'info',
     message:
-      `Every extra dollar you contribute would save at most ${formatPercent(marginalRate)} in tax, below the ` +
-      `${formatPercent(minSavingRate)} minimum you set, so nothing is recommended. Lower the minimum to see ` +
+      // "your minimum", not "the minimum you set": it may be a default the person never chose.
+      `Every extra dollar you contribute would save at most ${formatPercent(marginalRate)} in tax, below your ` +
+      `${formatPercent(minSavingRate)} minimum, so nothing is recommended. Lower the minimum to see ` +
       'these smaller savings.',
     params: { marginalRate, minSavingRate },
   };

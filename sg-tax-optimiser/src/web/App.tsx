@@ -9,6 +9,7 @@ import {
   Compare,
   MonthlyPlanView,
   Notice,
+  PageFoot,
   Section,
   Simulator,
   Sources,
@@ -22,16 +23,19 @@ import type { ThemeChoice, UiState } from './state';
 import {
   applyEdit,
   computePlan,
+  deeperPlan,
   exampleLeft,
   exampleState,
   followCalendar,
+  minimumIsDefault,
   openIncomeYear,
   parseSaved,
   serialiseSaved,
   whatIf,
 } from './state';
-import { applyTheme, goTo, readStored, writeStored } from './storage';
-import { deadlinePassed, exampleLeftText, inputsSummary } from './text';
+import { applyTheme, goTo, goToField, readStored, writeStored } from './storage';
+import { compareLeftOut, cpfOpen, deadlinePassed, exampleLeftText, inputsSummary, leavingCaveat, nothingText } from './text';
+import type { ReasonOptions } from './text';
 
 /** Section links under the plan. The simulator's link carries its own heading, which names the step. */
 const JUMPS: { id: string; label: string }[] = [
@@ -91,6 +95,8 @@ export function App(): JSX.Element {
   // What one change of setting would save, from the engine (lift the cash limit, switch on a scheme). Once the
   // deadline has passed there is nothing left to change for that year, so no change is suggested.
   const hint = useMemo(() => (result && !past ? whatIf(ui, today, result) : null), [ui, today, result, past]);
+  // When nothing is recommended: what going all the way down the ladder would do, again from the engine.
+  const deeper = useMemo(() => (result ? deeperPlan(ui, today, result) : null), [ui, today, result]);
 
   // Layout effects, so the theme is in place before the first paint and a reload never outruns a save.
   useLayoutEffect(() => applyTheme(theme), [theme]);
@@ -115,7 +121,19 @@ export function App(): JSX.Element {
     focusNext('reset');
   };
 
-  const spoken = useDebounced(result ? announcement(result, hint) : '', 900);
+  // While the default preset is selected, the page calls the minimum the default, not the person's own. A
+  // foreigner who is shown the way to the Every tax dollar view is told what it costs on the way out.
+  const reasonOptions: ReasonOptions = {
+    defaultMinimum: minimumIsDefault(ui),
+    deeperCaveat: deeper ? leavingCaveat(deeper) : '',
+  };
+  const spoken = useDebounced(result ? announcement(result, hint, reasonOptions) : '', 900);
+
+  // Go to one input from the results: on a phone the form is folded away, so it is opened first.
+  const toField = (id: string): void => {
+    setInputsOpen(true);
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => goToField(id)));
+  };
 
   if (!result) {
     return (
@@ -262,7 +280,7 @@ export function App(): JSX.Element {
                     would have saved <b data-testid="bar-saved">{cents(p.taxSaved)}</b>
                   </>
                 ) : nothing ? (
-                  <b data-testid="bar-nothing">Nothing more to put in this year</b>
+                  <b data-testid="bar-nothing">{nothingText(result)}</b>
                 ) : (
                   // Two halves that each stay whole, so a narrow bar breaks between them.
                   <>
@@ -328,9 +346,13 @@ export function App(): JSX.Element {
           ui={ui}
           today={today}
           hint={hint}
+          deeper={deeper}
+          options={reasonOptions}
           openYear={openYear}
           onEveryDollar={() => update({ depth: 'every' })}
           onYear={(incomeYear) => update({ incomeYear })}
+          onField={toField}
+          wide={wide}
           heroRef={heroRef}
         />
 
@@ -358,13 +380,21 @@ export function App(): JSX.Element {
         <Section
           id="compare"
           title="Compare options"
-          lede="Ready-made choices on the same numbers. They ignore your cash limit and your minimum saving, and they use SRS and the CPF top-up to yourself even if you switched them off, so you can see what each scheme does at its limit. Wasted dollars are locked away without saving any tax."
+          lede={
+            'Ready-made choices on the same numbers. They ignore your cash limit and your minimum saving, and ' +
+            (cpfOpen(result)
+              ? 'they use SRS and the CPF cash top-up to yourself even if you switched them off, so you can see what each scheme does at its limit.'
+              : 'they use SRS even if you switched it off, so you can see what it does at its limit.') +
+            // From 55 with the figure not entered, nothing is assumed about their own CPF here either.
+            compareLeftOut(result) +
+            ' Wasted dollars are locked away without saving any tax.'
+          }
         >
           <Compare result={result} />
         </Section>
 
         <Section id="monthly" title="Monthly plan">
-          <MonthlyPlanView result={result} />
+          <MonthlyPlanView result={result} onField={toField} />
         </Section>
 
         <Simulator result={result} step={ui.simulatorStep} onStep={(simulatorStep) => update({ simulatorStep })} />
@@ -378,12 +408,14 @@ export function App(): JSX.Element {
         </Section>
 
         <Section id="before" title="Before you transfer">
-          <BeforeYouTransfer result={result} hint={hint} />
+          <BeforeYouTransfer result={result} hint={hint} options={reasonOptions} />
         </Section>
 
         <Section id="sources" title="Sources and assumptions">
           <Sources result={result} />
         </Section>
+
+        <PageFoot />
       </main>
     </div>
   );

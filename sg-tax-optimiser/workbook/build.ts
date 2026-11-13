@@ -9,39 +9,69 @@
  * named cells (the same names are defined in the workbook as `in_*` / `out_*` / `rule_*`) and the chart that
  * `workbookBuffer` / `writeWorkbook` add to the written file. See `workbook/README.md` for the checks to make by
  * hand in Excel and Google Sheets before a release.
+ *
+ * The written file is reproducible: its parts carry a fixed date, so an unchanged build on the same day is the
+ * same file byte for byte. (The results stored in it are worked out "as at" the day of the build; every
+ * spreadsheet application works them out again when the file is opened.) To reproduce a file on a later day, give
+ * the build the day its results were worked out for: `SGTO_AS_AT=2026-11-13 npm run build:workbook`.
  */
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ExcelJS from 'exceljs';
 import { SUPPORTED_INCOME_YEARS, getRules } from '../src/engine/rules/index';
 import type { YearRules } from '../src/engine/types';
-import { addCharts } from './chart';
+import { addCharts, withFixedDates } from './chart';
 import type { ChartSpec } from './chart';
 import { Book, SHEETS, softProtect } from './kit';
 import type { CellLocation } from './kit';
 import { findSoffice, recalculate } from './recalc';
-import { buildLadder } from './sheets/ladder';
+import { CHART_STEPS, buildLadder } from './sheets/ladder';
 import { buildMonthly } from './sheets/monthly';
-import { WARNING_LINES, buildPlanner } from './sheets/planner';
+import { WARNING_LINES, WARNING_LINE_ROWS, buildPlanner } from './sheets/planner';
 import { buildRules } from './sheets/rules';
 import { buildScenarios } from './sheets/scenarios';
 import { buildSimulator } from './sheets/simulator';
 import { buildStart } from './sheets/start';
+import { buildTransfer } from './sheets/transfer';
 import { buildWorking } from './sheets/working';
 
 export { SHEETS } from './kit';
 export type { CellLocation } from './kit';
-export { addCharts, chartXml } from './chart';
+export { addCharts, chartXml, withFixedDates } from './chart';
 export type { ChartSpec } from './chart';
-export { EXAMPLE, WARNING_LINES } from './sheets/planner';
-export { MONTH_LABELS, NO, PRIORITY_PRESETS, PR_YEAR_LABELS, RESIDENCY_LABELS, YES, bracketCapacity } from './sheets/rules';
-export { SCENARIO_IDS } from './sheets/scenarios';
+export { CHART_LABEL_EVERY, CHART_STEPS, NO_LADDER, ZERO_REASON_NUMBERS } from './sheets/ladder';
+export {
+  DEFAULT_MIN_RATE,
+  EXAMPLE,
+  HORIZON_CHARS,
+  HORIZON_ROWS,
+  HORIZON_ROW_HEIGHT,
+  WARNING_LINES,
+  WARNING_LINE_CHARS,
+  WARNING_LINE_ROWS,
+  WARNING_ROW_HEIGHT,
+} from './sheets/planner';
+export {
+  LEVER_NAMES,
+  MONTH_LABELS,
+  NO,
+  PRIORITY_PRESETS,
+  PR_YEAR_LABELS,
+  RESIDENCY_LABELS,
+  SALARY_PERIODS,
+  YES,
+  bracketCapacity,
+} from './sheets/rules';
+export { SCENARIO_IDS, SCENARIO_NAMES } from './sheets/scenarios';
 export { simulatorSteps } from './sheets/simulator';
-export { WARNING_CODES, WORKBOOK_CHECKS } from './sheets/working';
+export { BINDING_NUMBERS, CPF_SOURCE_WORDS, WARNING_CODES, WORKBOOK_CHECKS, messageRoom } from './sheets/working';
 export { findSoffice, recalculate, recalculateParallel } from './recalc';
 
-export const WORKBOOK_VERSION = '1.1';
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
+/** The version shown on the Start sheet: the one in package.json, the single place a version is kept. */
+export const WORKBOOK_VERSION: string = (JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as { version: string }).version;
 
 /** Income year the release workbook is built for when no `--year` is given (SPEC: 2026, YA2027). */
 export const DEFAULT_INCOME_YEAR = 2026;
@@ -52,7 +82,8 @@ export const INPUT_NAMES = [
   'in_prYear',
   'in_age',
   'in_birthMonth',
-  'in_monthlyWage',
+  'in_salary',
+  'in_salaryPeriod',
   'in_monthsWorked',
   'in_additionalWages',
   'in_otherIncome',
@@ -63,6 +94,7 @@ export const INPUT_NAMES = [
   'in_existingCpfSelf',
   'in_existingCpfFamily',
   'in_otherReliefs',
+  'in_unusedPtr',
   'in_useSrs',
   'in_useCpfSelf',
   'in_cpfSelfRoom',
@@ -88,7 +120,16 @@ const RULE_NAMES = {
   rule_bracketCheck: 'r_bracketCheck',
   rule_rebateRate: 'r_rebateRate',
   rule_rebateCap: 'r_rebateCap',
+  rule_rebateNote: 'r_rebateNote',
   rule_reliefCap: 'r_reliefCap',
+  rule_srsRetirementAge: 'r_srsRetAge',
+  rule_nonResidentSrsCost: 'r_nrCost',
+  rule_nonResidentSrsCostEarly: 'r_nrCostEarly',
+  rule_matchedRetirement: 'r_matchedRetirement',
+  rule_matchedMediSave: 'r_matchedMediSave',
+  rule_payoutAge: 'r_payoutAge',
+  rule_fullRetirementSum: 'r_frs',
+  rule_enhancedRetirementSum: 'r_ers',
 } as const;
 export type RuleName = keyof typeof RULE_NAMES;
 
@@ -114,6 +155,13 @@ export interface WorkbookMap {
     simulatorSteps: number;
     /** "Things to check" lines on the Planner. */
     warningLines: number;
+    /** Sheet rows each of those lines spans (the first holds the text). */
+    warningLineRows: number;
+    /** Rows of lock-up facts, and of cautions, on the Before You Transfer sheet. */
+    factRows: number;
+    cautionRows: number;
+    /** Steps along the Ladder chart's bottom axis (one more point than this). */
+    chartSteps: number;
   };
 }
 
@@ -134,20 +182,24 @@ export interface BuildOptions {
 
 /** Extra working cells that tests and tools read; each gets an `out_*` defined name. */
 const WORKING_OUTPUTS: Record<string, string> = {
-  out_bindingConstraint: 'w_binding',
+  out_bindingNumber: 'w_binding',
   out_employeeCpf: 'w_employeeCpf',
-  out_cpfSource: 'w_cpfSource',
+  out_cpfSourceWords: 'w_cpfSource',
   out_owSubject: 'w_owSubject',
   out_awCeiling: 'w_awCeiling',
   out_awSubject: 'w_awSubject',
   out_monthlyEmployeeRates: 'w_monthRates',
+  out_monthlyWageUsed: 'u_ow',
+  out_additionalWagesUsed: 'u_aw',
+  out_salaryLeftOver: 'u_odd',
   out_employmentIncome: 'w_base_employment',
   out_totalIncome: 'w_base_totalIncome',
   out_donationDeduction: 'w_base_donationDeduction',
   out_assessableIncome: 'w_base_assessable',
   out_usefulRoom: 'w_U',
+  out_reliefCapRoom: 'w_C',
   out_leverRoom: 'w_L',
-  out_warningCodes: 'w_warnCodes',
+  out_warningShownWhen: 'w_warnShownWhen',
   out_warningFlags: 'w_warnFlags',
   out_warningMessages: 'w_warnMessages',
   out_workbookCheckFlags: 'w_checkFlags',
@@ -155,14 +207,35 @@ const WORKING_OUTPUTS: Record<string, string> = {
   out_optBandFrom: 'w_optBandFrom',
   out_savingWithMoreCash: 'w_saveMoreCash',
   out_savingIfSwitchedOn: 'w_saveSwitchOn',
+  out_lowValueAmount: 'w_lowValue',
+  out_srsYears: 'w_srsYears',
+  out_cpfYears: 'w_cpfYears',
+  out_exampleLeft: 'w_exList',
   out_plannerBanner: 'p_banner',
+  out_plannerHeader: 'p_header',
+  out_startVersion: 'st_version',
+  out_monthsRemaining: 'm_monthsRemaining',
+  out_daysToDeadline: 'm_days',
   out_monthlyBanner: 'm_banner',
   out_simulatorNote: 's_note',
   out_scen_comment: 'sc_comment',
+  out_ownCpfRoomAwaited: 'w_selfUnconfirmed',
+  out_label_cpfSelfRoom: 'label_in_cpfSelfRoom',
+  out_horizonLines: 'w_horizon',
+  out_horizonNote: 'w_horizonNote',
   out_bracket_from: 'w_brFrom',
   out_bracket_rate: 'w_brRate',
   out_bracket_baseIncome: 'w_brBaseIncome',
   out_bracket_baseTax: 'w_brBaseTax',
+  out_facts_head: 't_factsHead',
+  out_facts_label: 't_factsLabel',
+  out_facts_srs: 't_facts_srs',
+  out_facts_cpfSelf: 't_facts_cpfSelf',
+  out_facts_cpfFamily: 't_facts_cpfFamily',
+  out_cautions: 't_cautions',
+  out_transferShownFor: 't_shownFor',
+  out_transferCpfLine: 't_cpfLine',
+  out_transferRulesChanged: 't_stale',
 };
 const RELIEF_LINES = ['eir', 'cpf', 'srs', 'cpfSelf', 'cpfFamily', 'other', 'totalBeforeCap', 'totalAllowed', 'lostToCap'] as const;
 const TAX_LINES = ['ci', 'gross', 'rebate', 'tax', 'marginal', 'effective'] as const;
@@ -191,6 +264,7 @@ export async function buildWorkbookWithMap(incomeYear: number, options: BuildOpt
   buildScenarios(b);
   buildSimulator(b);
   buildMonthly(b);
+  buildTransfer(b);
 
   for (const [name, key] of Object.entries(WORKING_OUTPUTS)) b.define(name, key);
   for (const [name, key] of Object.entries(RULE_NAMES)) b.define(name, key);
@@ -242,12 +316,12 @@ export async function buildWorkbookWithMap(incomeYear: number, options: BuildOpt
     yTitle: plan.yTitle,
     xNumFmt: plan.xNumFmt,
     yNumFmt: plan.yNumFmt,
+    categoriesRef: b.qualified(plan.categoriesKey),
+    labelEvery: plan.labelEvery,
     series: plan.series.map((series) => ({
       nameRef: b.qualified(series.nameKey),
-      xRef: b.qualified(series.xKey),
-      yRef: b.qualified(series.yKey),
+      valuesRef: b.qualified(series.valuesKey),
       color: series.color,
-      widthPt: series.widthPt,
     })),
   }));
   return {
@@ -264,16 +338,24 @@ export async function buildWorkbookWithMap(incomeYear: number, options: BuildOpt
         ladderRows: size('ladderRows'),
         simulatorSteps: size('simulatorSteps'),
         warningLines: WARNING_LINES,
+        warningLineRows: WARNING_LINE_ROWS,
+        factRows: size('factRows'),
+        cautionRows: size('cautionRows'),
+        chartSteps: CHART_STEPS,
       },
     },
     charts,
   };
 }
 
-/** The finished .xlsx as bytes: the ExcelJS workbook plus its charts. */
+/**
+ * The finished .xlsx as bytes: the ExcelJS workbook plus its charts. Every part of the file carries the same
+ * fixed date (the workbook's own "created" date), so building the same workbook twice gives the same bytes.
+ */
 export async function workbookBuffer(built: BuiltWorkbook): Promise<Buffer> {
   const written = Buffer.from(await built.workbook.xlsx.writeBuffer());
-  return built.charts.length > 0 ? addCharts(written, built.charts) : written;
+  const date = built.workbook.created;
+  return built.charts.length > 0 ? addCharts(written, built.charts, date) : withFixedDates(written, date);
 }
 
 /** Write the finished .xlsx (with its charts) to a file. */
@@ -324,37 +406,104 @@ export function embedResults(target: ExcelJS.Workbook, recalculated: ExcelJS.Wor
   return embedded;
 }
 
-/** Build and write the release workbook. Returns the path written. */
-export async function writeRelease(incomeYear: number, outDir: string): Promise<string> {
+/**
+ * `SGTO_AS_AT=YYYY-MM-DD`: the day the results stored in the release file are worked out for, instead of the day
+ * of the build. The file's own "as at" cell stays `=TODAY()`; only the results that previews show are pinned, so a
+ * build on any later day can reproduce the file byte for byte. Null when the variable is not set.
+ */
+export function pinnedAsAt(text: string | undefined = process.env.SGTO_AS_AT): Date | null {
+  if (text === undefined || text === '') return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+  const date = match ? new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]))) : null;
+  if (!date || Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== text) {
+    throw new RangeError(`SGTO_AS_AT must be a date written as YYYY-MM-DD (got "${text}").`);
+  }
+  return date;
+}
+
+export interface ReleaseOptions {
+  /** The day the stored results are worked out for. Default: `SGTO_AS_AT` if set, otherwise the day of the build. */
+  asAt?: Date | null;
+}
+
+/** True when a release run must not be allowed to cut corners (`npm run test:release`, SPEC §10). */
+function strictMode(): boolean {
+  return process.env.SGTO_STRICT === '1';
+}
+
+/** Says, where nobody can miss it, that the file about to be written has no calculated results in it. */
+function warnNoResults(reason: string): void {
+  const bar = '!'.repeat(100);
+  console.warn(
+    [
+      '',
+      bar,
+      '!!  WARNING: THE WORKBOOK HAS NO CALCULATED RESULTS',
+      `!!  ${reason}`,
+      '!!  The file still calculates when it is opened in Excel, Google Sheets or LibreOffice, but previews and',
+      '!!  viewers that do not calculate will show EMPTY cells. Do not ship this file: install LibreOffice',
+      '!!  ("soffice" on PATH) and run "npm run build:workbook" again.',
+      bar,
+      '',
+    ].join('\n'),
+  );
+}
+
+/**
+ * Build and write the release workbook. Returns the path written.
+ *
+ * The file is recalculated with LibreOffice so that it carries its results. Without LibreOffice the file is
+ * still written, with a loud warning; in strict mode (SGTO_STRICT=1) that is an error and nothing is written.
+ */
+export async function writeRelease(incomeYear: number, outDir: string, options: ReleaseOptions = {}): Promise<string> {
   const built = await buildWorkbookWithMap(incomeYear);
   const { workbook } = built;
   mkdirSync(outDir, { recursive: true });
   const target = join(outDir, releaseFileName(incomeYear));
+  let noResults: string | null = null;
+  const asAt = options.asAt === undefined ? pinnedAsAt() : options.asAt;
+  const asAtLocation = built.map.inputs.in_asAtDate;
+  const asAtCell = workbook.getWorksheet(asAtLocation.sheet)?.getCell(asAtLocation.ref.replace(/\$/g, ''));
+  if (!asAtCell) throw new Error('The workbook has no "as at" cell.');
+  const asAtFormula = asAtCell.value;
 
   if (findSoffice()) {
-    const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-    const work = join(root, '.tmp', `workbook-build-${process.pid}`);
+    const work = join(ROOT, '.tmp', `workbook-build-${process.pid}`);
     try {
       mkdirSync(work, { recursive: true });
       const raw = join(work, 'in', releaseFileName(incomeYear));
       mkdirSync(dirname(raw), { recursive: true });
+      // Pinned: the copy that LibreOffice calculates has the day typed into its "as at" cell. The file that is
+      // written keeps the cell's =TODAY(), with that day as the result a preview shows.
+      if (asAt) asAtCell.value = asAt;
       await workbook.xlsx.writeFile(raw);
+      asAtCell.value = asAtFormula;
       const [calculated] = recalculate([raw], { outDir: join(work, 'out'), profileDir: join(work, 'lo-profile') });
       if (calculated && existsSync(calculated)) {
         const recalculated = new ExcelJS.Workbook();
         await recalculated.xlsx.readFile(calculated);
         const count = embedResults(workbook, recalculated);
-        console.log(`  calculated results embedded for ${count} formulas (LibreOffice)`);
+        if (asAt && asAtFormula !== null && typeof asAtFormula === 'object' && 'formula' in asAtFormula) {
+          asAtCell.value = { formula: asAtFormula.formula, result: asAt } as ExcelJS.CellFormulaValue;
+        }
+        const day = asAtCell.result instanceof Date ? asAtCell.result.toISOString().slice(0, 10) : 'the day of the build';
+        console.log(`  calculated results embedded for ${count} formulas (LibreOffice), worked out as at ${day}${asAt ? ' (pinned)' : ''}`);
+      } else {
+        noResults = 'LibreOffice did not return a recalculated copy.';
       }
     } catch (error) {
-      console.warn(`  could not pre-calculate with LibreOffice (${(error as Error).message}); the workbook will calculate when opened.`);
+      noResults = `LibreOffice could not recalculate it (${(error as Error).message}).`;
     } finally {
       rmSync(work, { recursive: true, force: true });
     }
   } else {
-    console.log('  soffice not found: results are not pre-calculated; the workbook calculates when opened.');
+    noResults = '"soffice" (LibreOffice) is not on PATH, so the build could not recalculate it.';
   }
 
+  if (noResults) {
+    warnNoResults(noResults);
+    if (strictMode()) throw new Error(`SGTO_STRICT=1: refusing to write a release workbook without calculated results. ${noResults}`);
+  }
   await writeWorkbook(built, target);
   return target;
 }
@@ -373,9 +522,8 @@ function parseYear(argv: string[]): number {
 
 async function main(): Promise<void> {
   const year = parseYear(process.argv.slice(2));
-  const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-  console.log(`Building the workbook for income year ${year} (YA${getRules(year).ya})…`);
-  const written = await writeRelease(year, join(root, 'release'));
+  console.log(`Building the workbook for income year ${year} (YA${getRules(year).ya}), version ${WORKBOOK_VERSION}…`);
+  const written = await writeRelease(year, join(ROOT, 'release'));
   console.log(`release/${releaseFileName(year)} written (${written})`);
 }
 

@@ -5,7 +5,8 @@
 import type ExcelJS from 'exceljs';
 import type { YearRules } from '../../src/engine/types';
 import { Book, C, NF, SHEETS, ST, mergeRow, pageSetup, setWidths, taxPayable, view } from '../kit';
-import { EXAMPLE } from './planner';
+import { EXAMPLE } from './example';
+import { LEVER_NAMES } from './rules';
 
 /** The smallest step the simulator accepts (SPEC §6.8). */
 const MIN_STEP = 100;
@@ -30,7 +31,7 @@ export function simulatorSteps(rules: YearRules): number {
 
 export function buildSimulator(b: Book): ExcelJS.Worksheet {
   const ws = b.sheet(SHEETS.simulator, C.good);
-  setWidths(ws, [2, 8, 19, 14, 14, 14, 19, 16, 17, 17, 15, 13]);
+  setWidths(ws, [2, 8, 19, 14, 21, 22, 19, 16, 17, 17, 15, 13]);
   const LAST = 12;
   const steps = simulatorSteps(b.rules);
   b.sizes.simulatorSteps = steps;
@@ -40,7 +41,7 @@ export function buildSimulator(b: Book): ExcelJS.Worksheet {
   ws.getRow(2).height = 34;
   mergeRow(ws, 2, 2, LAST, ST.subtitle()).value =
     'What each further slice of contribution does to your tax, in the order the schemes are filled. It runs to the total room in the schemes ' +
-    'you switched on, ignoring your cash limit and minimum rate, so you can see where the saving per dollar drops.';
+    'you switched on, ignoring your cash limit and your minimum, so you can see where the saving per dollar drops.';
 
   mergeRow(ws, 4, 2, 4, ST.label()).value = 'Size of each step (S$)';
   b.v(ws, 5, 4, EXAMPLE.simulatorStep, ST.input(NF.int));
@@ -79,14 +80,14 @@ export function buildSimulator(b: Book): ExcelJS.Worksheet {
   const headers: Array<[number, string, 'left' | 'right' | 'center']> = [
     [2, 'Step', 'center'],
     [3, 'Extra contribution', 'right'],
-    [4, 'Into SRS', 'right'],
-    [5, 'Into your CPF', 'right'],
-    [6, 'Into family CPF', 'right'],
+    [4, LEVER_NAMES.srs, 'right'],
+    [5, LEVER_NAMES.cpfSelf, 'right'],
+    [6, LEVER_NAMES.cpfFamily, 'right'],
     [7, 'Chargeable income', 'right'],
     [8, 'Tax payable', 'right'],
     [9, 'Tax saved so far', 'right'],
     [10, 'Saved by this step', 'right'],
-    [11, 'Per dollar in this step', 'right'],
+    [11, 'Saved per dollar in this step', 'right'],
     [12, 'In your plan?', 'center'],
   ];
   for (const [col, text, align] of headers) b.v(ws, col, head, text, ST.th(align));
@@ -105,7 +106,7 @@ export function buildSimulator(b: Book): ExcelJS.Worksheet {
     b.f(ws, 8, row, ($) => `IF(C${row}="","",${taxPayable($, `G${row}`)})`, ST.tdBare(NF.cents));
     b.f(ws, 9, row, ($) => `IF(C${row}="","",ROUND(${$('w_base_tax')}-H${row},2))`, ST.tdBare(NF.cents));
     b.f(ws, 10, row, () => (i === 0 ? `IF(C${row}="","",0)` : `IF(C${row}="","",ROUND(I${row}-I${row - 1},2))`), ST.tdBare(NF.cents));
-    b.f(ws, 11, row, () => (i === 0 ? `IF(C${row}="","",0)` : `IF(C${row}="","",J${row}/(C${row}-C${row - 1}))`), ST.tdBare(NF.pct));
+    b.f(ws, 11, row, () => (i === 0 ? `IF(C${row}="","",0)` : `IF(C${row}="","",J${row}/(C${row}-C${row - 1}))`), ST.tdBare(NF.rate));
     b.f(ws, 12, row, ($) => `IF(C${row}="","",IF(C${row}<=${$('w_X')},"Yes","No"))`, ST.tdBare(undefined, 'center'));
   }
   const end = top + steps;

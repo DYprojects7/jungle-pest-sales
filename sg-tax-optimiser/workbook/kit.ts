@@ -18,6 +18,7 @@ export const SHEETS = {
   simulator: 'Simulator',
   monthly: 'Monthly Plan',
   working: 'Tax Working',
+  transfer: 'Before You Transfer',
   rules: 'Rules',
 } as const;
 
@@ -58,8 +59,10 @@ export const NF = {
   int: '#,##0',
   cents: '#,##0.00',
   pct: '0.0%',
-  /** A rate where 0 means "any saving" (the Planner's own cell; the dropdown's source cells use plain `pct`). */
-  minRate: '0.0%;-0.0%;"Any saving"',
+  /** A worked-out rate, to the two decimals the web page shows (2.53%, 11.5%). */
+  rate: '0.0#%',
+  /** A rate where 0 means "every tax dollar" (the Planner's own cell; the dropdown's source cells use plain `pct`). */
+  minRate: '0.0%;-0.0%;"Every tax dollar"',
   date: 'd mmm yyyy',
   month: 'mmm yyyy',
   yesNo: '"Yes";"Yes";"No"',
@@ -273,15 +276,12 @@ export type Resolver = (key: string) => string;
 // Book
 // ---------------------------------------------------------------------------
 
-/** One line series of an XY chart: `x`, `y` and `name` are keys of registered ranges / cells. */
+/** One filled series of the ladder chart: `name` and `values` are keys of a registered cell / range. */
 export interface ChartSeriesPlan {
   nameKey: string;
-  xKey: string;
-  yKey: string;
-  /** RGB, e.g. "1E6B45". */
+  valuesKey: string;
+  /** Fill colour, RGB, e.g. "1E6B45". */
   color: string;
-  /** Line width in points. */
-  widthPt: number;
 }
 
 /** A chart the build adds after ExcelJS has written the file (ExcelJS cannot write charts). */
@@ -295,6 +295,10 @@ export interface ChartPlan {
   yTitle: string;
   xNumFmt: string;
   yNumFmt: string;
+  /** Key of the range that holds the labels of the evenly spaced positions along the bottom axis. */
+  categoriesKey: string;
+  /** Show one axis label for every this many positions. */
+  labelEvery: number;
   series: ChartSeriesPlan[];
 }
 
@@ -566,6 +570,33 @@ export function rateNumber(ref: string): string {
 /** A date as text without locale-dependent format codes, e.g. "31 December 2026". */
 export function longDate($: Resolver, ref: string): string {
   return `DAY(${ref})&" "&INDEX(${$('l_months')},MONTH(${ref}))&" "&YEAR(${ref})`;
+}
+
+/** A rate as cents per dollar to the two decimals the web page shows, e.g. 0.0768 -> 7.68 (joins to text as "7.68"). */
+export function centsNumber(ref: string): string {
+  return `ROUND(${ref}*10000,0)/100`;
+}
+
+/**
+ * Row height for wrapped text in a cell (or merged cells) `widthUnits` column-width units wide. Row heights are
+ * fixed because merged cells never grow by themselves and no application re-fits a row when a formula's text
+ * changes, so the estimate errs on the tall side. Measured with Carlito (metric-compatible with Calibri): prose
+ * averages 5.4 pixels a character at 10pt against 7 pixels a width unit, about 1.3 characters a unit; the
+ * estimate allows 1.12, which leaves room for word wrap and for other fonts. `charsPerLine` is that estimate.
+ */
+export function charsPerLine(widthUnits: number, fontSize = 11): number {
+  return Math.max(8, (widthUnits - 2) * (11 / fontSize) * 1.02);
+}
+
+/** The row height (points) that shows `lines` lines of wrapped text at `fontSize`. */
+export function heightOfLines(lines: number, fontSize = 11): number {
+  return Math.round(lines * fontSize * 1.32 + 5);
+}
+
+/** The row height for `text` (or a text of that many characters) wrapped in `widthUnits` column-width units. */
+export function heightFor(text: string | number, widthUnits: number, fontSize = 11, minLines = 1): number {
+  const length = typeof text === 'number' ? text : text.length;
+  return heightOfLines(Math.max(minLines, Math.ceil(length / charsPerLine(widthUnits, fontSize))), fontSize);
 }
 
 /** A rate as the engine writes it in messages: a percentage with up to two decimals, e.g. 0.115 -> "11.5%". */

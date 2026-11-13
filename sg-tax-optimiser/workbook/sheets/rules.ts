@@ -3,8 +3,10 @@
  * reads them from here, so a buyer can update this sheet for a new year.
  */
 import type ExcelJS from 'exceljs';
-import type { CpfAgeBand, Residency } from '../../src/engine/types';
-import { Book, C, NF, SHEETS, ST, a1, abs, mergeRow, pageSetup, setWidths, styleRow, view } from '../kit';
+import { NON_RESIDENT_SRS_COST, lockUpFacts } from '../../src/engine/facts';
+import type { LockUpFactId } from '../../src/engine/facts';
+import type { CpfAgeBand, LeverId, Residency, YearRules } from '../../src/engine/types';
+import { Book, C, NF, SHEETS, ST, a1, abs, heightFor, mergeRow, pageSetup, setWidths, styleRow, view } from '../kit';
 
 /** Labels shown in the Planner dropdowns, in the order the formulas rely on (do not reorder). */
 export const RESIDENCY_LABELS: Record<Residency, string> = {
@@ -16,6 +18,8 @@ export const RESIDENCY_ORDER: Residency[] = ['citizen', 'pr', 'foreigner'];
 export const PR_YEAR_LABELS = ['1st year', '2nd year', '3rd year onwards'] as const;
 export const YES = 'Yes';
 export const NO = 'No';
+/** How the salary cell on the Planner is read (SPEC §9), in the order the formulas rely on. */
+export const SALARY_PERIODS = ['per month', 'per year'] as const;
 export const MONTH_LABELS = [
   'January',
   'February',
@@ -35,29 +39,42 @@ export interface PriorityPreset {
   label: string;
   /** Lever order, first to last. */
   order: ['srs' | 'cpfSelf' | 'cpfFamily', 'srs' | 'cpfSelf' | 'cpfFamily', 'srs' | 'cpfSelf' | 'cpfFamily'];
+  /** The order in words, as the web page writes it. */
   description: string;
 }
 
-/** SPEC §8.3 "Which first?". */
+/** SPEC §8.3 "Which first?": the page's three presets, with its names. */
 export const PRIORITY_PRESETS: PriorityPreset[] = [
-  {
-    label: 'Flexibility first',
-    order: ['srs', 'cpfSelf', 'cpfFamily'],
-    description: 'SRS, then your own CPF, then family. SRS can be withdrawn early (taxed, with a 5% penalty); CPF cannot.',
-  },
-  {
-    label: 'Guaranteed interest first',
-    order: ['cpfSelf', 'srs', 'cpfFamily'],
-    description: 'Your own CPF, then SRS, then family. CPF top-ups earn the CPF interest floor; SRS earns 0.05% unless invested.',
-  },
-  {
-    label: 'Family first',
-    order: ['cpfFamily', 'srs', 'cpfSelf'],
-    description: "Family members' CPF, then SRS, then your own CPF.",
-  },
+  { label: 'Flexibility first', order: ['srs', 'cpfSelf', 'cpfFamily'], description: 'SRS, then CPF self, then family.' },
+  { label: 'Guaranteed interest first', order: ['cpfSelf', 'srs', 'cpfFamily'], description: 'CPF self, then SRS, then family.' },
+  { label: 'Family first', order: ['cpfFamily', 'srs', 'cpfSelf'], description: 'Family, then SRS, then CPF self.' },
 ];
 
+/** The scheme names the web page uses (SPEC §8.3, §9 "Same story as the page"). */
+export const LEVER_NAMES: Record<LeverId, string> = {
+  srs: 'SRS',
+  cpfSelf: 'CPF cash top-up, self',
+  cpfFamily: 'CPF cash top-up, family',
+};
+
+/**
+ * One sentence of the audited lock-up facts (SPEC §7 `lockUpFacts`) for a citizen below 55: used where the
+ * Rules sheet explains a value, so that the sentence is the engine's and not a second copy.
+ */
+export function factSentence(rules: YearRules, id: LockUpFactId, lever: LeverId): string {
+  const row = lockUpFacts(rules, { residency: 'citizen', ageAtYearEnd: 35 }).find((fact) => fact.id === id);
+  if (!row) throw new Error(`lockUpFacts has no row "${id}"`);
+  return row.values[lever];
+}
+
 const COL = { label: 2, c: 3, d: 4, e: 5, f: 6, g: 7, note: 8 };
+/** Column widths: margin, label, value, three narrow columns of the tables, a wider one, and the notes column. */
+const WIDTHS = [2, 46, 16, 14, 14, 16, 18, 90];
+const LABEL_WIDTH = WIDTHS[1] ?? 46;
+/** The notes beside a value run from column D to column H. */
+const NOTE_WIDTH = WIDTHS.slice(3).reduce((total, width) => total + width, 0);
+/** A note longer than this is wrapped inside the printed width instead of running off the page. */
+const NOTE_RUN_CHARS = 150;
 
 /**
  * Spare rows for tax brackets beyond those the year starts with: the Tax Working and Ladder sheets lay out this
@@ -73,7 +90,7 @@ export function bracketCapacity(bracketCount: number): number {
 export function buildRules(b: Book): ExcelJS.Worksheet {
   const rules = b.rules;
   const ws = b.sheet(SHEETS.rules, C.ochre);
-  setWidths(ws, [2, 46, 16, 14, 14, 16, 18, 90]);
+  setWidths(ws, WIDTHS);
 
   let r = 1;
   ws.getRow(r).height = 32;
@@ -109,7 +126,15 @@ export function buildRules(b: Book): ExcelJS.Worksheet {
     b.v(ws, COL.label, r, label, ST.label());
     b.v(ws, COL.c, r, value, ST.input(numFmt, align));
     b.reg(key, ws, COL.c, r);
-    if (note) b.v(ws, COL.d, r, note, ST.noteRun());
+    // The row is as tall as its label needs; a long note is wrapped across the notes columns, a short one runs on.
+    let height = heightFor(label, LABEL_WIDTH, 11);
+    if (note.length > NOTE_RUN_CHARS) {
+      mergeRow(ws, r, COL.d, COL.note, ST.note()).value = note;
+      height = Math.max(height, heightFor(note, NOTE_WIDTH, 9));
+    } else if (note) {
+      b.v(ws, COL.d, r, note, ST.noteRun());
+    }
+    if (height > 20) ws.getRow(r).height = height;
     return r++;
   };
 
@@ -125,7 +150,8 @@ export function buildRules(b: Book): ExcelJS.Worksheet {
     'Status of these rules',
     rules.status,
     undefined,
-    '"projected" means some values are announced or carried forward, not yet final. The Planner then shows a caution.',
+    '"final" = confirmed from official sources, with one exception: a personal income tax rebate, if there is one, is announced only at the Budget in February of the Year of Assessment (see the rebate cells below). ' +
+      '"projected" = some values are announced or carried forward, not yet final: the Planner then says PROJECTED RULES.',
     'left',
   );
   ws.getCell(statusRow, COL.c).dataValidation = {
@@ -142,8 +168,13 @@ export function buildRules(b: Book): ExcelJS.Worksheet {
     'Last day a contribution counts for this year',
     new Date(Date.UTC(dy, dm - 1, dd)),
     NF.date,
-    '31 December of the income year, worked out from the year above; type a date over it only if the rule changes. Banks and the CPF Board can stop earlier on the day (for example 7pm).',
+    '31 December of the income year, worked out from the year above; type a date over it only if the rule changes.',
   );
+  // What "by the last day" means for each scheme, in the engine's own sentences.
+  b.v(ws, COL.d, r, `SRS: ${factSentence(rules, 'deadline', 'srs')}`, ST.noteRun());
+  r++;
+  b.v(ws, COL.d, r, `CPF top-ups: ${factSentence(rules, 'deadline', 'cpfSelf')}`, ST.noteRun());
+  r++;
   if (dy === rules.incomeYear && dm === 12 && dd === 31) {
     // The usual rule follows the income year, so changing the year cannot leave last year's deadline behind.
     b.f(ws, COL.c, deadlineRow, ($) => `DATE(${$('r_incomeYear')},12,31)`);
@@ -274,15 +305,21 @@ export function buildRules(b: Book): ExcelJS.Worksheet {
     '0.0#"×"',
     '2.5 means donations are deducted at 250%.',
   );
-  item(
-    'r_rebateRate',
-    'Personal income tax rebate — share of tax',
-    rules.pitRebate ? rules.pitRebate.rate : 0,
-    NF.pct,
-    rules.pitRebate
-      ? 'A rebate applies for this Year of Assessment.'
-      : 'None for this Year of Assessment. If one is announced, enter the rate here and the cap below.',
+  const rebateRow = item('r_rebateRate', 'Personal income tax rebate — share of tax', rules.pitRebate ? rules.pitRebate.rate : 0, NF.pct);
+  mergeRow(ws, rebateRow, COL.d, COL.note, ST.note());
+  ws.getRow(rebateRow).height = heightFor(170, NOTE_WIDTH, 9);
+  // What can still happen depends on the date: a rebate is announced, if at all, at the Budget in February of the
+  // Year of Assessment itself, which is after the contribution deadline (SPEC §5.1).
+  b.f(
+    ws,
+    COL.d,
+    rebateRow,
+    ($) =>
+      `IF(${$('r_rebateRate')}>0,"A rebate is entered for this Year of Assessment: it takes this share of your tax off the bill, up to the cap below.",` +
+      `IF(${$('u_today')}<DATE(${$('r_ya')},3,1),"None announced for this Year of Assessment. One could still be announced at the Budget in February; if so, enter the rate here and the cap below.",` +
+      `"None for this Year of Assessment. If one was announced after this workbook was made, enter the rate here and the cap below."))`,
   );
+  b.reg('r_rebateNote', ws, COL.d, rebateRow);
   item('r_rebateCap', 'Personal income tax rebate — most it can be', rules.pitRebate ? rules.pitRebate.cap : 0, NF.dollars);
   r++;
 
@@ -365,11 +402,19 @@ export function buildRules(b: Book): ExcelJS.Worksheet {
   item('r_srsMinAge', 'Minimum age to contribute', rules.srs.minAge, NF.plain);
   item(
     'r_srsRetAge',
-    'Retirement age locked in by a first contribution this year',
+    'Retirement age a first SRS contribution locks in: 64 if made on or after 1 July 2026, 63 if 1 July 2022 to 30 June 2026, 62 if earlier',
     rules.srs.statutoryRetirementAge,
     NF.plain,
-    'For reference: withdrawals before this age are fully taxable with a 5% penalty.',
+    'The age for a first contribution at the end of this income year; the Planner counts the years to it. Withdrawals before your own age are fully taxable with a 5% penalty.',
   );
+  item(
+    'r_nrCost',
+    'Least tax a non-resident pays per dollar taken out of SRS — at retirement age, or under the 10-year rule for foreigners',
+    NON_RESIDENT_SRS_COST.atRetirementOrTenYears,
+    NF.rate,
+    '15% on the taxable half. Used for the caution shown to foreigners on the Planner.',
+  );
+  item('r_nrCostEarly', '… and if taken out earlier', NON_RESIDENT_SRS_COST.early, NF.rate, '15% on the whole amount plus the 5% penalty.');
   r++;
 
   // ---- CPF top-ups ------------------------------------------------------------------------------------------
@@ -396,10 +441,31 @@ export function buildRules(b: Book): ExcelJS.Worksheet {
     };
   });
   b.regRange('r_famGiver', ws, COL.c, giverFirst, COL.c, r - 1);
-  item('r_frs', 'Full Retirement Sum', rules.cpfTopUp.fullRetirementSum, NF.dollars, 'For reference: top-ups to your own Special/Retirement Account earn relief only up to this balance.');
-  item('r_ers', 'Enhanced Retirement Sum', rules.cpfTopUp.enhancedRetirementSum, NF.dollars, 'For reference.');
-  item('r_bhs', 'Basic Healthcare Sum', rules.cpfTopUp.basicHealthcareSum, NF.dollars, 'For reference: the most your MediSave Account can hold.');
-  item('r_interest', 'Interest floor on Special, MediSave and Retirement Accounts', rules.cpfTopUp.interestRateSmra, NF.pct, 'For reference.');
+  item('r_frs', 'Full Retirement Sum', rules.cpfTopUp.fullRetirementSum, NF.dollars, 'Top-ups to your own Special or Retirement Account earn relief only up to this.');
+  item('r_ers', 'Enhanced Retirement Sum', rules.cpfTopUp.enhancedRetirementSum, NF.dollars, 'From age 55 the CPF Board accepts top-ups up to this, but relief stops at the Full Retirement Sum.');
+  item(
+    'r_bhs',
+    'Basic Healthcare Sum (members aged 65 or under)',
+    rules.cpfTopUp.basicHealthcareSum,
+    NF.dollars,
+    'The most a MediSave Account can hold. Older members keep the figure fixed in the year they turned 65.',
+  );
+  item('r_interest', 'Interest floor on Special, MediSave and Retirement Accounts', rules.cpfTopUp.interestRateSmra, NF.pct, factSentence(rules, 'earns', 'cpfSelf'));
+  item(
+    'r_matchedRetirement',
+    'Part of a top-up the Government matches (earns no relief), per member per year — retirement',
+    rules.cpfTopUp.matchedTopUps.retirementAnnualCap,
+    NF.dollars,
+    'Matched Retirement Savings Scheme. Family top-up amounts in this workbook mean the part beyond it.',
+  );
+  item(
+    'r_matchedMediSave',
+    '… and MediSave',
+    rules.cpfTopUp.matchedTopUps.mediSaveAnnualCap,
+    NF.dollars,
+    'Matched MediSave Scheme. Leave blank for a year the scheme does not apply.',
+  );
+  item('r_payoutAge', 'CPF payout eligibility age', rules.cpfTopUp.payoutEligibilityAge, NF.plain, 'A top-up to the Special or Retirement Account comes back as monthly payouts from this age.');
   r++;
 
   // ---- Lists ------------------------------------------------------------------------------------------------
@@ -412,6 +478,8 @@ export function buildRules(b: Book): ExcelJS.Worksheet {
   b.v(ws, 6, r, 'Smallest saving worth it', ST.helperHead('left'));
   r++;
   const listTop = r;
+  // The salary choices sit under the rate list's notes, in the same column.
+  const periodTop = listTop + 3;
   // "Any saving" (0) and then the rate of each bracket after the first, read from the table by position so the
   // choices follow the rates. Plain percentages: what a dropdown shows is then exactly what it puts in the cell.
   const minRateCount = brackets.length;
@@ -426,13 +494,17 @@ export function buildRules(b: Book): ExcelJS.Worksheet {
     if (month) b.v(ws, 5, r, month, ST.td(undefined, 'left'));
     if (i === 0) {
       b.v(ws, 6, r, 0, ST.td(NF.pct, 'left'));
-      b.v(ws, 7, r, '0.0% = any saving counts', ST.noteRun());
+      b.v(ws, 7, r, '0.0% = every tax dollar: any saving counts', ST.noteRun());
     } else if (i < minRateCount) {
       if (i === 1) b.v(ws, 7, r, 'The rest follow the tax table. A rate that is not listed can still be typed on the Planner.', ST.noteRun());
       b.f(ws, 6, r, ($) => `IF(${i + 1}<=${$('r_bracketCount')},INDEX(${$('r_rate')},${i + 1}),0)`, ST.td(NF.pct, 'left'));
     }
+    if (i === 2) b.v(ws, 7, r, 'Salary is entered', ST.helperHead('left'));
+    const period = SALARY_PERIODS[i - 3];
+    if (period) b.v(ws, 7, r, period, ST.td(undefined, 'left'));
     r++;
   }
+  b.regRange('l_salaryPeriod', ws, 7, periodTop, 7, periodTop + SALARY_PERIODS.length - 1);
   b.regRange('l_residency', ws, 2, listTop, 2, listTop + RESIDENCY_ORDER.length - 1);
   b.regRange('l_prYear', ws, 3, listTop, 3, listTop + PR_YEAR_LABELS.length - 1);
   b.regRange('l_yesNo', ws, 4, listTop, 4, listTop + 1);
@@ -445,7 +517,7 @@ export function buildRules(b: Book): ExcelJS.Worksheet {
   b.v(ws, 3, r, 'SRS is filled', ST.helperHead('right'));
   b.v(ws, 4, r, 'CPF self is filled', ST.helperHead('right'));
   b.v(ws, 5, r, 'CPF family is filled', ST.helperHead('right'));
-  b.v(ws, 6, r, 'In words', ST.helperHead('left'));
+  b.v(ws, 6, r, 'The order in words', ST.helperHead('left'));
   styleRow(ws, r, 7, 7, ST.helperHead('left'));
   r++;
   const presetTop = r;
@@ -488,7 +560,13 @@ export function buildRules(b: Book): ExcelJS.Worksheet {
       typeof amount === 'number' ? `${amount.toLocaleString('en-SG')}${suffix}` : amount,
       ST.td(undefined, 'right'),
     );
-    b.v(ws, 4, r, relief.help, ST.noteRun());
+    // A long explanation is wrapped inside the printed width; a short one runs on.
+    if (relief.help.length > NOTE_RUN_CHARS) {
+      mergeRow(ws, r, 4, 8, ST.note()).value = relief.help;
+      ws.getRow(r).height = heightFor(relief.help, NOTE_WIDTH, 9);
+    } else {
+      b.v(ws, 4, r, relief.help, ST.noteRun());
+    }
     r++;
   }
   r++;

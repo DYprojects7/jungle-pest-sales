@@ -3,18 +3,20 @@
  * December, the days left, and what the same plan would cost per month over a full year.
  */
 import type ExcelJS from 'exceljs';
-import { Book, C, NF, SHEETS, ST, isNum, longDate, mergeRow, pageSetup, setWidths, styleRow, view } from '../kit';
+import { DISCLAIMER } from '../../src/engine/facts';
+import { Book, C, NF, SHEETS, ST, dollarsText, isNum, longDate, mergeRow, pageSetup, setWidths, styleRow, view } from '../kit';
 import type { Resolver } from '../kit';
+import { LEVER_NAMES } from './rules';
 
 const LEVERS = [
-  { id: 'srs', title: 'Into SRS', col: 3 },
-  { id: 'cpfSelf', title: 'Into your CPF', col: 4 },
-  { id: 'cpfFamily', title: 'Into family CPF', col: 5 },
+  { id: 'srs', title: LEVER_NAMES.srs, col: 3 },
+  { id: 'cpfSelf', title: LEVER_NAMES.cpfSelf, col: 4 },
+  { id: 'cpfFamily', title: LEVER_NAMES.cpfFamily, col: 5 },
 ] as const;
 
 export function buildMonthly(b: Book): ExcelJS.Worksheet {
   const ws = b.sheet(SHEETS.monthly, C.good);
-  setWidths(ws, [2, 44, 17, 17, 17, 17, 62, 3, 10]);
+  setWidths(ws, [2, 44, 17, 21, 22, 19, 62, 3, 10]);
   const LAST = 7;
 
   ws.getRow(1).height = 32;
@@ -60,7 +62,7 @@ export function buildMonthly(b: Book): ExcelJS.Worksheet {
     // From the Rules sheet; 31 December of the income year if the cell there does not hold a date.
     ($) => `IF(${isNum($('r_deadline'))},INT(${$('r_deadline')}),DATE(${$('r_incomeYear')},12,31))`,
     NF.date,
-    'Banks and the CPF Board can stop taking contributions earlier on the day.',
+    "The Before You Transfer sheet gives the banks' and the CPF Board's cut-offs.",
   );
   fact('m_days', null, 'Days to the deadline', ($) => `${$('m_deadline')}-${$('u_today')}`, NF.int);
   fact(
@@ -86,9 +88,25 @@ export function buildMonthly(b: Book): ExcelJS.Worksheet {
       `"The deadline for "&${$('r_incomeYear')}&" passed on "&${longDate($, $('m_deadline'))}&". The amounts below are listed only because the year has not ended: money paid in now counts for the following year.",` +
       `"The deadline for "&${$('r_incomeYear')}&" has passed ("&${longDate($, $('m_deadline'))}&"). Contributions made now count for next year, so no instalments are shown."),` +
       `IF(${$('w_X')}=0,"Nothing more is recommended for "&${$('r_incomeYear')}&", so there are no instalments. The Planner explains why.",` +
-      `IF(${$('m_days')}=0,"Today is the deadline. Transfer now: banks and the CPF Board can stop taking contributions before the end of the day.",` +
-      `IF(${$('m_days')}<=14,"Only "&${$('m_days')}&IF(${$('m_days')}=1," day"," days")&" left. Transfer as soon as you can: banks and the CPF Board can stop taking contributions before the last day.",` +
+      // The cut-offs are the engine's words, and only for the schemes that are in the plan (SPEC §6.11, §8.4).
+      `IF(${$('m_days')}=0,"Today is the deadline. "&${$('w_cutOffs')}&", so transfer now.",` +
+      `IF(${$('m_days')}<=14,"Only "&${$('m_days')}&IF(${$('m_days')}=1," day"," days")&" left. "&${$('w_cutOffs')}&", so transfer as soon as you can.",` +
       `"Set aside the amounts below in each of the "&${$('m_monthsRemaining')}&IF(${$('m_monthsRemaining')}=1," month"," months")&" left to reach S$"&TEXT(${$('w_X')},"#,##0")&" by "&${longDate($, $('m_deadline'))}&". Aim to transfer a few working days early."))))`,
+  );
+  r++;
+  // The affordability note (SPEC §8.4): said only when a month's instalment is more than a month's salary.
+  ws.getRow(r).height = 30;
+  mergeRow(ws, r, 2, LAST, { ...ST.note(), font: { ...ST.note().font, size: 10, bold: true, color: { argb: C.warn } } });
+  b.reg('m_afford', ws, 2, r);
+  b.define('out_affordability', 'm_afford');
+  b.f(
+    ws,
+    2,
+    r,
+    ($) =>
+      `IF(AND(${$('m_days')}>=0,${$('u_ow')}>0,COUNT(${$('out_sched_total')})>0),IF(MAX(${$('out_sched_total')})>${$('u_ow')},` +
+      `${dollarsText(`MAX(${$('out_sched_total')})`)}&" a month is more than your monthly salary. It would have to come from your bonus or savings. ` +
+      `If that is more than you can spare, enter the most you can under ""Most cash you can spare this year"" on the Planner.",""),"")`,
   );
   r += 2;
 
@@ -161,8 +179,8 @@ export function buildMonthly(b: Book): ExcelJS.Worksheet {
   b.define('out_fullYear_total', 'm_fullYear_total');
   b.v(ws, 7, r, 'Rounded up to whole dollars. A standing order makes it painless.', ST.noteRun());
   r += 2;
-  mergeRow(ws, r, 2, LAST, ST.note()).value =
-    'Check your eligibility and limits with IRAS, the CPF Board and your SRS bank before transferring money. CPF top-ups cannot be reversed.';
+  mergeRow(ws, r, 2, LAST, ST.note()).value = DISCLAIMER;
+  ws.getRow(r).height = 30;
 
   for (const [name, col] of [
     ['out_sched_month', 2],

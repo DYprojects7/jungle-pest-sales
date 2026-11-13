@@ -283,7 +283,7 @@ export function transferCautions(
   const out: string[] = [];
 
   out.push(
-    `This plan is for employees who are Singapore tax residents for YA${ya}: broadly, people who lived or worked ` +
+    `This plan is for employees who are Singapore tax residents for YA${ya}: broadly, people who stayed or worked ` +
       `in Singapore for at least 183 days in ${incomeYear}. Self-employed income and non-residents follow ` +
       'different rules.',
   );
@@ -320,8 +320,9 @@ export function transferCautions(
     options.deadlinePassed
       ? `The deadline for ${incomeYear} has passed. Money you put in now counts for the following year.`
       : `Aim to transfer a few working days before ${longDate(rules.contributionDeadline)}. Banks stop taking ` +
-          'same-day SRS contributions before midnight on the last day, and a CPF top-up counts on the day the ' +
-          'CPF Board receives it.',
+          'same-day SRS contributions before midnight on the last day' +
+          // Only someone who can make a CPF top-up is told about the CPF Board (a foreigner cannot).
+          (cpfOpen ? ', and a CPF top-up counts on the day the CPF Board receives it.' : '.'),
   );
   return out;
 }

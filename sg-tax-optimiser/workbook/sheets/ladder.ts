@@ -7,11 +7,17 @@
  * beyond chargeable income and a row for dollars over the relief cap. Neighbouring rows that save at the same
  * rate for the same reason form one rung, as in the engine; the table on the left shows the rungs, closed up.
  *
- * The chart is a real chart (added to the file by `workbook/chart.ts`) fed by the "chart points" columns; the
- * in-cell bars in the table say the same thing for applications that do not show the chart.
+ * The chart is a real chart (added to the file by `workbook/chart.ts`): two filled series, "Your plan" and "Not
+ * in your plan", stacked, so each rung is a block whose area is the tax it saves and the plan's block ends where
+ * the plan stops — a ladder of one rung is still one clear block. It is fed by the "chart points" columns:
+ * evenly spaced amounts from 0 to a round figure just past the schemes' room, each with the saving per dollar
+ * there. The in-cell bars in the table say the same thing for applications that do not show the chart.
+ *
+ * No internal code is written on the sheet: why a rung saves nothing is a number in a working column
+ * (1 = that income is already tax-free, 2 = over the overall relief cap), explained in its heading.
  */
 import type ExcelJS from 'exceljs';
-import { Book, C, NF, SHEETS, ST, colLetter, dollarsText, mergeRow, pageSetup, setWidths, styleRow, taxPayable, view } from '../kit';
+import { Book, C, NF, SHEETS, ST, centsNumber, colLetter, dollarsText, lit, mergeRow, pageSetup, setWidths, styleRow, taxPayable, view } from '../kit';
 import type { Resolver } from '../kit';
 import { bracketCapacity } from './rules';
 
@@ -42,10 +48,29 @@ const W = {
   count: 35,
 } as const;
 /**
- * Chart points: four per rung (its start, where the plan stops inside it, twice, and its end). "Every rung" is
- * drawn from `x` / `all`; "Your plan" from `planX` / `plan`, which follow it and stop where the plan stops.
+ * Chart points: the amount, the saving per dollar there if the plan uses that dollar and if it does not, and the
+ * label under the axis (the amount at every CHART_LABEL_EVERY-th point, nothing in between, so every application
+ * shows the same few round figures however it thins labels).
  */
-const P = { x: 37, all: 38, planX: 39, plan: 40 } as const;
+const P = { x: 37, plan: 38, rest: 39, label: 40 } as const;
+/** Steps along the chart's bottom axis (so one more point than this). */
+export const CHART_STEPS = 200;
+/** One axis label for every this many points. */
+export const CHART_LABEL_EVERY = 20;
+/** Why a rung saves nothing, as the number kept in the working columns. */
+export const ZERO_REASON_NUMBERS = { belowTaxThreshold: 1, reliefCap: 2 } as const;
+
+/**
+ * What the sheet says above the chart when the schemes have no room, so there is nothing to draw. Someone whose
+ * own CPF is switched on and waiting for its room (SPEC §6.5) is told to enter it, not to "switch a scheme on".
+ */
+export const NO_LADDER = {
+  nothingOn: 'No scheme is switched on, so there is no ladder to show. Switch on SRS or a CPF top-up on the Planner.',
+  notOpen: 'None of the schemes you switched on is open to you, so there is no ladder to show.',
+  roomAwaited:
+    'Your own CPF is left out until you enter how much you can still top up with relief, and nothing else you switched on has room left, so there is no ladder to show yet. Enter the figure on the Planner.',
+  full: 'The schemes you switched on have no room left this year, so there is no ladder to show.',
+} as const;
 
 export function buildLadder(b: Book): ExcelJS.Worksheet {
   const ws = b.sheet(SHEETS.ladder, C.good);
@@ -53,7 +78,7 @@ export function buildLadder(b: Book): ExcelJS.Worksheet {
     2, 7, 15, 15, 16, 13, 16, 17, 16, 36, 25, 48, 3,
     9, 18, 11, 11, 9, 3,
     11, 11, 11, 11, 13, 13, 9, 18, 11, 11, 9, 18, 7, 7, 7, 7, 3,
-    13, 12, 13, 14,
+    15, 15, 17, 12,
   ]);
   const LAST = 12;
   const bracketCount = b.rules.taxBrackets.length;
@@ -106,9 +131,16 @@ export function buildLadder(b: Book): ExcelJS.Worksheet {
     2,
     r,
     ($) =>
-      `IF(${$('w_L')}=0,"No scheme with room is switched on, so there is no ladder to show. Switch a scheme on in the Planner.",` +
-      `"How to read it: the ladder ignores your cash limit and your minimum rate, so you can see every rung. The chart shows the tax saved by each extra dollar; the thick line is your plan. Rungs marked 'No tax saved' are money locked away for nothing.")`,
+      // Why there is no ladder, as the Planner's reason tells it apart (SPEC §6.11): nothing switched on, nothing
+      // open to the person, their own CPF waiting for its room, or every scheme already full.
+      `IF(${$('w_L')}=0,` +
+      `IF(SUM(${$('w_enabled_all')})=0,${lit(NO_LADDER.nothingOn)},` +
+      `IF(SUMPRODUCT(${$('w_enabled_all')}*${$('w_eligible_all')})=0,${lit(NO_LADDER.notOpen)},` +
+      `IF(AND(${$('w_selfUnconfirmed')}=1,${$('w_enabled_cpfSelf')}=1),${lit(NO_LADDER.roomAwaited)},${lit(NO_LADDER.full)}))),` +
+      `${lit("How to read it: the ladder ignores your cash limit and your minimum, so you can see every rung. In the chart each rung is a block: its height is the tax saved per dollar, its area the tax saved. The dark block is your plan. Rungs marked 'No tax saved' have no height: money locked away for nothing.")})`,
   );
+  b.reg('lad_note', ws, 2, r);
+  b.define('out_ladderNote', 'lad_note');
   r++;
 
   // The chart sits here, above the table, so it stays in view however many rungs there are.
@@ -124,6 +156,35 @@ export function buildLadder(b: Book): ExcelJS.Worksheet {
   b.v(ws, W.k, 6, 'Highest rate in the tax table', ST.helper(undefined, 'left'));
   b.f(ws, W.dollars, 6, ($) => `MAX(${$('r_rate')})`, ST.helper(NF.pct));
   b.reg('lad_maxRate', ws, W.dollars, 6);
+  // The chart's bottom axis runs to a round figure just past the schemes' room, so the last block visibly ends.
+  b.v(ws, W.k, 7, 'Chart: size of the round steps on the axis', ST.helper(undefined, 'left'));
+  b.f(
+    ws,
+    W.dollars,
+    7,
+    ($) => {
+      const room = $('w_L');
+      const steps: Array<[number, number]> = [
+        [20_000, 5_000],
+        [8_000, 2_000],
+        [4_000, 1_000],
+        [2_000, 500],
+        [800, 200],
+        [400, 100],
+        [200, 50],
+        [80, 20],
+        [40, 10],
+        [20, 5],
+        [8, 2],
+      ];
+      return steps.reduceRight((otherwise, [from, unit]) => `IF(${room}>=${from},${unit},${otherwise})`, '1');
+    },
+    ST.helper(NF.int),
+  );
+  b.reg('lad_chartUnit', ws, W.dollars, 7);
+  b.v(ws, W.k, 8, 'Chart: where the axis ends', ST.helper(undefined, 'left'));
+  b.f(ws, W.dollars, 8, ($) => `IF(${$('w_L')}=0,0,(INT(${$('w_L')}*21/(20*${$('lad_chartUnit')}))+1)*${$('lad_chartUnit')})`, ST.helper(NF.int));
+  b.reg('lad_chartMax', ws, W.dollars, 8);
 
   // Table header.
   const head = r;
@@ -144,7 +205,7 @@ export function buildLadder(b: Book): ExcelJS.Worksheet {
   for (const [col, text, align] of headers) b.v(ws, col, head, text, ST.th(align));
   const helperHeads: Array<[number, string]> = [
     [D.pick, 'Working row shown'],
-    [D.reason, 'Zero-saving reason'],
+    [D.reason, 'Why it saves nothing (1 = already tax-free, 2 = over the relief cap)'],
     [D.from, 'Rung from'],
     [D.to, 'Rung to'],
     [D.rate, 'Rung rate'],
@@ -155,24 +216,24 @@ export function buildLadder(b: Book): ExcelJS.Worksheet {
     [W.ci, 'Chargeable income at end'],
     [W.tax, 'Tax payable at end'],
     [W.rate, 'Rate'],
-    [W.reason, 'Zero-saving reason'],
+    [W.reason, 'Why it saves nothing (1 or 2, as on the left)'],
     [W.saved, 'Tax saved'],
     [W.used, 'Used by plan'],
     [W.lastRate, 'Rate of the last row with dollars'],
-    [W.lastReason, 'Its zero-saving reason'],
+    [W.lastReason, 'Its reason for saving nothing'],
     [W.isNew, 'New rung?'],
     [W.run, 'Rungs so far'],
     [W.group, 'Rung no.'],
     [W.count, 'Rung starts here'],
     [P.x, 'Chart: extra contribution'],
-    [P.planX, 'Chart: extra contribution, your plan'],
+    [P.label, 'Chart: label under the axis'],
   ];
   for (const [col, text] of helperHeads) b.v(ws, col, head, text, ST.helperHead());
   // The chart's legend reads these two headings.
-  b.v(ws, P.all, head, 'Every rung', ST.helperHead());
   b.f(ws, P.plan, head, ($) => `"Your plan (stops at S$"&TEXT(${$('w_X')},"#,##0")&")"`, ST.helperHead());
-  b.reg('lad_chartAllName', ws, P.all, head);
+  b.v(ws, P.rest, head, 'Not in your plan', ST.helperHead());
   b.reg('lad_chartPlanName', ws, P.plan, head);
+  b.reg('lad_chartRestName', ws, P.rest, head);
   r++;
 
   const top = r;
@@ -200,18 +261,18 @@ export function buildLadder(b: Book): ExcelJS.Worksheet {
         ST.helper(NF.int),
       );
       b.f(ws, W.rate, row, ($) => `IF(${at(W.k)}=0,0,INDEX(${$('r_rate')},${at(W.k)}))`, ST.helper(NF.pct));
-      b.f(ws, W.reason, row, () => `IF(AND(${at(W.dollars)}>0,${at(W.rate)}=0),"belowTaxThreshold","")`, ST.helper(undefined, 'left'));
+      b.f(ws, W.reason, row, () => `IF(AND(${at(W.dollars)}>0,${at(W.rate)}=0),${ZERO_REASON_NUMBERS.belowTaxThreshold},0)`, ST.helper(NF.plain));
     } else if (kind === 'beyond') {
       // Dollars beyond chargeable income: there is nothing left to tax.
       b.v(ws, W.k, row, 'beyond income', ST.helper(undefined, 'right'));
       b.f(ws, W.end, row, ($) => `MAX(${at(W.start)},${$('lad_within')})`, ST.helper(NF.int));
       b.v(ws, W.rate, row, 0, ST.helper(NF.pct));
-      b.f(ws, W.reason, row, () => `IF(${at(W.dollars)}>0,"belowTaxThreshold","")`, ST.helper(undefined, 'left'));
+      b.f(ws, W.reason, row, () => `IF(${at(W.dollars)}>0,${ZERO_REASON_NUMBERS.belowTaxThreshold},0)`, ST.helper(NF.plain));
     } else {
       b.v(ws, W.k, row, 'over cap', ST.helper(undefined, 'right'));
       b.f(ws, W.end, row, ($) => `MAX(${at(W.start)},${$('w_L')})`, ST.helper(NF.int));
       b.v(ws, W.rate, row, 0, ST.helper(NF.pct));
-      b.f(ws, W.reason, row, () => `IF(${at(W.dollars)}>0,"reliefCap","")`, ST.helper(undefined, 'left'));
+      b.f(ws, W.reason, row, () => `IF(${at(W.dollars)}>0,${ZERO_REASON_NUMBERS.reliefCap},0)`, ST.helper(NF.plain));
     }
     b.f(ws, W.dollars, row, () => `${at(W.end)}-${at(W.start)}`, ST.helper(NF.int));
     b.f(ws, W.ci, row, ($) => `MAX(0,${$('w_base_ci')}-MIN(${at(W.end)},${$('w_C')}))`, ST.helper(NF.int));
@@ -221,12 +282,12 @@ export function buildLadder(b: Book): ExcelJS.Worksheet {
     // A row starts a new rung unless the last row with dollars saved at the same rate for the same reason.
     if (i === 1) {
       b.f(ws, W.lastRate, row, () => `IF(${at(W.dollars)}>0,${at(W.rate)},0)`, ST.helper(NF.pct));
-      b.f(ws, W.lastReason, row, () => `IF(${at(W.dollars)}>0,${at(W.reason)},"")`, ST.helper(undefined, 'left'));
+      b.f(ws, W.lastReason, row, () => `IF(${at(W.dollars)}>0,${at(W.reason)},0)`, ST.helper(NF.plain));
       b.f(ws, W.isNew, row, () => `IF(${at(W.dollars)}>0,1,0)`, ST.helper(NF.plain));
       b.f(ws, W.run, row, () => at(W.isNew), ST.helper(NF.plain));
     } else {
       b.f(ws, W.lastRate, row, () => `IF(${at(W.dollars)}>0,${at(W.rate)},${at(W.lastRate, previous)})`, ST.helper(NF.pct));
-      b.f(ws, W.lastReason, row, () => `IF(${at(W.dollars)}>0,${at(W.reason)},${at(W.lastReason, previous)})`, ST.helper(undefined, 'left'));
+      b.f(ws, W.lastReason, row, () => `IF(${at(W.dollars)}>0,${at(W.reason)},${at(W.lastReason, previous)})`, ST.helper(NF.plain));
       b.f(
         ws,
         W.isNew,
@@ -244,7 +305,7 @@ export function buildLadder(b: Book): ExcelJS.Worksheet {
     const pick = `$${L(D.pick)}${row}`;
     const inRung = `(${whole(W.group)}=${i})`;
     b.f(ws, D.pick, row, () => `IFERROR(MATCH(${i},${whole(W.count)},0),0)`, ST.helper(NF.plain));
-    b.f(ws, D.reason, row, () => `IF(${pick}=0,"",INDEX(${whole(W.reason)},${pick}))`, ST.helper(undefined, 'left'));
+    b.f(ws, D.reason, row, () => `IF(${pick}=0,0,INDEX(${whole(W.reason)},${pick}))`, ST.helper(NF.plain));
     b.f(ws, D.from, row, () => `IF(${pick}=0,0,INDEX(${whole(W.start)},${pick}))`, ST.helper(NF.int));
     b.f(ws, D.to, row, () => `${at(D.from)}+SUMPRODUCT(${inRung}*${whole(W.dollars)})`, ST.helper(NF.int));
     b.f(ws, D.rate, row, () => `IF(${pick}=0,0,INDEX(${whole(W.rate)},${pick}))`, ST.helper(NF.pct));
@@ -285,55 +346,52 @@ export function buildLadder(b: Book): ExcelJS.Worksheet {
       12,
       row,
       ($) =>
-        `IF(${pick}=0,"",IF(${L(D.reason)}${row}="reliefCap","No tax saved: over the "&${dollarsText($('r_reliefCap'))}&" overall relief cap.",` +
-        `IF(${L(D.reason)}${row}="belowTaxThreshold","No tax saved: this income is already tax-free.",` +
-        `IF(I${row}>=E${row},"In your plan: "&ROUND(F${row}*1000,0)/10&" cents back per dollar.",` +
-        `IF(I${row}>0,"Partly in your plan: "&ROUND(F${row}*1000,0)/10&" cents back per dollar.","Not in your plan: "&ROUND(F${row}*1000,0)/10&" cents back per dollar.")))))`,
+        `IF(${pick}=0,"",IF(${L(D.reason)}${row}=${ZERO_REASON_NUMBERS.reliefCap},"No tax saved: over the "&${dollarsText($('r_reliefCap'))}&" overall relief cap.",` +
+        `IF(${L(D.reason)}${row}=${ZERO_REASON_NUMBERS.belowTaxThreshold},"No tax saved: this income is already tax-free.",` +
+        `IF(I${row}>=E${row},"In your plan: "&${centsNumber(`F${row}`)}&" cents back per dollar.",` +
+        `IF(I${row}>0,"Partly in your plan: "&${centsNumber(`F${row}`)}&" cents back per dollar.","Not in your plan: "&${centsNumber(`F${row}`)}&" cents back per dollar.")))))`,
       ST.tdBare(undefined, 'left', { size: 10, color: { argb: C.muted } }),
     );
   }
   b.reg('lad_taxAtBottom', ws, W.tax, end);
 
+  // The working rows' rates and the dollars of each that the plan uses (for the caution shown to foreigners).
+  b.regRange('lad_wRate', ws, W.rate, top, W.rate, end);
+  b.regRange('lad_wUsed', ws, W.used, top, W.used, end);
+
   // ---- Chart points --------------------------------------------------------------------------------------------
-  // "Every rung" is the ladder. "Your plan" follows it, drops to zero where the plan stops and ends there: its x
-  // values never pass the plan total. (Read against the ladder's own x values, as an application that gives a
-  // chart a single x column would, it runs on along the axis instead, which is still true.) Rows for rungs that
-  // do not exist repeat the last point, so the lines simply end.
-  const pointsEnd = top + rows * 4 - 1;
-  for (let i = 1; i <= rows; i++) {
-    const rung = top + i - 1;
-    const shown = `$${L(D.pick)}$${rung}>0`;
-    const from = `$${L(D.from)}$${rung}`;
-    const to = `$${L(D.to)}$${rung}`;
-    const rate = `$${L(D.rate)}$${rung}`;
-    for (let q = 1; q <= 4; q++) {
-      const row = top + (i - 1) * 4 + q - 1;
-      const before = (col: number): string => (row === top ? '0' : `${L(col)}${row - 1}`);
-      b.f(
-        ws,
-        P.x,
-        row,
-        ($) => {
-          const stop = `MAX(${from},MIN(${to},${$('w_X')}))`;
-          return `IF(${shown},${q === 1 ? from : q === 4 ? to : stop},${before(P.x)})`;
-        },
-        ST.helper(NF.int),
-      );
-      b.f(ws, P.all, row, () => `IF(${shown},${rate},${before(P.all)})`, ST.helper(NF.pct));
-      b.f(ws, P.planX, row, ($) => `MIN(${L(P.x)}${row},${$('w_X')})`, ST.helper(NF.int));
-      b.f(
-        ws,
-        P.plan,
-        row,
-        ($) => `IF(${shown},IF(${q <= 2 ? `${from}<${$('w_X')}` : `${to}<=${$('w_X')}`},${rate},0),${before(P.plan)})`,
-        ST.helper(NF.pct),
-      );
-    }
+  // Point i is at i/CHART_STEPS of the axis. Whether a point lies inside a rung, or inside the plan, is decided on
+  // whole numbers (i × axis end against CHART_STEPS × the rung's ends), so every application agrees to the dollar.
+  const pointsEnd = top + CHART_STEPS;
+  const rungFrom = whole(D.from);
+  const rungTo = whole(D.to);
+  const rungRate = whole(D.rate);
+  for (let i = 0; i <= CHART_STEPS; i++) {
+    const row = top + i;
+    const at = ($: Resolver): string => `${i}*${$('lad_chartMax')}`;
+    b.f(ws, P.x, row, ($) => `${at($)}/${CHART_STEPS}`, ST.helper(NF.int));
+    // With no room there is no axis to label (a row of "0" under an empty chart would read as a scale).
+    if (i % CHART_LABEL_EVERY === 0) b.f(ws, P.label, row, ($) => `IF(${$('lad_chartMax')}=0,"",TEXT(${L(P.x)}${row},"#,##0"))`, ST.helper(undefined, 'right'));
+    else b.v(ws, P.label, row, '', ST.helper(undefined, 'right'));
+    b.f(
+      ws,
+      P.plan,
+      row,
+      ($) => `IF(${at($)}<${CHART_STEPS}*${$('w_X')},SUMPRODUCT((${CHART_STEPS}*${rungFrom}<=${at($)})*(${at($)}<${CHART_STEPS}*${rungTo})*${rungRate}),0)`,
+      ST.helper(NF.pct),
+    );
+    b.f(
+      ws,
+      P.rest,
+      row,
+      ($) => `IF(${at($)}<${CHART_STEPS}*${$('w_X')},0,SUMPRODUCT((${CHART_STEPS}*${rungFrom}<=${at($)})*(${at($)}<${CHART_STEPS}*${rungTo})*${rungRate}))`,
+      ST.helper(NF.pct),
+    );
   }
   b.regRange('lad_chartX', ws, P.x, top, P.x, pointsEnd);
-  b.regRange('lad_chartAll', ws, P.all, top, P.all, pointsEnd);
-  b.regRange('lad_chartPlanX', ws, P.planX, top, P.planX, pointsEnd);
   b.regRange('lad_chartPlan', ws, P.plan, top, P.plan, pointsEnd);
+  b.regRange('lad_chartRest', ws, P.rest, top, P.rest, pointsEnd);
+  b.regRange('lad_chartLabel', ws, P.label, top, P.label, pointsEnd);
   b.charts.push({
     sheet: SHEETS.ladder,
     from: { col: 1, row: chartTop - 1 },
@@ -343,10 +401,12 @@ export function buildLadder(b: Book): ExcelJS.Worksheet {
     yTitle: 'Tax saved per dollar',
     xNumFmt: '#,##0',
     yNumFmt: '0.0%',
+    categoriesKey: 'lad_chartLabel',
+    labelEvery: CHART_LABEL_EVERY,
     series: [
-      // The whole ladder is a thin dark line; the plan is drawn over it, thick, as far as it goes.
-      { nameKey: 'lad_chartAllName', xKey: 'lad_chartX', yKey: 'lad_chartAll', color: C.slate.slice(2), widthPt: 1.5 },
-      { nameKey: 'lad_chartPlanName', xKey: 'lad_chartPlanX', yKey: 'lad_chartPlan', color: C.good.slice(2), widthPt: 4.5 },
+      // Stacked, so the two never hide one another: the plan is the dark block, the rest of the ladder the pale one.
+      { nameKey: 'lad_chartPlanName', valuesKey: 'lad_chartPlan', color: C.good.slice(2) },
+      { nameKey: 'lad_chartRestName', valuesKey: 'lad_chartRest', color: C.line.slice(2) },
     ],
   });
 
@@ -378,9 +438,10 @@ export function buildLadder(b: Book): ExcelJS.Worksheet {
   }
   for (const [name, key] of [
     ['out_chart_x', 'lad_chartX'],
-    ['out_chart_all', 'lad_chartAll'],
-    ['out_chart_planX', 'lad_chartPlanX'],
     ['out_chart_plan', 'lad_chartPlan'],
+    ['out_chart_rest', 'lad_chartRest'],
+    ['out_chart_max', 'lad_chartMax'],
+    ['out_chart_label', 'lad_chartLabel'],
   ] as const) {
     b.define(name, key);
   }

@@ -1,22 +1,30 @@
 import type { ComponentChildren, JSX } from 'preact';
+import { DISCLAIMER } from '../../engine';
 import type { LeverId, PlannerResult, PlannerWarning, Scenario, TaxComputation } from '../../engine/types';
 import { bandRows } from '../bands';
-import { cents, centsFigure, centsPerDollar, countOf, dayAndMonth, dollars, longDate, monthLabel, pct } from '../format';
-import { SIMULATOR_STEPS } from '../state';
+import { BUY_LABEL, BUY_URL, VERSION } from '../build';
+import { cents, centsFigure, centsPerDollar, countOf, dollars, longDate, monthLabel, pct } from '../format';
+import { SIMULATOR_STEPS, simulatorSteps } from '../state';
 import type { WhatIf } from '../state';
 import {
-  APPROXIMATIONS,
-  DISCLAIMER,
+  COUNTS_NEXT_YEAR,
   LEVERS,
   LEVER_NAME,
-  LEVER_SHORT,
-  NOT_MODELLED,
+  PLAN_CAUTION_CODES,
   SCENARIO_NAME,
+  affordabilityNote,
+  approximations,
+  cautionsFor,
+  cpfOpen,
+  deadlineLines,
   deadlinePassed,
-  eligibilityCautions,
-  lockUpFacts,
+  factsFor,
+  fullYearSplit,
+  notModelledFor,
+  sourcesFor,
   stopReason,
 } from '../text';
+import type { ReasonOptions } from '../text';
 import { Row, SelectField, TableScroll } from './Controls';
 
 interface SectionProps {
@@ -84,7 +92,7 @@ export function Compare({ result }: SectionProps): JSX.Element {
             </th>
             {levers.map((l) => (
               <th scope="col" role="columnheader" class="num" key={l}>
-                {LEVER_SHORT[l]}
+                {LEVER_NAME[l]}
               </th>
             ))}
             <th scope="col" role="columnheader" class="num">
@@ -162,10 +170,14 @@ export function Compare({ result }: SectionProps): JSX.Element {
 // Monthly plan
 // ---------------------------------------------------------------------------
 
-export function MonthlyPlanView({ result }: SectionProps): JSX.Element {
+export function MonthlyPlanView(props: SectionProps & { onField: (id: string) => void }): JSX.Element {
+  const { result, onField } = props;
   const { monthlyPlan: mp, plan: p, rules } = result;
   const levers = LEVERS.filter((l) => p.contributions[l] > 0);
   const passed = mp.daysToDeadline < 0;
+  const stretch = affordabilityNote(result);
+  // Cut-offs only for the schemes the plan uses, and only while there is still something to transfer.
+  const cutOffs = passed ? [] : deadlineLines(result);
   return (
     <div class="monthly">
       <div class="countdown" data-testid="countdown">
@@ -173,7 +185,7 @@ export function MonthlyPlanView({ result }: SectionProps): JSX.Element {
           <>
             <span class="countdown-figure">0</span>
             <span class="countdown-text">
-              days left. The deadline was {longDate(mp.deadline)}. Money you put in now counts for the following year.
+              days left. The deadline was {longDate(mp.deadline)}. {COUNTS_NEXT_YEAR}
             </span>
           </>
         ) : (
@@ -201,7 +213,7 @@ export function MonthlyPlanView({ result }: SectionProps): JSX.Element {
                 </th>
                 {levers.map((l) => (
                   <th scope="col" role="columnheader" class="num" key={l}>
-                    {LEVER_SHORT[l]}
+                    {LEVER_NAME[l]}
                   </th>
                 ))}
                 <th scope="col" role="columnheader" class="num">
@@ -216,7 +228,7 @@ export function MonthlyPlanView({ result }: SectionProps): JSX.Element {
                     {monthLabel(row.month)}
                   </th>
                   {levers.map((l) => (
-                    <td role="cell" class="num c-lever" key={l} data-label={LEVER_SHORT[l]}>
+                    <td role="cell" class="num c-lever" key={l} data-label={LEVER_NAME[l]}>
                       {dollars(row.amounts[l])}
                     </td>
                   ))}
@@ -232,7 +244,7 @@ export function MonthlyPlanView({ result }: SectionProps): JSX.Element {
                   Total
                 </th>
                 {levers.map((l) => (
-                  <td role="cell" class="num c-lever" key={l} data-label={LEVER_SHORT[l]}>
+                  <td role="cell" class="num c-lever" key={l} data-label={LEVER_NAME[l]}>
                     {dollars(p.contributions[l])}
                   </td>
                 ))}
@@ -249,27 +261,38 @@ export function MonthlyPlanView({ result }: SectionProps): JSX.Element {
         </p>
       )}
 
+      {stretch ? (
+        <div class="notice notice-caution monthly-stretch" data-testid="monthly-affordability">
+          <span class="tag tag-caution">Check</span>
+          <div class="notice-body">
+            <p>
+              {stretch.text} If that is more than you can spare, tell the plan how much cash you have and it will
+              stay within it.
+            </p>
+            <button type="button" class="btn btn-small" data-testid="monthly-cash-limit" onClick={() => onField('cashLimit')}>
+              Set a cash limit
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       {p.totalContribution > 0 ? (
         <p class="prose" data-testid="full-year">
           Start in January next time and the same plan is <b>{dollars(mp.fullYearMonthly.total)} a month</b> over
-          twelve months
-          {levers.length > 1
-            ? ` (${levers.map((l) => `${LEVER_SHORT[l]} ${dollars(mp.fullYearMonthly[l])}`).join(', ')})`
-            : ''}
-          .
+          twelve months{levers.length > 1 ? `: ${fullYearSplit(result)}` : ''}.
         </p>
       ) : null}
 
-      <ul class="plain-list">
-        <li>
-          SRS: banks stop taking same-day contributions before midnight on {dayAndMonth(mp.deadline)}, some as early
-          as 7pm. A transfer after the cut-off counts for the next year.
-        </li>
-        <li>
-          CPF top-ups count on the day the CPF Board receives the money, not the day you send it. Transfer a few
-          working days early.
-        </li>
-      </ul>
+      {cutOffs.length > 0 ? (
+        <ul class="plain-list" data-testid="monthly-deadlines">
+          {cutOffs.map((line) => (
+            <li key={line.term}>
+              <b class="term">{line.term}: </b>
+              {line.text}
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }
@@ -280,7 +303,8 @@ export function MonthlyPlanView({ result }: SectionProps): JSX.Element {
 
 export function Simulator(props: SectionProps & { step: number; onStep: (step: number) => void }): JSX.Element {
   const { result, step, onStep } = props;
-  const rows = result.simulator;
+  // The engine's rows, plus one at the plan's own total when the step does not land on it.
+  const rows = simulatorSteps(result);
   const levers = usableLevers(result).filter((l) => rows.some((r) => r.split[l] > 0));
   const used = result.input.preferences.simulatorStep ?? step;
   // Grouped under headings instead of a column that says "Yes" or "Beyond it" on every line.
@@ -329,7 +353,7 @@ export function Simulator(props: SectionProps & { step: number; onStep: (step: n
                   </th>
                   {levers.map((l) => (
                     <th scope="col" class="num" key={l}>
-                      {LEVER_SHORT[l]}
+                      {LEVER_NAME[l]}
                     </th>
                   ))}
                 </tr>
@@ -343,9 +367,15 @@ export function Simulator(props: SectionProps & { step: number; onStep: (step: n
                     </th>
                   </tr>
                   {g.rows.map((r) => (
-                    <tr key={r.contribution} class={g.id === 'plan' ? 'is-plan' : undefined} data-step>
+                    <tr
+                      key={r.contribution}
+                      class={g.id === 'plan' ? 'is-plan' : undefined}
+                      data-step
+                      data-plan-total={r.planTotal ? 'true' : undefined}
+                    >
                       <th scope="row" class="nowrap">
                         {dollars(r.contribution)}
+                        {r.planTotal ? <span class="cell-note">Your plan's total</span> : null}
                       </th>
                       <td class="num">{r.contribution === 0 ? 'n/a' : cents(r.stepSaving)}</td>
                       <td class="num">{r.contribution === 0 ? 'n/a' : centsFigure(r.stepRate)}</td>
@@ -417,15 +447,21 @@ export function TaxWorking({ result }: SectionProps): JSX.Element {
   }
   income.push(workingRow('Assessable income', (t) => t.assessableIncome, result, dollars, 'total'));
 
-  const reliefs: WorkingRow[] = [
-    workingRow('Earned Income Relief', (t) => t.reliefs.earnedIncome, result),
-    workingRow('CPF relief, compulsory employee share', (t) => t.reliefs.cpf, result),
-    workingRow('SRS relief', (t) => t.reliefs.srs, result),
-    workingRow('CPF cash top-up relief, self', (t) => t.reliefs.cpfTopUpSelf, result),
-    workingRow('CPF cash top-up relief, family', (t) => t.reliefs.cpfTopUpFamily, result),
-    workingRow('Other reliefs', (t) => t.reliefs.other, result),
-    workingRow('Reliefs before the cap', (t) => t.reliefs.totalBeforeCap, result, dollars, 'total'),
-  ];
+  // A CPF line is shown to everyone it can apply to. Someone with no CPF (a foreigner on a work pass) is not
+  // shown three lines of S$0 for reliefs that are not open to them.
+  const reliefs: WorkingRow[] = [workingRow('Earned Income Relief', (t) => t.reliefs.earnedIncome, result)];
+  if (result.cpf.source !== 'none' || either((t) => t.reliefs.cpf)) {
+    reliefs.push(workingRow('CPF relief, compulsory employee share', (t) => t.reliefs.cpf, result));
+  }
+  reliefs.push(workingRow('SRS relief', (t) => t.reliefs.srs, result));
+  if (result.levers.cpfSelf.eligible || either((t) => t.reliefs.cpfTopUpSelf)) {
+    reliefs.push(workingRow('CPF cash top-up relief, self', (t) => t.reliefs.cpfTopUpSelf, result));
+  }
+  if (result.levers.cpfFamily.eligible || either((t) => t.reliefs.cpfTopUpFamily)) {
+    reliefs.push(workingRow('CPF cash top-up relief, family', (t) => t.reliefs.cpfTopUpFamily, result));
+  }
+  reliefs.push(workingRow('Other reliefs', (t) => t.reliefs.other, result));
+  reliefs.push(workingRow('Reliefs before the cap', (t) => t.reliefs.totalBeforeCap, result, dollars, 'total'));
   if (either((t) => t.reliefs.lostToCap)) {
     reliefs.push(workingRow(`Lost to the ${cap} cap`, (t) => t.reliefs.lostToCap, result, dollars, 'lost'));
   }
@@ -611,21 +647,32 @@ export function Notice(props: {
 
 /**
  * Three engine warnings are worded by the page, not the engine.
- * - The two about what stops the plan: the engine's sentences quote `unrealisedSaving`, a saving that needs
- *   room no setting can create, and describe "the schemes you switched on" even when none is. `stopReason`
- *   says the same thing in figures the person can reach.
+ * - The two about what stops the plan: the card already says why the plan stops (`stopReason`), naming the
+ *   scheme that would have to be switched on and quoting the engine's plan for exactly that change. The note
+ *   in the list repeats that sentence, so the page gives one reason in one wording, not the card's and then
+ *   the engine's more general one ("the schemes you left off").
  * - The one about the minimum saving: the engine writes the rates as percentages, and the page talks in cents
  *   per dollar everywhere else. The figures are still the engine's.
  */
-export function noticeMessage(warning: PlannerWarning, result: PlannerResult, hint: WhatIf | null): string {
-  if (warning.code === 'LEVER_LIMITS_PLAN' || warning.code === 'BUDGET_LIMITS_PLAN') return stopReason(result, hint);
+export function noticeMessage(
+  warning: PlannerWarning,
+  result: PlannerResult,
+  hint: WhatIf | null,
+  options: ReasonOptions = {},
+): string {
+  if (warning.code === 'LEVER_LIMITS_PLAN' || warning.code === 'BUDGET_LIMITS_PLAN') {
+    return stopReason(result, hint, options);
+  }
   if (warning.code === 'BELOW_MIN_SAVING_RATE') {
     const most = result.baseline.marginalRate;
-    const asked = result.input.preferences.minSavingRate;
+    const asked = centsPerDollar(result.input.preferences.minSavingRate);
+    // Nobody is told they "set" a minimum that is the page's default.
+    const minimum = options.defaultMinimum ? `the default minimum of ${asked}` : `the ${asked} minimum you set`;
     return (
-      `Each extra dollar would save ${centsPerDollar(most)} or less in tax, below the ${centsPerDollar(asked)} ` +
-      'minimum you set, so nothing is recommended. Choose Every tax dollar under "How far down the ladder?" to ' +
-      'see these smaller savings.'
+      `Each extra dollar would save ${centsPerDollar(most)} or less in tax, below ${minimum}, so nothing is ` +
+      'recommended. Choose Every tax dollar under "How far down the ladder?" to see ' +
+      // A foreigner is told what those dollars cost on the way out wherever the page points to them.
+      (options.deeperCaveat ? `a plan with these smaller savings. ${options.deeperCaveat}` : 'these smaller savings.')
     );
   }
   return warning.message;
@@ -637,20 +684,30 @@ export function noticeMessage(warning: PlannerWarning, result: PlannerResult, hi
  *   the plan); the first says everything the second does.
  * - Once the deadline has passed, the notes about what stops the plan and how to save more are left out: there
  *   is nothing left to change for that year.
+ * - The cautions that decide whether a recommended dollar earns relief are shown with the recommendation, so
+ *   they are not said a second time here.
+ * - The note that CPF top-ups are not open to a foreigner is the one line under the lock-up facts.
  */
 export function listedWarnings(result: PlannerResult): PlannerWarning[] {
   const codes = new Set(result.warnings.map((w) => w.code));
   const past = deadlinePassed(result);
-  const skip = new Set<string>();
+  const skip = new Set<string>(PLAN_CAUTION_CODES);
+  if (!cpfOpen(result)) skip.add('FOREIGNER_NO_CPF');
   if (codes.has('RELIEF_CAP_EXCEEDED_BASELINE')) skip.add('RELIEF_CAP_LIMITS_PLAN');
   if (past) for (const code of ['LEVER_LIMITS_PLAN', 'BUDGET_LIMITS_PLAN', 'BELOW_MIN_SAVING_RATE']) skip.add(code);
   return SEVERITY_ORDER.flatMap((sev) => result.warnings.filter((w) => w.severity === sev && !skip.has(w.code)));
 }
 
-export function BeforeYouTransfer({ result, hint }: SectionProps & { hint: WhatIf | null }): JSX.Element {
+export function BeforeYouTransfer(
+  props: SectionProps & { hint: WhatIf | null; options: ReasonOptions },
+): JSX.Element {
+  const { result, hint, options } = props;
   const warnings = listedWarnings(result);
+  // Only the schemes that are open to this person get a column: a foreigner sees SRS alone.
   const levers = usableLevers(result);
-  const facts = lockUpFacts(result);
+  // The engine's wording, shared with the workbook: rendered as it comes, never rewritten here.
+  const facts = factsFor(result);
+  const notOpen = cpfOpen(result) ? null : (result.warnings.find((w) => w.code === 'FOREIGNER_NO_CPF')?.message ?? null);
   return (
     <div class="before">
       {warnings.length > 0 ? (
@@ -658,7 +715,7 @@ export function BeforeYouTransfer({ result, hint }: SectionProps & { hint: WhatI
           <h3 class="sub-title">About your numbers</h3>
           <ul class="notices" data-testid="warnings">
             {warnings.map((w) => (
-              <Notice key={w.code} warning={w} message={noticeMessage(w, result, hint)} />
+              <Notice key={w.code} warning={w} message={noticeMessage(w, result, hint, options)} />
             ))}
           </ul>
         </>
@@ -683,7 +740,7 @@ export function BeforeYouTransfer({ result, hint }: SectionProps & { hint: WhatI
             </thead>
             <tbody>
               {facts.map((row) => (
-                <tr key={row.label}>
+                <tr key={row.id} data-fact={row.id}>
                   <th scope="row">{row.label}</th>
                   {levers.map((l) => (
                     <td key={l} data-label={LEVER_NAME[l]}>
@@ -698,10 +755,15 @@ export function BeforeYouTransfer({ result, hint }: SectionProps & { hint: WhatI
       ) : (
         <p class="empty">None of the schemes is open to you on these numbers.</p>
       )}
+      {notOpen ? (
+        <p class="prose small" data-testid="facts-not-open">
+          {notOpen}
+        </p>
+      ) : null}
 
       <h3 class="sub-title">Check before you move money</h3>
-      <ul class="plain-list">
-        {eligibilityCautions(result).map((text) => (
+      <ul class="plain-list" data-testid="transfer-cautions">
+        {cautionsFor(result).map((text) => (
           <li key={text}>{text}</li>
         ))}
       </ul>
@@ -728,10 +790,10 @@ export function Sources({ result }: SectionProps): JSX.Element {
             <Row label="SRS cap for you" value={dollars(levers.srs.statutoryCap)} />
             {/* CPF figures only for people the CPF rules apply to: a foreigner on a work pass has no CPF. */}
             {levers.cpfSelf.eligible ? (
-              <Row label="CPF top-up relief, self" value={dollars(levers.cpfSelf.statutoryCap)} />
+              <Row label="CPF cash top-up relief, self" value={dollars(levers.cpfSelf.statutoryCap)} />
             ) : null}
             {levers.cpfFamily.eligible ? (
-              <Row label="CPF top-up relief, family" value={dollars(levers.cpfFamily.statutoryCap)} />
+              <Row label="CPF cash top-up relief, family" value={dollars(levers.cpfFamily.statutoryCap)} />
             ) : null}
             {result.cpf.source !== 'none' ? (
               <>
@@ -742,7 +804,11 @@ export function Sources({ result }: SectionProps): JSX.Element {
             {levers.cpfSelf.eligible || levers.cpfFamily.eligible ? (
               <>
                 <Row label="Full Retirement Sum" value={dollars(rules.cpfTopUp.fullRetirementSum)} />
-                <Row label="Basic Healthcare Sum" value={dollars(rules.cpfTopUp.basicHealthcareSum)} />
+                <Row label="Enhanced Retirement Sum" value={dollars(rules.cpfTopUp.enhancedRetirementSum)} />
+                <Row
+                  label="Basic Healthcare Sum, aged 65 or under"
+                  value={dollars(rules.cpfTopUp.basicHealthcareSum)}
+                />
               </>
             ) : null}
             <Row label="Donations deducted at" value={pct(rules.donationDeductionMultiplier)} />
@@ -752,7 +818,7 @@ export function Sources({ result }: SectionProps): JSX.Element {
         <div>
           <h3 class="sub-title">Where the rules come from</h3>
           <ul class="link-list" data-testid="sources-list">
-            {rules.sources.map((s) => (
+            {sourcesFor(result).map((s) => (
               <li key={s.url}>
                 <a href={s.url} target="_blank" rel="noopener">
                   {s.label}
@@ -768,14 +834,14 @@ export function Sources({ result }: SectionProps): JSX.Element {
         {rules.statusNotes.map((note) => (
           <li key={note}>{note}</li>
         ))}
-        {APPROXIMATIONS.map((note) => (
+        {approximations(result).map((note) => (
           <li key={note}>{note}</li>
         ))}
       </ul>
 
       <h3 class="sub-title">What this does not model</h3>
-      <ul class="plain-list">
-        {NOT_MODELLED.map((note) => (
+      <ul class="plain-list" data-testid="not-modelled">
+        {notModelledFor(result).map((note) => (
           <li key={note}>{note}</li>
         ))}
       </ul>
@@ -789,6 +855,31 @@ export function Sources({ result }: SectionProps): JSX.Element {
         and requests nothing else; it works the same without them.
       </p>
     </div>
+  );
+}
+
+/** The foot of the page: what this is, which version, and the one link to the paid workbook when there is one. */
+export function PageFoot(): JSX.Element {
+  return (
+    <footer class="page-foot" data-testid="page-foot">
+      <p>
+        Singapore Tax Optimiser
+        {VERSION ? (
+          <>
+            {' · '}
+            <span data-testid="version">version {VERSION}</span>
+          </>
+        ) : null}
+        {' · '}Estimate only, not tax advice
+      </p>
+      {BUY_URL ? (
+        <p data-testid="shop-link-foot">
+          <a href={BUY_URL} target="_blank" rel="noopener">
+            {BUY_LABEL}
+          </a>
+        </p>
+      ) : null}
+    </footer>
   );
 }
 

@@ -112,6 +112,17 @@ export function prefersReducedMotion(): boolean {
   }
 }
 
+/**
+ * Bring one input into view, in the middle of its scroll box (clear of the bar at the foot of a phone screen),
+ * and put the caret in it. Does nothing if the field is not on the page.
+ */
+export function goToField(id: string): void {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'center' });
+  el.focus({ preventScroll: true });
+}
+
 /** Scroll a section into view and move keyboard focus to it. */
 export function goTo(id: string): void {
   const el = document.getElementById(id);

@@ -5,7 +5,15 @@
  * (monthly or annual pay entry, itemised reliefs, the strategy presets). `toPlannerInput` derives the
  * engine's PlannerInput from it. Nothing here touches the DOM, the clock or storage, so it runs under Vitest.
  */
-import { SUPPORTED_INCOME_YEARS, defaultIncomeYear, defaultInput, getRules, plan } from '../engine';
+import {
+  NON_RESIDENT_SRS_COST,
+  SUPPORTED_INCOME_YEARS,
+  defaultIncomeYear,
+  defaultInput,
+  evaluate,
+  getRules,
+  plan,
+} from '../engine';
 import type {
   LeverId,
   Plan,
@@ -14,6 +22,7 @@ import type {
   PrYear,
   ReliefCatalogItem,
   Residency,
+  SimulatorRow,
   YearRules,
 } from '../engine/types';
 
@@ -21,13 +30,34 @@ import type {
 export const STORAGE_KEY = 'sgto:v1';
 export const STATE_VERSION = 1;
 
-/** "Worth it": only lock away dollars that save at least 7 cents each (SPEC 8.3). */
-export const WORTH_IT_RATE = 0.07;
+/**
+ * The default minimum saving per dollar, by residency (SPEC 8.3). Citizens and PRs: 7 cents. Foreigners: 11.5
+ * cents, because a foreigner who has left Singapore pays at least 7.5 cents per dollar to take SRS out again
+ * (`NON_RESIDENT_SRS_COST`), so a dollar that saves 7 cents today would be a loss.
+ */
+export const DEFAULT_MIN_RATE: Record<Residency, number> = { citizen: 0.07, pr: 0.07, foreigner: 0.115 };
+
+/** The default minimum saving per dollar for a residency. An unknown residency is treated as a citizen's. */
+export function defaultMinRate(residency: Residency): number {
+  return DEFAULT_MIN_RATE[residency] ?? DEFAULT_MIN_RATE.citizen;
+}
+
+/**
+ * The bracket rate a foreigner's default steps over: the highest rate below what leaving costs, e.g. 7%.
+ * 0 when the rules have no such bracket.
+ */
+export function rateBelowLeavingCost(rules: YearRules): number {
+  const below = rules.taxBrackets.map((b) => b.rate).filter((r) => r > 0 && r < NON_RESIDENT_SRS_COST.atRetirementOrTenYears);
+  return below.length > 0 ? Math.max(...below) : 0;
+}
 
 export type PayMode = 'monthly' | 'annual';
 export type ReliefMode = 'total' | 'itemised';
-/** "How far down the ladder?" */
-export type Depth = 'worth' | 'top' | 'every' | 'custom';
+/**
+ * "How far down the ladder?" 'default' is the preset named by its figure ("7 cents or more"); its rate follows
+ * the residency (see `defaultMinRate`).
+ */
+export type Depth = 'default' | 'top' | 'every' | 'custom';
 /** "Which first?" */
 export type Order = 'flexibility' | 'interest' | 'family';
 export type ThemeChoice = 'system' | 'light' | 'dark';
@@ -57,6 +87,8 @@ export interface UiState {
   prYear: PrYear;
   age: number;
   birthMonth: number;
+  /** "I have unused Parenthood Tax Rebate": raises a caution beside the plan; it changes no figure. */
+  hasPtr: boolean;
 
   payMode: PayMode;
   /** Salary in the unit of `payMode`: a month's pay, or twelve months' pay. */
@@ -87,13 +119,20 @@ export interface UiState {
   useSrs: boolean;
   useCpfSelf: boolean;
   useCpfFamily: boolean;
-  /** Room left before the Full Retirement Sum / Basic Healthcare Sum. null = not given. */
+  /**
+   * The top-up to the person's own CPF that can still earn relief. null = not given: below 55 that means "not
+   * limiting"; from 55 it means "not confirmed", and their own CPF is left out until a figure is entered.
+   */
   cpfSelfRoom: number | null;
   /** Most the person would give to family members. null = up to the relief cap. */
   cpfFamilyMax: number | null;
 
   depth: Depth;
-  /** Minimum saving per dollar used when depth is 'custom' (a fraction: 0.035 = 3.5 cents). */
+  /**
+   * The minimum saving per dollar the person picked for depth 'custom' (a fraction: 0.035 = 3.5 cents). It
+   * counts only once they have picked one (`edited` lists it); until then a custom minimum is their own
+   * default (see `customRateOf`).
+   */
   customRate: number;
   /** Most cash to lock away this year. null = no limit. */
   cashLimit: number | null;
@@ -121,16 +160,18 @@ function orderFor(priority: LeverId[]): Order {
 /** The UI state that reproduces a PlannerInput (used to open on the engine's worked example). */
 export function uiStateFromInput(input: PlannerInput): UiState {
   const rate = input.preferences.minSavingRate;
-  const depth: Depth = rate === WORTH_IT_RATE ? 'worth' : rate === 0 ? 'every' : 'custom';
+  const depth: Depth = rate === defaultMinRate(input.profile.residency) ? 'default' : rate === 0 ? 'every' : 'custom';
   const override = input.income.employeeCpfOverride;
   return {
     isExample: true,
-    edited: [],
+    // A minimum that is neither the default nor zero can only be one somebody picked.
+    edited: depth === 'custom' ? ['customRate'] : [],
     incomeYear: input.incomeYear,
     residency: input.profile.residency,
     prYear: input.profile.prYear ?? 3,
     age: input.profile.ageAtYearEnd,
     birthMonth: input.profile.birthMonth ?? 12,
+    hasPtr: input.profile.hasUnusedParenthoodTaxRebate === true,
     payMode: 'monthly',
     salary: input.income.monthlyOrdinaryWage,
     salaryOther: null,
@@ -153,7 +194,7 @@ export function uiStateFromInput(input: PlannerInput): UiState {
     cpfSelfRoom: input.levers.cpfSelf.roomToLimit ?? null,
     cpfFamilyMax: input.levers.cpfFamily.maxAmount ?? null,
     depth,
-    customRate: depth === 'custom' ? rate : WORTH_IT_RATE,
+    customRate: depth === 'custom' ? rate : DEFAULT_MIN_RATE.citizen,
     cashLimit: input.preferences.cashBudget ?? null,
     order: orderFor(input.preferences.priority),
     simulatorStep: input.preferences.simulatorStep ?? 1000,
@@ -170,10 +211,11 @@ export function exampleState(today: string): UiState {
 // ---------------------------------------------------------------------------
 
 /**
- * Choices that change what is shown, not whose numbers they are: the step of the simulator, the income year and
- * the order the schemes fill in. Changing one of these alone leaves the page labelled as the example.
+ * Choices that change what is shown, not whose numbers they are: the step of the simulator, the income year,
+ * the order the schemes fill in, and whether other reliefs are entered as one total or itemised. Changing one
+ * of these alone leaves the page labelled as the example.
  */
-export const VIEW_ONLY: readonly (keyof UiState)[] = ['simulatorStep', 'incomeYear', 'order'];
+export const VIEW_ONLY: readonly (keyof UiState)[] = ['simulatorStep', 'incomeYear', 'order', 'reliefMode'];
 
 /** Apply a change from the form: record which fields were set, and stop calling the page an example. */
 export function applyEdit(prev: UiState, patch: Partial<UiState>): UiState {
@@ -190,9 +232,11 @@ const EXAMPLE_FIGURES: { name: string; keys: (keyof UiState)[]; same: (ui: UiSta
   { name: 'salary', keys: ['salary', 'payMode'], same: (ui, ex) => ui.salary === ex.salary && ui.payMode === ex.payMode },
   { name: 'bonus', keys: ['bonus'], same: (ui, ex) => ui.bonus === ex.bonus },
   {
+    // Switching between one total and the helper is not the person setting the figure: the example's total
+    // stays in the plan, and stays named, until they type a total or enter something in the helper.
     name: 'other reliefs',
-    keys: ['reliefTotal', 'reliefMode', 'reliefItems'],
-    same: (ui, ex) => ui.reliefMode === ex.reliefMode && ui.reliefTotal === ex.reliefTotal,
+    keys: ['reliefTotal', 'reliefItems'],
+    same: (ui, ex) => ui.reliefTotal === ex.reliefTotal,
   },
 ];
 
@@ -221,6 +265,7 @@ export function followCalendar(ui: UiState, example: UiState, previousExample: U
     edited: ui.edited,
     simulatorStep: ui.simulatorStep,
     order: ui.order,
+    reliefMode: ui.reliefMode,
     incomeYear: yearMoved ? example.incomeYear : ui.incomeYear,
   };
 }
@@ -286,53 +331,96 @@ export function itemisedReliefTotal(catalog: ReliefCatalogItem[], values: Record
   return catalog.reduce((sum, item) => sum + reliefItemAmount(item, values[item.id]), 0);
 }
 
-/** The "other reliefs" figure sent to the engine: the single total, or the itemised helper's sum. */
-export function otherReliefsOf(ui: UiState, rules: YearRules): number {
-  return ui.reliefMode === 'itemised' ? itemisedReliefTotal(rules.reliefCatalog, ui.reliefItems) : ui.reliefTotal;
+/**
+ * True while the "other reliefs" figure is still the example's: the person has neither typed a total nor
+ * entered anything in the itemised helper. (Numbers restored from storage without a record of what was edited
+ * are all treated as the person's own.)
+ */
+export function reliefsUntouched(ui: Pick<UiState, 'edited'>): boolean {
+  return !ui.edited.includes('reliefTotal') && !ui.edited.includes('reliefItems');
 }
 
 /**
- * Switching between one total and the itemised helper keeps the reliefs the same, the way switching between
- * monthly and annual pay keeps the pay the same.
- * - To the helper with nothing itemised yet: the typed total goes into the catalogue's free amount ("Any other
- *   relief"), so the plan does not change.
- * - Back to one total: the field takes the itemised sum.
+ * The "other reliefs" figure sent to the engine: the single total, or the itemised helper's sum. While the
+ * helper is open on an untouched example, the example's total is still the figure in use (and the page says
+ * so); the helper's own sum takes over as soon as something is entered in it.
+ */
+export function otherReliefsOf(ui: UiState, rules: YearRules): number {
+  if (ui.reliefMode !== 'itemised' || reliefsUntouched(ui)) return ui.reliefTotal;
+  return itemisedReliefTotal(rules.reliefCatalog, ui.reliefItems);
+}
+
+/**
+ * The change to make when the person switches between one total and the itemised helper.
+ *
+ * A figure the person typed is kept, the way switching between monthly and annual pay keeps the pay:
+ * - to the helper with nothing itemised yet: the typed total goes into the catalogue's free amount ("Any other
+ *   relief"), so the plan does not change;
+ * - back to one total: the field takes the itemised sum.
  * A list the person has already filled in is left as it is.
+ *
+ * The untouched example total is NOT the person's figure, so it is never carried into the helper: only the
+ * view changes. The helper opens empty, the example's total stays in the plan and stays labelled as the
+ * example's, and nothing is recorded as set by the person.
  */
 export function switchReliefMode(
-  ui: Pick<UiState, 'reliefMode' | 'reliefTotal' | 'reliefItems'>,
+  ui: Pick<UiState, 'reliefMode' | 'reliefTotal' | 'reliefItems' | 'edited'>,
   mode: ReliefMode,
   rules: YearRules,
-): Pick<UiState, 'reliefMode' | 'reliefTotal' | 'reliefItems'> {
-  if (mode === ui.reliefMode) return { reliefMode: ui.reliefMode, reliefTotal: ui.reliefTotal, reliefItems: ui.reliefItems };
+): Partial<Pick<UiState, 'reliefMode' | 'reliefTotal' | 'reliefItems'>> {
+  if (mode === ui.reliefMode) return {};
+  if (reliefsUntouched(ui)) return { reliefMode: mode };
   const itemised = itemisedReliefTotal(rules.reliefCatalog, ui.reliefItems);
   if (mode === 'itemised') {
     const free = rules.reliefCatalog.find((item) => item.id === 'other' && item.input === 'amount');
     if (itemised > 0 || ui.reliefTotal <= 0 || !free) {
-      return { reliefMode: mode, reliefTotal: ui.reliefTotal, reliefItems: ui.reliefItems };
+      return { reliefMode: mode, reliefItems: ui.reliefItems };
     }
-    return { reliefMode: mode, reliefTotal: ui.reliefTotal, reliefItems: { ...ui.reliefItems, [free.id]: ui.reliefTotal } };
+    return { reliefMode: mode, reliefItems: { ...ui.reliefItems, [free.id]: ui.reliefTotal } };
   }
-  return { reliefMode: mode, reliefTotal: Math.min(itemised, rules.personalReliefCap), reliefItems: ui.reliefItems };
+  return { reliefMode: mode, reliefTotal: Math.min(itemised, rules.personalReliefCap) };
+}
+
+/**
+ * The custom minimum saving per dollar: the rate the person picked from the list, or, until they have picked
+ * one, the default for their residency. Opening "Custom" is not picking a rate, so a foreigner who opens it
+ * starts from 11.5 cents and a citizen from 7 cents whatever either looked at before, and the starting figure
+ * moves with the residency the way the default preset does. Nobody lands on a minimum they never chose.
+ */
+export function customRateOf(ui: Pick<UiState, 'customRate' | 'residency' | 'edited'>): number {
+  const picked = ui.edited.includes('customRate') && Number.isFinite(ui.customRate) && ui.customRate >= 0;
+  return picked ? ui.customRate : defaultMinRate(ui.residency);
 }
 
 /**
  * The minimum saving per dollar for the chosen depth.
  * `currentMarginalRate` is the engine's baseline marginal rate; it is only used for "Top bracket only".
  */
-export function minSavingRateOf(ui: Pick<UiState, 'depth' | 'customRate'>, currentMarginalRate: number): number {
+export function minSavingRateOf(
+  ui: Pick<UiState, 'depth' | 'customRate' | 'residency' | 'edited'>,
+  currentMarginalRate: number,
+): number {
   switch (ui.depth) {
-    case 'worth':
-      return WORTH_IT_RATE;
     case 'every':
       return 0;
     case 'top':
       return Number.isFinite(currentMarginalRate) && currentMarginalRate > 0 ? currentMarginalRate : 0;
     case 'custom':
-      return Number.isFinite(ui.customRate) && ui.customRate > 0 ? ui.customRate : 0;
+      return customRateOf(ui);
+    case 'default':
     default:
-      return WORTH_IT_RATE;
+      // Follows the residency: switching to Foreigner while this preset is selected moves the rate with it.
+      return defaultMinRate(ui.residency);
   }
+}
+
+/**
+ * True while the default preset is the one selected, whether the person never touched the control or came
+ * back to it. The page then calls the minimum "the default minimum", not "the minimum you asked for": the
+ * figure is the page's, and it moves with the residency.
+ */
+export function minimumIsDefault(ui: Pick<UiState, 'depth'>): boolean {
+  return ui.depth === 'default';
 }
 
 /**
@@ -352,6 +440,7 @@ export function toPlannerInput(ui: UiState, today: string, currentMarginalRate =
       prYear: ui.prYear,
       ageAtYearEnd: ui.age,
       birthMonth: ui.birthMonth,
+      hasUnusedParenthoodTaxRebate: ui.hasPtr,
     },
     income: {
       monthlyOrdinaryWage: monthlyWage(ui),
@@ -410,9 +499,13 @@ const USE_FLAG: Record<LeverId, 'useSrs' | 'useCpfSelf' | 'useCpfFamily'> = {
 export interface WhatIf {
   /** 'noCashLimit': the cash limit lifted. 'switchOn': the switched-off schemes switched on. */
   kind: 'noCashLimit' | 'switchOn';
-  /** The schemes that would be switched on (empty for 'noCashLimit'). */
+  /**
+   * The schemes to switch on (empty for 'noCashLimit'): only those that receive money in `plan`. A scheme that
+   * would be switched on and get nothing is not named, so no saving is credited to it. From 55 that is the
+   * person's own CPF while the top-up that can still earn relief has not been entered.
+   */
   levers: LeverId[];
-  /** The engine's plan with that change. */
+  /** The engine's plan with exactly that change. */
   plan: Plan;
 }
 
@@ -423,27 +516,99 @@ export interface WhatIf {
  */
 export function whatIf(ui: UiState, today: string, result: PlannerResult): WhatIf | null {
   const { plan: current, levers } = result;
-  let changed: UiState;
-  let kind: WhatIf['kind'];
-  let off: LeverId[] = [];
-  if (current.bindingConstraint === 'cashBudget') {
-    kind = 'noCashLimit';
-    changed = { ...ui, cashLimit: null };
-  } else if (current.bindingConstraint === 'leverLimits') {
-    off = result.input.preferences.priority.filter((l) => levers[l].eligible && !levers[l].enabled);
-    if (off.length === 0) return null;
-    kind = 'switchOn';
-    changed = { ...ui };
-    for (const lever of off) changed[USE_FLAG[lever]] = true;
-  } else {
-    return null;
-  }
+  const switchedOn = (which: LeverId[]): UiState => {
+    const changed = { ...ui };
+    for (const lever of which) changed[USE_FLAG[lever]] = true;
+    return changed;
+  };
   try {
-    const alt = computePlan(changed, today).plan;
-    return alt.taxSaved > current.taxSaved ? { kind, levers: off, plan: alt } : null;
+    if (current.bindingConstraint === 'cashBudget') {
+      const alt = computePlan({ ...ui, cashLimit: null }, today).plan;
+      return alt.taxSaved > current.taxSaved ? { kind: 'noCashLimit', levers: [], plan: alt } : null;
+    }
+    if (current.bindingConstraint !== 'leverLimits') return null;
+    const off = result.input.preferences.priority.filter((l) => levers[l].eligible && !levers[l].enabled);
+    if (off.length === 0) return null;
+    // With everything that was left off switched on, see which of those schemes the engine puts money into.
+    const all = computePlan(switchedOn(off), today).plan;
+    const gaining = off.filter((l) => all.contributions[l] > current.contributions[l]);
+    if (gaining.length === 0) return null;
+    // The plan quoted is the engine's for exactly the change named: those schemes on, and no others.
+    const alt = gaining.length === off.length ? all : computePlan(switchedOn(gaining), today).plan;
+    return alt.taxSaved > current.taxSaved ? { kind: 'switchOn', levers: gaining, plan: alt } : null;
   } catch {
     return null;
   }
+}
+
+/**
+ * When nothing is recommended, the engine's result with no minimum saving at all ("Every tax dollar"), if that
+ * would put something in. The card offers that view from it, in the engine's own figures and with the
+ * engine's own cautions for that plan. null when the plan on screen is not S$0, when it already is the Every
+ * tax dollar view, once the deadline has passed, and when going all the way down finds nothing either.
+ */
+export function deeperPlan(ui: UiState, today: string, result: PlannerResult): PlannerResult | null {
+  if (result.plan.totalContribution > 0 || ui.depth === 'every' || result.monthlyPlan.daysToDeadline < 0) return null;
+  try {
+    const deeper = computePlan({ ...ui, depth: 'every' }, today);
+    return deeper.plan.totalContribution > 0 ? deeper : null;
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Simulator rows, with one at the plan's own total
+// ---------------------------------------------------------------------------
+
+/** A simulator row. `planTotal` marks the row added at the plan's own total. */
+export type SimulatorStep = SimulatorRow & { planTotal?: boolean };
+
+function toCents(amount: number): number {
+  return Math.round(amount * 100) / 100;
+}
+
+/**
+ * The engine's simulator rows, with one more at the plan's own total when the step does not land on it.
+ *
+ * A plan of S$17,240 seen in S$1,000 steps has rows at S$17,000 and S$18,000; the second mixes S$240 that the
+ * plan takes with S$760 it leaves, so its "per dollar" is neither rate. With a row at S$17,240 the last step
+ * inside the plan and the first one beyond it each show their own rate. The added row is the engine's
+ * `evaluate()` of the plan's own contributions; the row after it is re-based on it.
+ */
+export function simulatorSteps(result: PlannerResult): SimulatorStep[] {
+  const rows: SimulatorStep[] = result.simulator.map((row) => ({ ...row }));
+  const total = result.plan.totalContribution;
+  if (total <= 0 || rows.some((row) => row.contribution === total)) {
+    return rows.map((row) => (row.contribution === total && total > 0 ? { ...row, planTotal: true } : row));
+  }
+  const at = rows.findIndex((row) => row.contribution > total);
+  const previous = at > 0 ? rows[at - 1] : undefined;
+  const next = at >= 0 ? rows[at] : undefined;
+  // The plan never exceeds the schemes' room, so there is always a step beyond it; without one, leave the rows be.
+  if (!previous || !next) return rows;
+  let taxPayable: number;
+  try {
+    taxPayable = evaluate(result.input, result.plan.contributions).taxPayable;
+  } catch {
+    return rows;
+  }
+  const taxSaved = toCents(result.baseline.taxPayable - taxPayable);
+  const stepSaving = toCents(taxSaved - previous.taxSaved);
+  const added: SimulatorStep = {
+    contribution: total,
+    split: { ...result.plan.contributions },
+    taxPayable,
+    taxSaved,
+    stepSaving,
+    stepRate: stepSaving / (total - previous.contribution),
+    withinPlan: true,
+    planTotal: true,
+  };
+  const beyond = toCents(next.taxSaved - taxSaved);
+  rows[at] = { ...next, stepSaving: beyond, stepRate: beyond / (next.contribution - total) };
+  rows.splice(at, 0, added);
+  return rows;
 }
 
 /**
@@ -534,6 +699,8 @@ export function reviveUiState(raw: unknown, example: UiState): UiState | null {
     prYear: oneOf<PrYear>(raw.prYear, [1, 2, 3], example.prYear),
     age: wholeOr(raw.age, example.age, 0, 120),
     birthMonth: wholeOr(raw.birthMonth, example.birthMonth, 1, 12),
+    // Not in numbers saved by earlier versions: nobody had ticked a box that was not there.
+    hasPtr: boolOr(raw.hasPtr, false),
     payMode: oneOf<PayMode>(raw.payMode, ['monthly', 'annual'], example.payMode),
     salary: wholeOr(raw.salary, example.salary),
     salaryOther: wholeOrNull(raw.salaryOther),
@@ -555,7 +722,8 @@ export function reviveUiState(raw: unknown, example: UiState): UiState | null {
     useCpfFamily: boolOr(raw.useCpfFamily, example.useCpfFamily),
     cpfSelfRoom: wholeOrNull(raw.cpfSelfRoom),
     cpfFamilyMax: wholeOrNull(raw.cpfFamilyMax),
-    depth: oneOf<Depth>(raw.depth, ['worth', 'top', 'every', 'custom'], example.depth),
+    // Earlier versions called the default preset 'worth'. It was the default then and is the default now.
+    depth: oneOf<Depth>(raw.depth === 'worth' ? 'default' : raw.depth, ['default', 'top', 'every', 'custom'], example.depth),
     customRate,
     cashLimit: wholeOrNull(raw.cashLimit),
     order: oneOf<Order>(raw.order, ['flexibility', 'interest', 'family'], example.order),
